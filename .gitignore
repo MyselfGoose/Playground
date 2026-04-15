@@ -1,0 +1,251 @@
+# =============================================================================
+# Root .gitignore — Next.js frontend + Node/Express backend (+ common growth)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+**/node_modules/
+jspm_packages/
+
+# Package manager stores / caches (keep Yarn Berry tracked files if you use them)
+.pnpm-store/
+**/.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Allow Yarn Berry plug'n'play tracked dirs when opted-in (uncomment if you use them)
+# !.yarn/patches
+# !.yarn/plugins
+# !.yarn/releases
+# !.yarn/sdks
+# !.yarn/versions
+
+# -----------------------------------------------------------------------------
+# Environment & secrets (never commit real credentials)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env*.example
+!.env.local.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# -----------------------------------------------------------------------------
+# Build outputs & compiled artifacts
+# -----------------------------------------------------------------------------
+**/dist/
+**/build/
+**/out/
+.next/
+**/.next/
+.nuxt/
+.output/
+.svelte-kit/
+**/.turbo/
+**/.nx/cache/
+.parcel-cache/
+.vite/
+**/.vite/
+**/.swc/
+**/.esbuild/
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Next.js
+# -----------------------------------------------------------------------------
+next-env.d.ts
+.vercel/
+
+# -----------------------------------------------------------------------------
+# Logs, diagnostics, dumps
+# -----------------------------------------------------------------------------
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+bun-debug.log*
+*.log.*
+*.pid
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+core
+core.*
+*.stackdump
+*.dump
+
+# -----------------------------------------------------------------------------
+# Runtime / process managers
+# -----------------------------------------------------------------------------
+.pm2/
+pids/
+
+# -----------------------------------------------------------------------------
+# Testing & coverage
+# -----------------------------------------------------------------------------
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+*.lcov
+.jest/
+**/.jest/
+**/__screenshots__/
+**/test-results/
+**/playwright-report/
+**/playwright/.cache/
+**/blob-report/
+**/.vitest/
+**/.pytest_cache/
+htmlcov/
+
+# -----------------------------------------------------------------------------
+# Linters, formatters, typecheck caches
+# -----------------------------------------------------------------------------
+.eslintcache
+**/.eslintcache
+.prettiercache
+**/.prettiercache
+.ruff_cache/
+.mypy_cache/
+.stylelintcache
+
+# -----------------------------------------------------------------------------
+# Bundlers & tooling misc
+# -----------------------------------------------------------------------------
+.turbo/
+**/.turbo/
+.cache/
+**/.cache/
+*.tgz
+*.zip
+*.tar.gz
+
+# -----------------------------------------------------------------------------
+# Databases & local data (dev artifacts; remove lines if you intentionally commit)
+# -----------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+**/data/*.db
+redis-dump.rdb
+dump.rdb
+
+# -----------------------------------------------------------------------------
+# Docker / Compose overrides with secrets
+# -----------------------------------------------------------------------------
+**/.env.docker
+docker-compose.override.yml
+**/.docker/
+
+# -----------------------------------------------------------------------------
+# Infrastructure-as-code (local state)
+# -----------------------------------------------------------------------------
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.pulumi/
+
+# -----------------------------------------------------------------------------
+# Cloud provider CLIs (local creds / scratch)
+# -----------------------------------------------------------------------------
+.aws-sam/
+.serverless/
+.netlify/
+.wrangler/
+**/.vercel/
+.gcloud/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# -----------------------------------------------------------------------------
+# OS junk
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# -----------------------------------------------------------------------------
+# Editors & IDEs
+# -----------------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+.history/
+
+# VS Code / Cursor — keep shared settings if you want; ignore personal / machine noise
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# -----------------------------------------------------------------------------
+# Optional languages you might add later (scripts, workers, WASM)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+.envrc
+target/
+**/target/
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+*.local
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+.sass-cache/
+.grunt/
+bower_components/
