@@ -122,8 +122,11 @@ export function NpatProvider({ children }) {
     const socket = io(`${API_BASE}/npat`, {
       path: "/socket.io",
       withCredentials: true,
-      transports: ["websocket", "polling"],
+      // Polling first avoids Firefox/WebSocket upgrade races during fast navigation (e.g. play → result).
+      transports: ["polling", "websocket"],
       autoConnect: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelayMax: 5000,
     });
     socketRef.current = socket;
 
@@ -138,8 +141,8 @@ export function NpatProvider({ children }) {
     });
     socket.on("disconnect", () => {
       setConnected(false);
-      // Clear the room so stale snapshots do not drive redirects during reconnection.
-      setRoom(null);
+      // Keep a FINISHED room snapshot so the results route can still render while the socket reconnects.
+      setRoom((prev) => (prev?.state === "FINISHED" ? prev : null));
     });
     socket.on("connect_error", (err) => {
       setSocketErrorState(err?.message ?? "Could not connect");

@@ -65,6 +65,13 @@ function NpatResultInner() {
   const rounds = room?.results?.rounds;
   const list = Array.isArray(rounds) ? rounds : [];
 
+  /** Still show results from the last `game_finished` / join snapshot while the socket is reconnecting. */
+  const hasFinishedSnapshot =
+    Boolean(normalizedCode) &&
+    room?.code === normalizedCode &&
+    room?.state === "FINISHED" &&
+    room?.results != null;
+
   if (!code) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center text-ink-muted">
@@ -87,7 +94,7 @@ function NpatResultInner() {
     );
   }
 
-  if (!connected) {
+  if (!connected && !hasFinishedSnapshot) {
     return (
       <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-ink-muted">
         <p className="text-sm font-bold">Connecting to game server…</p>
@@ -122,8 +129,12 @@ function NpatResultInner() {
     );
   }
 
-  const roomSynced = joinPhase === "ready" && normalizedCode && room?.code === normalizedCode;
-  const blocking = joinPhase === "idle" || joinPhase === "joining" || !roomSynced;
+  const roomSynced =
+    Boolean(normalizedCode) &&
+    room?.code === normalizedCode &&
+    (joinPhase === "ready" || hasFinishedSnapshot);
+
+  const blocking = !roomSynced && (joinPhase === "idle" || joinPhase === "joining");
 
   if (blocking) {
     return (
@@ -162,6 +173,11 @@ function NpatResultInner() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-10 sm:px-6 sm:py-14">
+      {!connected && hasFinishedSnapshot ? (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900">
+          Reconnecting to the game server… You can still browse the last results below.
+        </p>
+      ) : null}
       <motion.header
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

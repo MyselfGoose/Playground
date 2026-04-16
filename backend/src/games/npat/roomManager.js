@@ -279,7 +279,8 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
 
     return roomLock.run(code, async () => {
       const isReturning = engine.players.has(userId);
-      if (engine.state === 'FINISHED') {
+      // Finished games: only roster members may re-attach (results page, reconnect). Strangers stay out.
+      if (engine.state === 'FINISHED' && !isReturning) {
         const err = new Error('Game has already finished');
         /** @type {any} */ (err).code = 'GAME_FINISHED';
         throw err;
