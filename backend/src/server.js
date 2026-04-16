@@ -31,9 +31,16 @@ export async function listen(server, { port, host, logger }) {
  *   logger: import('pino').Logger,
  *   timeoutMs?: number,
  *   onBeforeExit?: () => Promise<void>,
+ *   beforeHttpClose?: () => Promise<void>,
  * }} params
  */
-export function setupGracefulShutdown({ server, logger, timeoutMs = 10_000, onBeforeExit }) {
+export function setupGracefulShutdown({
+  server,
+  logger,
+  timeoutMs = 10_000,
+  onBeforeExit,
+  beforeHttpClose,
+}) {
   let shuttingDown = false;
 
   async function shutdown(signal) {
@@ -47,6 +54,14 @@ export function setupGracefulShutdown({ server, logger, timeoutMs = 10_000, onBe
       logger.error('shutdown_timeout_forcing_exit');
       process.exit(1);
     }, timeoutMs);
+
+    if (beforeHttpClose) {
+      try {
+        await beforeHttpClose();
+      } catch (err) {
+        logger.error({ err }, 'shutdown_beforeHttpClose_error');
+      }
+    }
 
     await new Promise((resolve) => {
       server.close((err) => {

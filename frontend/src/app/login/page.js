@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
@@ -10,9 +10,10 @@ import { Button } from "../../components/Button.jsx";
 const passwordHint =
   "Use the same strong password rules as registration (12+ chars, mixed case, number, symbol).";
 
-export default function LoginPage() {
+function LoginForm() {
   const { login } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +25,8 @@ export default function LoginPage() {
     setPending(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      router.push("/");
+      const next = searchParams.get("next");
+      router.push(next && next.startsWith("/") ? next : "/");
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Something went wrong";
@@ -93,5 +95,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">Loading…</div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

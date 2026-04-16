@@ -78,6 +78,15 @@ export const envSchema = z
       .string()
       .optional()
       .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+
+    NPAT_MAX_PLAYERS: z.coerce.number().int().min(2).max(24).default(8),
+    NPAT_ROOM_CODE_LENGTH: z.coerce.number().int().min(4).max(6).default(4),
+    NPAT_MIN_PLAYERS_TO_START: z.coerce.number().int().min(2).max(8).default(2),
+    NPAT_SUBMIT_RATE_MS: z.coerce.number().int().min(50).max(5000).default(400),
+    NPAT_SWITCH_TEAM_RATE_MS: z.coerce.number().int().min(100).max(10_000).default(600),
+    NPAT_ROUND_END_COUNTDOWN_MS: z.coerce.number().int().min(1000).max(120_000).default(10_000),
+    NPAT_BETWEEN_ROUNDS_MS: z.coerce.number().int().min(1000).max(120_000).default(5000),
+    NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(1000),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

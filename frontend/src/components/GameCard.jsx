@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "./Button.jsx";
 
@@ -21,9 +22,11 @@ const tilts = [
 
 /** @param {{ game: import('../lib/games.js').Game; index: number }} props */
 export function GameCard({ game, index }) {
+  const router = useRouter();
   const reduce = useReducedMotion();
   const tilt = tilts[index % tilts.length];
   const accent = accentStyles[game.accent] ?? accentStyles.lavender;
+  const isNpat = game.id === "name-place-animal-thing";
 
   return (
     <motion.article
@@ -49,8 +52,12 @@ export function GameCard({ game, index }) {
         >
           {game.emoji}
         </span>
-        <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted ring-1 ring-ink/5">
-          Soon
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ring-1 ring-ink/5 ${
+            isNpat ? "bg-mint/50 text-ink" : "bg-white/60 text-ink-muted"
+          }`}
+        >
+          {isNpat ? "Live" : "Soon"}
         </span>
       </div>
       <div>
@@ -62,14 +69,25 @@ export function GameCard({ game, index }) {
         </p>
       </div>
       <div className="mt-auto pt-2">
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full"
-          onClick={(e) => e.preventDefault()}
-        >
-          Play
-        </Button>
+        {isNpat ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() => router.push("/games/npat")}
+          >
+            Play
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={(e) => e.preventDefault()}
+          >
+            Play
+          </Button>
+        )}
       </div>
     </motion.article>
   );
