@@ -87,6 +87,8 @@ export const envSchema = z
     NPAT_ROUND_END_COUNTDOWN_MS: z.coerce.number().int().min(1000).max(120_000).default(10_000),
     NPAT_BETWEEN_ROUNDS_MS: z.coerce.number().int().min(1000).max(120_000).default(5000),
     NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(1000),
+    NPAT_EARLY_FINISH_PROPOSE_RATE_MS: z.coerce.number().int().min(500).max(60_000).default(4000),
+    NPAT_EARLY_FINISH_VOTE_RATE_MS: z.coerce.number().int().min(100).max(10_000).default(400),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

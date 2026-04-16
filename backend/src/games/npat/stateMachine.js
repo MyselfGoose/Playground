@@ -23,7 +23,7 @@ export function canTransition(from, to, ctx = {}) {
     case GAME_STATES.WAITING:
       return to === GAME_STATES.STARTING;
     case GAME_STATES.STARTING:
-      return to === GAME_STATES.IN_ROUND;
+      return to === GAME_STATES.IN_ROUND || to === GAME_STATES.FINISHED;
     case GAME_STATES.IN_ROUND:
       if (to === GAME_STATES.IN_ROUND && (rp === 'collecting' || rp === 'countdown')) {
         return true;

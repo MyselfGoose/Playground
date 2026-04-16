@@ -63,6 +63,8 @@ const npatRoomSchema = new mongoose.Schema(
     players: { type: [playerSchema], default: [] },
     teams: { type: [teamSchema], default: [] },
     roundsHistory: { type: [roundSnapshotSchema], default: [] },
+    /** Active early-finish vote: { proposedBy, votes: { [userId]: 'yes'|'no' }, proposedAt } */
+    earlyFinishProposal: { type: mongoose.Schema.Types.Mixed, default: null },
     /** Last serialized public snapshot for debugging / future cold resume */
     lastPublicSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
     /** Monotonic version for optimistic concurrency. */

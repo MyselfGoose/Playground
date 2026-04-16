@@ -2,10 +2,12 @@ import { z } from 'zod';
 import {
   createJoinRoomBodySchema,
   createRoomSchema,
+  proposeEarlyFinishSchema,
   setReadySchema,
   startGameSchema,
   submitFieldSchema,
   switchTeamSchema,
+  voteEarlyFinishSchema,
 } from './validation/npat.schemas.js';
 
 /**
@@ -225,6 +227,26 @@ export function installHandlers({ socket, registry, env, logger }) {
       const engine = requireEngine();
       engine.submitField(userId, data.field, data.value);
       return { field: data.field };
+    },
+  });
+
+  register('propose_early_finish', {
+    schema: proposeEarlyFinishSchema,
+    rateLimit: { key: 'propose_early_finish', intervalMs: env.NPAT_EARLY_FINISH_PROPOSE_RATE_MS },
+    handler: () => {
+      const engine = requireEngine();
+      engine.proposeEarlyFinish(userId);
+      return { room: engine.toPublicDto() };
+    },
+  });
+
+  register('vote_early_finish', {
+    schema: voteEarlyFinishSchema,
+    rateLimit: { key: 'vote_early_finish', intervalMs: env.NPAT_EARLY_FINISH_VOTE_RATE_MS },
+    handler: ({ data }) => {
+      const engine = requireEngine();
+      engine.voteEarlyFinish(userId, data.accept);
+      return { room: engine.toPublicDto() };
     },
   });
 }

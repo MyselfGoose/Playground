@@ -248,6 +248,16 @@ export function NpatProvider({ children }) {
     [],
   );
 
+  const proposeEarlyFinish = useCallback(
+    () => emitAck(socketRef.current, "propose_early_finish", {}),
+    [],
+  );
+
+  const voteEarlyFinish = useCallback(
+    (accept) => emitAck(socketRef.current, "vote_early_finish", { accept }),
+    [],
+  );
+
   const value = useMemo(
     () => ({
       room,
@@ -265,6 +275,8 @@ export function NpatProvider({ children }) {
       switchTeam,
       startGame,
       submitField,
+      proposeEarlyFinish,
+      voteEarlyFinish,
       localUserId: user?.id ?? null,
     }),
     [
@@ -283,6 +295,8 @@ export function NpatProvider({ children }) {
       switchTeam,
       startGame,
       submitField,
+      proposeEarlyFinish,
+      voteEarlyFinish,
       user?.id,
     ],
   );

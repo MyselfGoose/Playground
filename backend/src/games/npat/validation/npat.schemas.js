@@ -39,3 +39,9 @@ export const submitFieldSchema = z.object({
     .min(1, 'Answer cannot be empty')
     .max(120, 'Answer is too long'),
 });
+
+export const proposeEarlyFinishSchema = z.object({});
+
+export const voteEarlyFinishSchema = z.object({
+  accept: z.boolean(),
+});

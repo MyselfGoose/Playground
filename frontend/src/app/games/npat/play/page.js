@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { RoundFields } from "../RoundFields.jsx";
+import { EarlyFinishVote } from "../EarlyFinishVote.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
@@ -20,6 +21,8 @@ function NpatPlayInner() {
     connected,
     joinRoom,
     submitField,
+    proposeEarlyFinish,
+    voteEarlyFinish,
     localUserId,
     socketError,
     clearSocketError,
@@ -237,6 +240,13 @@ function NpatPlayInner() {
         canSubmit={canSubmit}
         mine={mine}
         onSubmit={(field, value) => submitField(field, value)}
+      />
+
+      <EarlyFinishVote
+        room={room}
+        localUserId={localUserId}
+        proposeEarlyFinish={proposeEarlyFinish}
+        voteEarlyFinish={voteEarlyFinish}
       />
     </div>
   );

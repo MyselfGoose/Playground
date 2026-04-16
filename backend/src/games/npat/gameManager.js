@@ -138,6 +138,12 @@ export class NpatRoomEngine {
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
+
+    /**
+     * Active vote to end the game early. Everyone connected must vote yes; any no cancels.
+     * @type {{ proposedBy: string, votes: Record<string, 'yes' | 'no'>, proposedAt: number } | null}
+     */
+    this.earlyFinishProposal = null;
   }
 
   /**
@@ -199,6 +205,20 @@ export class NpatRoomEngine {
         endedAt: r.endedAt instanceof Date ? r.endedAt.toISOString() : String(r.endedAt),
       })),
     };
+
+    const ef = doc.earlyFinishProposal;
+    if (ef && typeof ef === 'object' && typeof ef.proposedBy === 'string' && ef.votes && typeof ef.votes === 'object') {
+      /** @type {Record<string, 'yes' | 'no'>} */
+      const votes = {};
+      for (const [k, v] of Object.entries(ef.votes)) {
+        if (v === 'yes' || v === 'no') votes[k] = v;
+      }
+      engine.earlyFinishProposal = {
+        proposedBy: String(ef.proposedBy),
+        votes,
+        proposedAt: typeof ef.proposedAt === 'number' ? ef.proposedAt : Date.now(),
+      };
+    }
 
     engine._resumeTimers();
     return engine;
@@ -275,6 +295,7 @@ export class NpatRoomEngine {
       players: this.playersToMongo(),
       teams: this.teams,
       lastPublicSnapshot: this.toPublicDto(),
+      earlyFinishProposal: this.earlyFinishProposal,
     };
   }
 
@@ -418,6 +439,7 @@ export class NpatRoomEngine {
     this.submissions = new Map();
     this.results = { rounds: [] };
     this.roundStartAt = Date.now();
+    this.earlyFinishProposal = null;
 
     void this.persist(
       {
@@ -428,6 +450,7 @@ export class NpatRoomEngine {
         currentLetter: '',
         roundsHistory: [],
         currentRound: this._currentRoundDoc(),
+        earlyFinishProposal: null,
       },
       undefined,
     );
@@ -581,6 +604,7 @@ export class NpatRoomEngine {
   _finishGame() {
     this.clearTimers();
     if (this.state === GAME_STATES.FINISHED) return;
+    this.earlyFinishProposal = null;
     assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
@@ -595,11 +619,146 @@ export class NpatRoomEngine {
         roundPhase: this.roundPhase,
         finishedAt: new Date(),
         currentRound: this._currentRoundDoc(),
+        earlyFinishProposal: null,
       },
       undefined,
     );
 
     this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+  }
+
+  /**
+   * Snapshot the in-progress round into `results` if we are mid-round and it is not already
+   * recorded (e.g. early finish during IN_ROUND).
+   */
+  _appendCurrentRoundToResultsIfNeeded() {
+    if (this.state !== GAME_STATES.IN_ROUND) return;
+    if (this.currentRoundIndex < 0) return;
+    if (this.results.rounds.some((r) => r.roundIndex === this.currentRoundIndex)) return;
+    const letter = this.currentLetter ?? '?';
+    const roundIndex = this.currentRoundIndex;
+    /** @type {Record<string, Record<string, string>>} */
+    const snap = {};
+    for (const [uid, row] of this.submissions) {
+      snap[uid] = { ...row };
+    }
+    const endedAt = new Date().toISOString();
+    this.results.rounds.push({
+      roundIndex,
+      letter,
+      submissions: snap,
+      endedAt,
+    });
+    void this.persist(
+      {
+        currentRound: this._currentRoundDoc(),
+        earlyFinishProposal: null,
+      },
+      { roundIndex, letter, submissions: snap, endedAt: new Date() },
+    );
+  }
+
+  /**
+   * End the game after a successful unanimous early-finish vote.
+   */
+  _finishGameEarly() {
+    this.earlyFinishProposal = null;
+    this.clearTimers();
+    if (this.state === GAME_STATES.FINISHED) return;
+    if (this.state === GAME_STATES.IN_ROUND) {
+      this._appendCurrentRoundToResultsIfNeeded();
+    }
+    assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.FINISHED;
+    this.roundPhase = 'none';
+    this.roundStartAt = null;
+    this.roundEndDeadline = null;
+    this.betweenEndDeadline = null;
+    this.currentLetter = null;
+
+    void this.persist(
+      {
+        engineState: this.state,
+        roundPhase: this.roundPhase,
+        finishedAt: new Date(),
+        currentRound: this._currentRoundDoc(),
+        earlyFinishProposal: null,
+      },
+      undefined,
+    );
+
+    this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
+    this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+  }
+
+  _evaluateEarlyFinishVotes() {
+    if (!this.earlyFinishProposal) return;
+    const connected = [...this.players.values()].filter((p) => p.connected);
+    if (connected.length === 0) return;
+    const { votes } = this.earlyFinishProposal;
+    if (connected.some((p) => votes[p.userId] === 'no')) {
+      this.earlyFinishProposal = null;
+      void this.persist({ earlyFinishProposal: null }, undefined);
+      this.emit('room_update', { room: this.toPublicDto() });
+      return;
+    }
+    if (connected.every((p) => votes[p.userId] === 'yes')) {
+      this._finishGameEarly();
+      return;
+    }
+    this.emit('room_update', { room: this.toPublicDto() });
+  }
+
+  /**
+   * Start (or replace) an early-finish vote. Proposer is recorded as voting yes.
+   * @param {string} userId
+   */
+  proposeEarlyFinish(userId) {
+    const allowed = new Set([
+      GAME_STATES.STARTING,
+      GAME_STATES.IN_ROUND,
+      GAME_STATES.BETWEEN_ROUNDS,
+    ]);
+    if (!allowed.has(this.state)) {
+      const err = new Error('The game cannot be ended right now');
+      /** @type {any} */ (err).code = 'EARLY_FINISH_NOT_ALLOWED';
+      throw err;
+    }
+    const p = this.players.get(userId);
+    if (!p?.connected) {
+      const err = new Error('Player not in room');
+      /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+      throw err;
+    }
+    this.earlyFinishProposal = {
+      proposedBy: userId,
+      votes: { [userId]: 'yes' },
+      proposedAt: Date.now(),
+    };
+    void this.persist({ earlyFinishProposal: this.earlyFinishProposal }, undefined);
+    this._evaluateEarlyFinishVotes();
+  }
+
+  /**
+   * Cast yes/no on the active early-finish vote.
+   * @param {string} userId
+   * @param {boolean} accept
+   */
+  voteEarlyFinish(userId, accept) {
+    if (!this.earlyFinishProposal) {
+      const err = new Error('No vote to end the game is active');
+      /** @type {any} */ (err).code = 'NO_EARLY_FINISH_VOTE';
+      throw err;
+    }
+    const p = this.players.get(userId);
+    if (!p?.connected) {
+      const err = new Error('Player not in room');
+      /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+      throw err;
+    }
+    this.earlyFinishProposal.votes[userId] = accept ? 'yes' : 'no';
+    void this.persist({ earlyFinishProposal: this.earlyFinishProposal }, undefined);
+    this._evaluateEarlyFinishVotes();
   }
 
   /**
@@ -731,6 +890,14 @@ export class NpatRoomEngine {
       betweenRoundsEndsAt: this.betweenEndDeadline,
       letterPoolRemaining: this.letterPool.length,
       results: this.state === GAME_STATES.FINISHED ? this.results : null,
+      earlyFinish:
+        this.state !== GAME_STATES.FINISHED && this.earlyFinishProposal
+          ? {
+              proposedBy: this.earlyFinishProposal.proposedBy,
+              votes: { ...this.earlyFinishProposal.votes },
+              proposedAt: this.earlyFinishProposal.proposedAt,
+            }
+          : null,
     };
   }
 }
