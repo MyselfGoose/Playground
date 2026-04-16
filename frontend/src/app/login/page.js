@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "../../lib/api.js";
@@ -10,8 +10,14 @@ import { Button } from "../../components/Button.jsx";
 const passwordHint =
   "Use the same strong password rules as registration (12+ chars, mixed case, number, symbol).";
 
+function safeNextPath(raw) {
+  if (typeof raw !== "string" || !raw.startsWith("/")) return "/";
+  if (raw.startsWith("//")) return "/";
+  return raw;
+}
+
 function LoginForm() {
-  const { login } = useUser();
+  const { login, user, loading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -19,14 +25,19 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(safeNextPath(searchParams.get("next")));
+    }
+  }, [loading, user, router, searchParams]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setPending(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      const next = searchParams.get("next");
-      router.push(next && next.startsWith("/") ? next : "/");
+      router.push(safeNextPath(searchParams.get("next")));
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Something went wrong";

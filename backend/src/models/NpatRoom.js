@@ -30,6 +30,23 @@ const roundSnapshotSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/**
+ * Live round state persisted on every round transition and on every answer submission.
+ * This is what makes mid-round rehydration possible after a restart.
+ */
+const currentRoundSchema = new mongoose.Schema(
+  {
+    index: { type: Number, default: -1 },
+    letter: { type: String, default: '' },
+    phase: { type: String, default: 'none' }, // 'none' | 'collecting' | 'countdown'
+    startsAt: { type: Date, default: null },
+    endsAt: { type: Date, default: null },
+    /** Map<userId, Record<fieldName, value>> */
+    submissions: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false },
+);
+
 const npatRoomSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, unique: true, index: true },
@@ -42,14 +59,20 @@ const npatRoomSchema = new mongoose.Schema(
     letterPool: { type: [String], default: [] },
     currentRoundIndex: { type: Number, default: -1 },
     currentLetter: { type: String, default: '' },
+    currentRound: { type: currentRoundSchema, default: () => ({}) },
     players: { type: [playerSchema], default: [] },
     teams: { type: [teamSchema], default: [] },
     roundsHistory: { type: [roundSnapshotSchema], default: [] },
     /** Last serialized public snapshot for debugging / future cold resume */
     lastPublicSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+    /** Monotonic version for optimistic concurrency. */
+    version: { type: Number, default: 0 },
     finishedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
+
+npatRoomSchema.index({ 'players.userId': 1, finishedAt: 1 });
+npatRoomSchema.index({ finishedAt: 1, engineState: 1 });
 
 export const NpatRoom = mongoose.models.NpatRoom ?? mongoose.model('NpatRoom', npatRoomSchema);

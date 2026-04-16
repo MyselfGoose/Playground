@@ -37,6 +37,7 @@ function mapUser(u) {
 export function UserProvider({ children }) {
   const [user, setUserState] = useState(/** @type {AuthUser | null} */ (null));
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState(/** @type {string | null} */ (null));
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -45,25 +46,23 @@ export function UserProvider({ children }) {
 
     async function bootstrap() {
       setLoading(true);
+      setSessionError(null);
       try {
         const me = await apiFetch("/api/v1/auth/me", { signal: ac.signal });
         if (!mountedRef.current || ac.signal.aborted) return;
         setUserState(mapUser(me?.data?.user));
       } catch (e) {
         if (e?.name === "AbortError" || ac.signal.aborted) return;
+        if (!mountedRef.current) return;
         if (e instanceof ApiError && e.status === 401) {
-          try {
-            await apiFetch("/api/v1/auth/refresh", { method: "POST", signal: ac.signal });
-            const me = await apiFetch("/api/v1/auth/me", { signal: ac.signal });
-            if (!mountedRef.current || ac.signal.aborted) return;
-            setUserState(mapUser(me?.data?.user));
-          } catch {
-            if (!mountedRef.current || ac.signal.aborted) return;
-            setUserState(null);
-          }
-        } else {
-          if (!mountedRef.current || ac.signal.aborted) return;
+          // apiFetch already tried /refresh. A 401 here means no valid session.
           setUserState(null);
+        } else if (e instanceof ApiError && e.status >= 500) {
+          // Server error — keep whatever we have (nothing on bootstrap) and surface the error.
+          setSessionError(e.message);
+        } else {
+          // Network / CORS / parse error — surface but don't flip to logged-out.
+          setSessionError(e?.message ?? "Could not reach the server");
         }
       } finally {
         if (mountedRef.current && !ac.signal.aborted) {
@@ -84,42 +83,44 @@ export function UserProvider({ children }) {
       const me = await apiFetch("/api/v1/auth/me");
       const next = mapUser(me?.data?.user);
       setUserState(next);
+      setSessionError(null);
       return next;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        try {
-          await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-          const me = await apiFetch("/api/v1/auth/me");
-          const next = mapUser(me?.data?.user);
-          setUserState(next);
-          return next;
-        } catch {
-          setUserState(null);
-          return null;
-        }
+        setUserState(null);
+        return null;
       }
-      setUserState(null);
-      return null;
+      setSessionError(e instanceof Error ? e.message : "Could not reach the server");
+      return user;
     }
-  }, []);
+  }, [user]);
 
   const login = useCallback(async ({ email, password }) => {
     const json = await apiFetch("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email: typeof email === "string" ? email.trim().toLowerCase() : email,
+        password,
+      }),
     });
     const next = mapUser(json?.data?.user);
     setUserState(next);
+    setSessionError(null);
     return next;
   }, []);
 
   const register = useCallback(async ({ username, email, password }) => {
     const json = await apiFetch("/api/v1/auth/register", {
       method: "POST",
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({
+        username: typeof username === "string" ? username.trim() : username,
+        email: typeof email === "string" ? email.trim().toLowerCase() : email,
+        password,
+      }),
     });
     const next = mapUser(json?.data?.user);
     setUserState(next);
+    setSessionError(null);
     return next;
   }, []);
 
@@ -130,18 +131,20 @@ export function UserProvider({ children }) {
       // Still drop client state; server clears cookies when reachable.
     }
     setUserState(null);
+    setSessionError(null);
   }, []);
 
   const value = useMemo(
     () => ({
       user,
       loading,
+      sessionError,
       login,
       register,
       logout,
       refreshUser,
     }),
-    [user, loading, login, register, logout, refreshUser],
+    [user, loading, sessionError, login, register, logout, refreshUser],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

@@ -1,6 +1,7 @@
 import { ACCESS_TOKEN_COOKIE } from '../constants/auth.js';
 import { AppError } from '../errors/AppError.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { refreshSessionRepository } from '../repositories/refreshSessionRepository.js';
 
 /**
  * @param {import('express').Request} req
@@ -14,13 +15,39 @@ export function readAccessToken(req) {
 }
 
 /**
+ * Verify an access JWT and resolve the authenticated user. Used by both HTTP `requireAuth`
+ * and the socket handshake so both layers apply the same policy (JWT valid + user active +
+ * refresh session still live).
+ *
+ * @param {string} token
+ * @param {{ tokenService: ReturnType<import('../services/tokenService.js').createTokenService> }} deps
+ */
+export async function resolveAccessContext(token, { tokenService }) {
+  const { sub, sid } = await tokenService.verifyAccessToken(token);
+  const user = await userRepository.findByIdLean(sub);
+  if (!user?.isActive) {
+    throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+  }
+  const sessionAlive = await refreshSessionRepository.isJtiActive(sid);
+  if (!sessionAlive) {
+    throw new AppError(401, 'Session revoked', { code: 'SESSION_REVOKED', expose: true });
+  }
+  return {
+    id: String(user._id),
+    username: user.username,
+    roles: user.roles,
+    sid,
+  };
+}
+
+/**
  * @param {{
  *   tokenService: ReturnType<import('../services/tokenService.js').createTokenService>,
  * }} params
  */
 export function createAuthMiddleware({ tokenService }) {
   /**
-   * Verifies access JWT, loads user, attaches `req.user`. Fails with 401 if missing or invalid.
+   * Verifies access JWT, checks session liveness, loads user, attaches `req.user`. Fails with 401.
    * @type {import('express').RequestHandler}
    */
   async function requireAuth(req, res, next) {
@@ -29,17 +56,7 @@ export function createAuthMiddleware({ tokenService }) {
       if (!token) {
         throw new AppError(401, 'Authentication required', { code: 'UNAUTHENTICATED', expose: true });
       }
-      const { sub, sid } = await tokenService.verifyAccessToken(token);
-      const user = await userRepository.findByIdLean(sub);
-      if (!user?.isActive) {
-        throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
-      }
-      req.user = {
-        id: String(user._id),
-        username: user.username,
-        roles: user.roles,
-        sid,
-      };
+      req.user = await resolveAccessContext(token, { tokenService });
       next();
     } catch (err) {
       next(err);

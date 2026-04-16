@@ -39,6 +39,11 @@ export function createAuthService({ env, passwordService, tokenService }) {
     return { user, accessToken, refreshToken };
   }
 
+  /** Mongo duplicate-key errors are thrown with `code === 11000`. */
+  function isDuplicateKeyError(err) {
+    return Boolean(err && typeof err === 'object' && /** @type {any} */ (err).code === 11000);
+  }
+
   return {
     /**
      * @param {{ username: string, email: string, password: string }} input
@@ -57,12 +62,24 @@ export function createAuthService({ env, passwordService, tokenService }) {
         throw new AppError(409, 'Email already registered', { code: 'EMAIL_TAKEN', expose: true });
       }
       const passwordHash = await passwordService.hash(password);
-      const created = await userRepository.createUser({
-        username,
-        email: email.toLowerCase(),
-        passwordHash,
-        roles: ['user'],
-      });
+      let created;
+      try {
+        created = await userRepository.createUser({
+          username,
+          email,
+          passwordHash,
+          roles: ['user'],
+        });
+      } catch (err) {
+        if (isDuplicateKeyError(err)) {
+          const field = /** @type {any} */ (err)?.keyPattern?.email ? 'EMAIL_TAKEN' : 'USERNAME_TAKEN';
+          throw new AppError(409, 'Username or email already taken', {
+            code: field,
+            expose: true,
+          });
+        }
+        throw err;
+      }
       return issueSessionAndTokens(
         { _id: created._id, roles: /** @type {string[]} */ (created.roles) },
         meta,
@@ -96,39 +113,53 @@ export function createAuthService({ env, passwordService, tokenService }) {
     },
 
     /**
+     * Atomically rotate the refresh session. Exactly one concurrent caller with the same refresh
+     * token wins; the others fail. Reuse of an already-rotated/revoked token revokes all sessions.
+     *
      * @param {string} refreshToken
      * @param {{ userAgent?: string, ip?: string }} meta
      */
     async refresh(refreshToken, meta) {
       const { sub, jti } = await tokenService.verifyRefreshToken(refreshToken);
-      const session = await refreshSessionRepository.findByJti(jti);
-      if (!session) {
-        throw new AppError(401, 'Invalid credentials', { code: 'INVALID_REFRESH', expose: true });
-      }
-      if (session.revokedAt || session.replacedByJti) {
-        await refreshSessionRepository.revokeAllForUser(session.userId);
-        throw new AppError(401, 'Invalid credentials', { code: 'TOKEN_REUSE', expose: true });
-      }
-      if (session.expiresAt <= new Date()) {
-        throw new AppError(401, 'Invalid credentials', { code: 'SESSION_EXPIRED', expose: true });
-      }
-      if (String(session.userId) !== sub) {
-        throw new AppError(401, 'Invalid credentials', { code: 'INVALID_REFRESH', expose: true });
-      }
 
       const newSessionJti = newJti();
+      const rotated = await refreshSessionRepository.atomicRotate(jti, newSessionJti);
+
+      if (!rotated) {
+        // Either the session never existed, is expired, is already revoked, or was already
+        // rotated by a concurrent refresh. Disambiguate by loading the row directly.
+        const stale = await refreshSessionRepository.findByJti(jti);
+        if (!stale) {
+          throw new AppError(401, 'Invalid credentials', { code: 'INVALID_REFRESH', expose: true });
+        }
+        if (stale.replacedByJti || stale.revokedAt) {
+          // Token reuse: someone is presenting a refresh token that has already been rotated or
+          // revoked. Nuke every session for this user.
+          await refreshSessionRepository.revokeAllForUser(stale.userId);
+          throw new AppError(401, 'Invalid credentials', { code: 'TOKEN_REUSE', expose: true });
+        }
+        throw new AppError(401, 'Invalid credentials', { code: 'SESSION_EXPIRED', expose: true });
+      }
+
+      if (String(rotated.userId) !== sub) {
+        // JWT `sub` mismatch with stored session — treat as tamper.
+        await refreshSessionRepository.revokeAllForUser(rotated.userId);
+        throw new AppError(401, 'Invalid credentials', { code: 'TOKEN_REUSE', expose: true });
+      }
+
       const expiresAt = new Date(Date.now() + refreshTtlMs());
       await refreshSessionRepository.createSession({
-        userId: session.userId,
+        userId: rotated.userId,
         jti: newSessionJti,
         expiresAt,
         userAgent: meta.userAgent,
         createdFromIp: meta.ip,
       });
-      await refreshSessionRepository.markSessionRotated(jti, newSessionJti);
 
       const user = await userRepository.findByIdLean(sub);
       if (!user?.isActive) {
+        // User was deactivated between refreshes. Keep rotation state tidy.
+        await refreshSessionRepository.revokeByJti(newSessionJti);
         throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
       }
       const refreshOut = await tokenService.signRefreshToken(sub, newSessionJti);

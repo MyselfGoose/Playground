@@ -129,7 +129,18 @@ export const envSchema = z
   .transform((data) => ({
     ...data,
     COOKIE_SECURE: data.COOKIE_SECURE ?? data.NODE_ENV === 'production',
-  }));
+  }))
+  .superRefine((data, ctx) => {
+    // Browsers silently drop SameSite=None cookies that are not also Secure. Fail loud at boot
+    // so this misconfiguration doesn't masquerade as an auth bug in production.
+    if (data.COOKIE_SAME_SITE === 'none' && !data.COOKIE_SECURE) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'COOKIE_SAME_SITE=none requires COOKIE_SECURE=true (HTTPS only)',
+        path: ['COOKIE_SAME_SITE'],
+      });
+    }
+  });
 
 /** @typedef {z.infer<typeof envSchema>} Env */
 

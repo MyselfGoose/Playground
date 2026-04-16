@@ -89,17 +89,33 @@ export function createAuthController({ authService, env }) {
       const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
       if (!refreshToken) {
         clearAuthCookies(res);
-        req.log?.warn({ event: 'auth_refresh_failure', reason: 'missing_refresh_cookie' }, 'auth_event');
+        req.log?.warn(
+          { event: 'auth_refresh_failure', reason: 'missing_refresh_cookie' },
+          'auth_event',
+        );
         throw new AppError(401, 'Invalid credentials', { code: 'INVALID_REFRESH', expose: true });
       }
-      const result = await authService.refresh(refreshToken, requestMeta(req));
-      setAuthCookies(res, result.accessToken, result.refreshToken);
-      req.log?.info({ event: 'auth_refresh', userId: result.user._id }, 'auth_event');
-      res.status(200).json({
-        data: {
-          user: result.user,
-        },
-      });
+      try {
+        const result = await authService.refresh(refreshToken, requestMeta(req));
+        setAuthCookies(res, result.accessToken, result.refreshToken);
+        req.log?.info({ event: 'auth_refresh', userId: result.user._id }, 'auth_event');
+        res.status(200).json({
+          data: {
+            user: result.user,
+          },
+        });
+      } catch (err) {
+        // Always clear cookies on any refresh failure so the client stops replaying a bad token.
+        clearAuthCookies(res);
+        req.log?.warn(
+          {
+            event: 'auth_refresh_failure',
+            reason: err?.code ?? 'unknown',
+          },
+          'auth_event',
+        );
+        throw err;
+      }
     },
 
     /**
@@ -119,7 +135,7 @@ export function createAuthController({ authService, env }) {
         req.log?.debug({ event: 'auth_logout_token_invalid' }, 'auth_event');
       }
       clearAuthCookies(res);
-      req.log?.info({ event: 'auth_logout', userId: req.user?.id }, 'auth_event');
+      req.log?.info({ event: 'auth_logout' }, 'auth_event');
       res.status(204).send();
     },
 

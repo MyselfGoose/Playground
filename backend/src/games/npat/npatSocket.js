@@ -1,17 +1,31 @@
 import { Server } from 'socket.io';
 import { createTokenService } from '../../services/tokenService.js';
-import { userRepository } from '../../repositories/userRepository.js';
+import { resolveAccessContext } from '../../middleware/authMiddleware.js';
 import { ACCESS_TOKEN_COOKIE } from '../../constants/auth.js';
 import { parseCookies } from '../../utils/parseCookies.js';
-import {
-  createRoomSchema,
-  joinRoomSchema,
-  setReadySchema,
-  startGameSchema,
-  submitFieldSchema,
-  switchTeamSchema,
-} from './validation/npat.schemas.js';
 import { createNpatRoomRegistry } from './roomManager.js';
+import { installHandlers } from './socketHandlers.js';
+
+/**
+ * Read the access token off a Socket.IO handshake. Priority:
+ *   1. explicit `auth.token` payload (tests, non-browser clients)
+ *   2. `Authorization: Bearer` header
+ *   3. `access_token` cookie (browser default)
+ *
+ * @param {import('socket.io').Socket['handshake']} handshake
+ */
+function readHandshakeToken(handshake) {
+  const authPayload = /** @type {any} */ (handshake?.auth);
+  if (authPayload && typeof authPayload.token === 'string' && authPayload.token.trim()) {
+    return authPayload.token.trim();
+  }
+  const header = handshake?.headers?.authorization;
+  if (typeof header === 'string' && header.startsWith('Bearer ')) {
+    return header.slice(7).trim();
+  }
+  const cookies = parseCookies(handshake?.headers?.cookie);
+  return cookies[ACCESS_TOKEN_COOKIE] ?? null;
+}
 
 /**
  * @param {{
@@ -19,167 +33,61 @@ import { createNpatRoomRegistry } from './roomManager.js';
  *   registry: ReturnType<import('./roomManager.js').createNpatRoomRegistry>,
  *   env: import('../../config/env.js').Env,
  *   logger: import('pino').Logger,
+ *   tokenService: ReturnType<import('../../services/tokenService.js').createTokenService>,
  * }} params
  */
-export function installNpatSocketServer({ npatNs, registry, env, logger }) {
-  const tokenService = createTokenService(env);
-
+export function installNpatSocketServer({ npatNs, registry, env, logger, tokenService }) {
   npatNs.use(async (socket, next) => {
     try {
-      const cookies = parseCookies(socket.handshake.headers?.cookie);
-      const token = cookies[ACCESS_TOKEN_COOKIE];
+      const token = readHandshakeToken(socket.handshake);
       if (!token) {
         return next(new Error('UNAUTHENTICATED'));
       }
-      const { sub } = await tokenService.verifyAccessToken(token);
-      const user = await userRepository.findByIdLean(sub);
-      if (!user?.isActive) {
-        return next(new Error('UNAUTHENTICATED'));
-      }
-      socket.data.userId = String(user._id);
-      socket.data.username = user.username;
+      const ctx = await resolveAccessContext(token, { tokenService });
+      socket.data.userId = ctx.id;
+      socket.data.username = ctx.username;
+      socket.data.roles = ctx.roles;
+      socket.data.sid = ctx.sid;
       return next();
-    } catch {
+    } catch (err) {
+      logger.debug(
+        { err, event: 'npat_handshake_rejected', socketId: socket.id },
+        'npat_socket',
+      );
       return next(new Error('UNAUTHENTICATED'));
     }
   });
 
-  npatNs.on('connection', (socket) => {
+  npatNs.on('connection', async (socket) => {
     const userId = /** @type {string} */ (socket.data.userId);
     const username = /** @type {string} */ (socket.data.username);
+    logger.info({ event: 'npat_connected', userId, socketId: socket.id }, 'npat_socket');
 
-    let lastSubmit = 0;
-    let lastSwitch = 0;
+    installHandlers({ socket, registry, env, logger });
 
-    /**
-     * @param {unknown} err
-     */
-    function emitErr(err) {
-      const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : 'UNKNOWN';
-      const message = err instanceof Error ? err.message : 'Request failed';
-      socket.emit('error', { code, message });
-    }
-
-    /**
-     * @param {string} rawCode
-     */
-    function normalizeRoomCode(rawCode) {
-      const digits = String(rawCode).replace(/\D/g, '');
-      const len = env.NPAT_ROOM_CODE_LENGTH;
-      if (digits.length > len) {
-        return digits.slice(-len);
-      }
-      return digits.padStart(len, '0');
-    }
-
-    socket.on('create_room', async (payload) => {
-      try {
-        registry.leaveRoom(socket);
-        const { mode } = createRoomSchema.parse(payload ?? {});
-        const { code, engine } = await registry.createRoom(mode, userId, username, socket);
-        npatNs.to(code).emit('room_update', { room: engine.toPublicDto() });
-      } catch (err) {
-        logger.warn({ err, event: 'create_room' }, 'npat_socket_error');
-        emitErr(err);
-      }
-    });
-
-    socket.on('join_room', async (payload) => {
-      try {
-        const parsed = joinRoomSchema.parse(payload ?? {});
-        const code = normalizeRoomCode(parsed.code);
-        registry.leaveRoom(socket);
-        const engine = await registry.joinRoom(code, userId, username, socket);
-        npatNs.to(code).emit('room_update', { room: engine.toPublicDto() });
-      } catch (err) {
-        logger.warn({ err, event: 'join_room' }, 'npat_socket_error');
-        emitErr(err);
-      }
-    });
-
-    socket.on('leave_room', () => {
-      try {
-        registry.leaveRoom(socket);
-      } catch (err) {
-        emitErr(err);
-      }
-    });
-
-    socket.on('switch_team', (payload) => {
-      try {
-        const now = Date.now();
-        if (now - lastSwitch < env.NPAT_SWITCH_TEAM_RATE_MS) {
-          const err = new Error('Too many team changes');
-          /** @type {any} */ (err).code = 'RATE_LIMIT';
-          throw err;
-        }
-        lastSwitch = now;
-        const { teamId } = switchTeamSchema.parse(payload ?? {});
-        const engine = registry.getEngineForSocket(socket);
-        if (!engine) {
-          const err = new Error('Not in a room');
-          /** @type {any} */ (err).code = 'NOT_IN_ROOM';
-          throw err;
-        }
-        engine.switchTeam(userId, teamId);
-      } catch (err) {
-        emitErr(err);
-      }
-    });
-
-    socket.on('set_ready', (payload) => {
-      try {
-        const { ready } = setReadySchema.parse(payload ?? {});
-        const engine = registry.getEngineForSocket(socket);
-        if (!engine) {
-          const err = new Error('Not in a room');
-          /** @type {any} */ (err).code = 'NOT_IN_ROOM';
-          throw err;
-        }
-        engine.setReady(userId, ready);
-      } catch (err) {
-        emitErr(err);
-      }
-    });
-
-    socket.on('start_game', (payload) => {
-      try {
-        startGameSchema.parse(payload ?? {});
-        const engine = registry.getEngineForSocket(socket);
-        if (!engine) {
-          const err = new Error('Not in a room');
-          /** @type {any} */ (err).code = 'NOT_IN_ROOM';
-          throw err;
-        }
-        engine.tryStartGame(userId);
-      } catch (err) {
-        emitErr(err);
-      }
-    });
-
-    socket.on('submit_field', (payload) => {
-      try {
-        const now = Date.now();
-        if (now - lastSubmit < env.NPAT_SUBMIT_RATE_MS) {
-          return;
-        }
-        lastSubmit = now;
-        const { field, value } = submitFieldSchema.parse(payload ?? {});
-        const engine = registry.getEngineForSocket(socket);
-        if (!engine) {
-          const err = new Error('Not in a room');
-          /** @type {any} */ (err).code = 'NOT_IN_ROOM';
-          throw err;
-        }
-        engine.submitField(userId, field, value);
-      } catch (err) {
-        emitErr(err);
-      }
-    });
-
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      logger.info(
+        { event: 'npat_disconnect', reason, userId, socketId: socket.id },
+        'npat_socket',
+      );
       registry.leaveRoom(socket);
     });
+
+    // Opportunistically reattach to any active room the user belongs to. If this succeeds we
+    // notify the client with `session_resumed` so it can navigate without user action.
+    try {
+      const engine = await registry.attachActiveRoomForUser(userId, username, socket);
+      if (engine) {
+        const room = engine.toPublicDto();
+        socket.emit('session_resumed', { room });
+        engine.emit('room_update', { room });
+      }
+    } catch (err) {
+      logger.warn(
+        { err, event: 'npat_session_resume_failed', userId, socketId: socket.id },
+        'npat_socket',
+      );
+    }
   });
 }
 
@@ -189,7 +97,7 @@ export function installNpatSocketServer({ npatNs, registry, env, logger }) {
  *   env: import('../../config/env.js').Env,
  *   logger: import('pino').Logger,
  * }} params
- * @returns {import('socket.io').Server}
+ * @returns {{ io: import('socket.io').Server, registry: ReturnType<import('./roomManager.js').createNpatRoomRegistry> }}
  */
 export function attachSocketIo({ server, env, logger }) {
   const origins = env.CORS_ORIGIN.split(',')
@@ -203,10 +111,11 @@ export function attachSocketIo({ server, env, logger }) {
     serveClient: false,
   });
 
+  const tokenService = createTokenService(env);
   const npatNs = io.of('/npat');
   const registry = createNpatRoomRegistry({ env, logger, npatNs });
-  installNpatSocketServer({ npatNs, registry, env, logger });
+  installNpatSocketServer({ npatNs, registry, env, logger, tokenService });
 
   logger.info('socket_io_attached');
-  return io;
+  return { io, registry };
 }

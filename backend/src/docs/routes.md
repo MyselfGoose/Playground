@@ -35,7 +35,7 @@ For API clients (e.g. Postman), you can also send `Authorization: Bearer <access
 
 | Method | URL | Auth | Description |
 |--------|-----|------|-------------|
-| POST | `/api/v1/auth/register` | No | Create user; sets cookies; returns `user` + `accessToken` in body. |
+| POST | `/api/v1/auth/register` | No | Create user; sets cookies; returns `{ user }` in body. |
 | POST | `/api/v1/auth/login` | No | Login with **either** `email` or `username` plus `password`. |
 | POST | `/api/v1/auth/refresh` | Refresh cookie | Rotate refresh session; new cookies. |
 | POST | `/api/v1/auth/logout` | Optional access | Revokes refresh session for current access `sid` when token parses; always clears cookies. |
@@ -73,13 +73,12 @@ Password rules: minimum 12 characters, at least one uppercase, one lowercase, on
       "isActive": true,
       "createdAt": "...",
       "updatedAt": "..."
-    },
-    "accessToken": "<jwt>"
+    }
   }
 }
 ```
 
-`refresh_token` is only returned as an **httpOnly cookie** (not in JSON).
+Both `access_token` and `refresh_token` are set as httpOnly cookies; **no JWTs are returned in the JSON body**.
 
 ---
 
@@ -105,7 +104,7 @@ Provide **exactly one** of `email` or `username`.
 }
 ```
 
-**Response 200** — same shape as register `data` (`user`, `accessToken`).
+**Response 200** — same shape as register `data` (`{ user }`). Cookies `access_token` + `refresh_token` are set.
 
 **Response 401** — generic `Invalid credentials` (`code`: `INVALID_CREDENTIALS`).
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
@@ -10,22 +10,39 @@ import { Button } from "../../components/Button.jsx";
 const passwordHint =
   "At least 12 characters with upper, lower, number, and a special character.";
 
-export default function RegisterPage() {
-  const { register } = useUser();
+function safeNextPath(raw) {
+  if (typeof raw !== "string" || !raw.startsWith("/")) return "/";
+  if (raw.startsWith("//")) return "/";
+  return raw;
+}
+
+function RegisterForm() {
+  const { register, user, loading } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(safeNextPath(searchParams.get("next")));
+    }
+  }, [loading, user, router, searchParams]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setPending(true);
     try {
-      await register({ username: username.trim(), email: email.trim(), password });
-      router.push("/");
+      await register({
+        username: username.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      router.push(safeNextPath(searchParams.get("next")));
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Something went wrong";
@@ -106,5 +123,19 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">
+          Loading…
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }

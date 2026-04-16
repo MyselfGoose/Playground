@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
@@ -9,12 +9,16 @@ import { Avatar } from "../../components/Avatar.jsx";
 export default function ProfilePage() {
   const { user, loading } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/login");
+      const search = searchParams.toString();
+      const next = `${pathname}${search ? `?${search}` : ""}`;
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, pathname, searchParams]);
 
   if (loading) {
     return (

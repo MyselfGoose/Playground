@@ -134,9 +134,111 @@ export class NpatRoomEngine {
     /** @type {NodeJS.Timeout | null} */
     this._betweenTimer = null;
 
+    this.roundStartAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
+  }
+
+  /**
+   * Build an engine from a persisted NpatRoom document so in-flight games survive restart.
+   * Timers are resumed based on wall-clock `endsAt`.
+   *
+   * @param {any} doc
+   * @param {{ env: import('../../config/env.js').Env, logger: import('pino').Logger, npatNs: import('socket.io').Namespace, persist: NpatRoomEngine['persist'] }} deps
+   */
+  static hydrateFromDoc(doc, deps) {
+    const engine = new NpatRoomEngine({
+      code: doc.code,
+      mode: doc.mode,
+      hostUserId: String(doc.hostUserId),
+      env: deps.env,
+      logger: deps.logger,
+      npatNs: deps.npatNs,
+      persist: deps.persist,
+    });
+
+    engine.state = doc.engineState || GAME_STATES.WAITING;
+    engine.roundPhase = doc.roundPhase || 'none';
+    engine.teams = doc.teams?.length ? doc.teams : engine.teams;
+    engine.letterPool = Array.isArray(doc.letterPool) ? [...doc.letterPool] : [];
+    engine.usedLetters = Array.isArray(doc.usedLetters) ? [...doc.usedLetters] : [];
+    engine.currentRoundIndex =
+      typeof doc.currentRoundIndex === 'number' ? doc.currentRoundIndex : -1;
+    engine.currentLetter = doc.currentLetter || null;
+
+    for (const pl of doc.players ?? []) {
+      const uid = String(pl.userId);
+      engine.players.set(uid, {
+        userId: uid,
+        username: pl.username,
+        teamId: pl.teamId ?? '',
+        ready: Boolean(pl.ready),
+        socketId: null,
+        joinedAt: new Date(pl.joinedAt ?? Date.now()).getTime(),
+        connected: false,
+      });
+    }
+
+    const cr = doc.currentRound ?? {};
+    engine.submissions = new Map();
+    if (cr.submissions && typeof cr.submissions === 'object') {
+      for (const [uid, row] of Object.entries(cr.submissions)) {
+        engine.submissions.set(uid, { ...(row || {}) });
+      }
+    }
+    engine.roundStartAt = cr.startsAt ? new Date(cr.startsAt).getTime() : null;
+    engine.roundEndDeadline = cr.endsAt ? new Date(cr.endsAt).getTime() : null;
+    engine._countdownStarted = engine.roundPhase === 'countdown';
+
+    engine.results = {
+      rounds: (doc.roundsHistory ?? []).map((r) => ({
+        roundIndex: r.roundIndex,
+        letter: r.letter,
+        submissions: r.submissions ?? {},
+        endedAt: r.endedAt instanceof Date ? r.endedAt.toISOString() : String(r.endedAt),
+      })),
+    };
+
+    engine._resumeTimers();
+    return engine;
+  }
+
+  /**
+   * After hydration, restart any pending timers. If a deadline has already passed while the
+   * server was down, advance the state machine immediately.
+   */
+  _resumeTimers() {
+    const now = Date.now();
+    switch (this.state) {
+      case GAME_STATES.STARTING: {
+        const startsAt = this.roundStartAt ?? now;
+        const remaining = Math.max(0, startsAt + this.env.NPAT_STARTING_MS - now);
+        this._startingTimer = setTimeout(() => this._enterFirstRound(), remaining);
+        return;
+      }
+      case GAME_STATES.IN_ROUND: {
+        if (this.roundPhase === 'countdown' && this.roundEndDeadline) {
+          const remaining = Math.max(0, this.roundEndDeadline - now);
+          this._roundTimer = setTimeout(() => this._endRoundFromTimer(), remaining);
+        }
+        return;
+      }
+      case GAME_STATES.BETWEEN_ROUNDS: {
+        if (this.betweenEndDeadline) {
+          const remaining = Math.max(0, this.betweenEndDeadline - now);
+          this._betweenTimer = setTimeout(() => this._leaveBetween(), remaining);
+        } else {
+          this._betweenTimer = setTimeout(
+            () => this._leaveBetween(),
+            this.env.NPAT_BETWEEN_ROUNDS_MS,
+          );
+        }
+        return;
+      }
+      default:
+        return;
+    }
   }
 
   emit(event, payload) {
@@ -154,6 +256,40 @@ export class NpatRoomEngine {
 
   destroy() {
     this.clearTimers();
+  }
+
+  /**
+   * Returns the subset of state that must be persisted to survive a restart.
+   */
+  toPersistDoc() {
+    return {
+      hostUserId: new mongoose.Types.ObjectId(this.hostUserId),
+      mode: this.mode,
+      engineState: this.state,
+      roundPhase: this.roundPhase,
+      letterPool: [...this.letterPool],
+      usedLetters: [...this.usedLetters],
+      currentRoundIndex: this.currentRoundIndex,
+      currentLetter: this.currentLetter ?? '',
+      currentRound: this._currentRoundDoc(),
+      players: this.playersToMongo(),
+      teams: this.teams,
+      lastPublicSnapshot: this.toPublicDto(),
+    };
+  }
+
+  _currentRoundDoc() {
+    /** @type {Record<string, Record<string, string>>} */
+    const subs = {};
+    for (const [uid, row] of this.submissions) subs[uid] = { ...row };
+    return {
+      index: this.currentRoundIndex,
+      letter: this.currentLetter ?? '',
+      phase: this.roundPhase,
+      startsAt: this.roundStartAt ? new Date(this.roundStartAt) : null,
+      endsAt: this.roundEndDeadline ? new Date(this.roundEndDeadline) : null,
+      submissions: subs,
+    };
   }
 
   /**
@@ -281,6 +417,7 @@ export class NpatRoomEngine {
     this.currentLetter = null;
     this.submissions = new Map();
     this.results = { rounds: [] };
+    this.roundStartAt = Date.now();
 
     void this.persist(
       {
@@ -290,12 +427,12 @@ export class NpatRoomEngine {
         currentRoundIndex: this.currentRoundIndex,
         currentLetter: '',
         roundsHistory: [],
+        currentRound: this._currentRoundDoc(),
       },
       undefined,
     );
 
     this.emit('game_started', { room: this.toPublicDto() });
-    this.emit('room_update', { room: this.toPublicDto() });
 
     this._startingTimer = setTimeout(() => this._enterFirstRound(), this.env.NPAT_STARTING_MS);
   }
@@ -318,6 +455,7 @@ export class NpatRoomEngine {
     this.currentLetter = letter;
     this.usedLetters.push(letter);
     this.roundPhase = 'collecting';
+    this.roundStartAt = Date.now();
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
@@ -334,6 +472,7 @@ export class NpatRoomEngine {
         usedLetters: this.usedLetters,
         currentRoundIndex: this.currentRoundIndex,
         currentLetter: letter,
+        currentRound: this._currentRoundDoc(),
       },
       undefined,
     );
@@ -344,7 +483,6 @@ export class NpatRoomEngine {
       roundIndex: this.currentRoundIndex,
       endsAt: null,
     });
-    this.emit('room_update', { room: this.toPublicDto() });
   }
 
   _maybeStartCountdown() {
@@ -356,14 +494,16 @@ export class NpatRoomEngine {
     const endsAt = Date.now() + this.env.NPAT_ROUND_END_COUNTDOWN_MS;
     this.roundEndDeadline = endsAt;
 
-    void this.persist({ roundPhase: this.roundPhase }, undefined);
+    void this.persist(
+      { roundPhase: this.roundPhase, currentRound: this._currentRoundDoc() },
+      undefined,
+    );
 
     this.emit('timer_started', {
       room: this.toPublicDto(),
       endsAt,
       msRemaining: this.env.NPAT_ROUND_END_COUNTDOWN_MS,
     });
-    this.emit('room_update', { room: this.toPublicDto() });
 
     if (this._roundTimer) clearTimeout(this._roundTimer);
     this._roundTimer = setTimeout(() => this._endRoundFromTimer(), this.env.NPAT_ROUND_END_COUNTDOWN_MS);
@@ -395,7 +535,11 @@ export class NpatRoomEngine {
     });
 
     void this.persist(
-      { engineState: this.state, roundPhase: this.roundPhase },
+      {
+        engineState: this.state,
+        roundPhase: this.roundPhase,
+        currentRound: this._currentRoundDoc(),
+      },
       { roundIndex, letter, submissions: snap, endedAt: new Date() },
     );
 
@@ -405,7 +549,6 @@ export class NpatRoomEngine {
       letter,
       submissions: snap,
     });
-    this.emit('room_update', { room: this.toPublicDto() });
 
     const hasMore = this.letterPool.length > 0;
     if (!hasMore) {
@@ -441,6 +584,7 @@ export class NpatRoomEngine {
     assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
+    this.roundStartAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this.currentLetter = null;
@@ -450,12 +594,12 @@ export class NpatRoomEngine {
         engineState: this.state,
         roundPhase: this.roundPhase,
         finishedAt: new Date(),
+        currentRound: this._currentRoundDoc(),
       },
       undefined,
     );
 
     this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
-    this.emit('room_update', { room: this.toPublicDto() });
   }
 
   /**
@@ -486,9 +630,13 @@ export class NpatRoomEngine {
       this.submissions.set(userId, row);
     }
     if (row[field]?.trim()) {
-      return;
+      const err = new Error('This field has already been submitted for this round');
+      /** @type {any} */ (err).code = 'FIELD_ALREADY_SUBMITTED';
+      throw err;
     }
     row[field] = value;
+    // Incremental persist so a crash keeps answers durable.
+    void this.persist({ currentRound: this._currentRoundDoc() }, undefined);
     this._maybeStartCountdown();
     this.emit('room_update', { room: this.toPublicDto() });
   }

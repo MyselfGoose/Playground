@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/**
+ * Strong password rules for registration only. Logging in with an old password that
+ * no longer meets today's complexity rules must still work, so login uses a lighter schema.
+ */
 export const passwordSchema = z
   .string()
   .min(12, 'Password must be at least 12 characters')
@@ -8,6 +12,12 @@ export const passwordSchema = z
   .regex(/[a-z]/, 'Password must contain a lowercase letter')
   .regex(/[0-9]/, 'Password must contain a number')
   .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+
+/** Lenient password schema for login — only presence and a sane upper bound. */
+export const loginPasswordSchema = z
+  .string()
+  .min(1, 'Password is required')
+  .max(128, 'Password is too long');
 
 export const registerBodySchema = z.object({
   username: z.preprocess(
@@ -35,7 +45,7 @@ export const loginBodySchema = z
       (v) => (v === undefined || v === '' ? undefined : String(v).trim()),
       z.string().min(3).max(32).regex(/^[a-zA-Z0-9_-]+$/).optional(),
     ),
-    password: passwordSchema,
+    password: loginPasswordSchema,
   })
   .superRefine((data, ctx) => {
     const hasEmail = Boolean(data.email);

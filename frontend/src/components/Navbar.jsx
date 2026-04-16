@@ -55,7 +55,12 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           {loading ? (
-            <span className="hidden text-sm font-bold text-ink-muted sm:inline">…</span>
+            <span
+              className="inline-flex h-10 min-w-[5rem] items-center justify-center rounded-2xl bg-white/60 px-4 text-sm font-bold text-ink-muted"
+              aria-label="Loading session"
+            >
+              …
+            </span>
           ) : user ? (
             <div className="flex items-center gap-2 sm:gap-3">
               <Link
@@ -125,13 +130,43 @@ export function Navbar() {
                 </Link>
               ))}
               {!loading && !user ? (
-                <Link
-                  href="/register"
-                  onClick={() => setOpen(false)}
-                  className="rounded-2xl px-4 py-3 text-base font-bold text-ink-muted hover:bg-white"
-                >
-                  Register
-                </Link>
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink hover:bg-white"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink-muted hover:bg-white"
+                  >
+                    Register
+                  </Link>
+                </>
+              ) : null}
+              {!loading && user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink hover:bg-white"
+                  >
+                    Profile
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      void logout();
+                    }}
+                    className="rounded-2xl px-4 py-3 text-left text-base font-bold text-ink-muted hover:bg-white"
+                  >
+                    Sign out
+                  </button>
+                </>
               ) : null}
             </div>
           </motion.div>

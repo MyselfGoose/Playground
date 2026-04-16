@@ -7,9 +7,17 @@ export const createRoomSchema = z.object({
   mode: npatModeSchema,
 });
 
-export const joinRoomSchema = z.object({
-  code: z.string().trim().regex(/^\d+$/).min(1).max(16),
-});
+/**
+ * @param {number} codeLength
+ */
+export function createJoinRoomBodySchema(codeLength) {
+  return z.object({
+    code: z
+      .string()
+      .trim()
+      .regex(new RegExp(`^\\d{${codeLength}}$`), `Room code must be exactly ${codeLength} digits`),
+  });
+}
 
 export const switchTeamSchema = z.object({
   teamId: z.string().trim().min(1).max(8),

@@ -1,24 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
+import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
 
 export default function NpatEntryPage() {
   const router = useRouter();
-  const { createRoom, connected, room, socketError, setSocketError } = useNpat();
+  const {
+    createRoom,
+    joinRoom,
+    connected,
+    socketError,
+    clearSocketError,
+    resumedCode,
+    clearResumedCode,
+  } = useNpat();
   const [mode, setMode] = useState(/** @type {'solo' | 'team'} */ ("solo"));
   const [joinCode, setJoinCode] = useState("");
-  const creatingRef = useRef(false);
+  const [creating, setCreating] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [createError, setCreateError] = useState(/** @type {string | null} */ (null));
+  const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
+  const codeLen = useMemo(() => getNpatRoomCodeLength(), []);
 
+  // If the server resumed an active session, bounce the user into the right route automatically.
   useEffect(() => {
-    if (!creatingRef.current || !room?.code || room.state !== "WAITING") return;
-    creatingRef.current = false;
-    router.push(`/games/npat/lobby?code=${room.code}`);
-  }, [room, router]);
+    if (!resumedCode) return;
+    router.replace(`/games/npat/lobby?code=${resumedCode}`);
+    clearResumedCode();
+  }, [resumedCode, router, clearResumedCode]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
@@ -46,10 +60,16 @@ export default function NpatEntryPage() {
           <button
             type="button"
             className="ml-3 font-bold underline"
-            onClick={() => setSocketError(null)}
+            onClick={() => clearSocketError()}
           >
             Dismiss
           </button>
+        </p>
+      ) : null}
+
+      {createError ? (
+        <p className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-2 text-center text-sm font-semibold text-red-800">
+          {createError}
         </p>
       ) : null}
 
@@ -88,14 +108,23 @@ export default function NpatEntryPage() {
             type="button"
             variant="primary"
             className="mt-8 w-full"
-            disabled={!connected}
-            onClick={() => {
-              setSocketError(null);
-              creatingRef.current = true;
-              createRoom(mode);
+            disabled={!connected || creating}
+            onClick={async () => {
+              setCreateError(null);
+              setCreating(true);
+              const result = await createRoom(mode);
+              setCreating(false);
+              if (!result.ok) {
+                setCreateError(result.error?.message ?? "Could not create room");
+                return;
+              }
+              const code = result.data?.room?.code;
+              if (code) {
+                router.push(`/games/npat/lobby?code=${code}`);
+              }
             }}
           >
-            Create room
+            {creating ? "Creating…" : "Create room"}
           </Button>
         </motion.section>
 
@@ -106,7 +135,9 @@ export default function NpatEntryPage() {
           className="rounded-[var(--radius-2xl)] bg-gradient-to-br from-peach/90 to-lavender/50 p-8 shadow-[var(--shadow-card)] ring-2 ring-white/80"
         >
           <h2 className="text-2xl font-extrabold text-ink">Join game</h2>
-          <p className="mt-2 text-sm font-semibold text-ink-muted">Enter the 4-digit room code.</p>
+          <p className="mt-2 text-sm font-semibold text-ink-muted">
+            Enter the {codeLen}-digit room code.
+          </p>
           <label className="mt-6 block text-left">
             <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-ink-muted">
               Room code
@@ -114,24 +145,40 @@ export default function NpatEntryPage() {
             <input
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={6}
+              maxLength={codeLen}
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => {
+                setJoinCode(e.target.value.replace(/\D/g, ""));
+                setJoinError(null);
+              }}
               className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-center text-2xl font-extrabold tracking-[0.3em] text-ink shadow-sm outline-none focus:border-accent/40"
-              placeholder="0000"
+              placeholder={"0".repeat(codeLen)}
             />
+            {joinError ? (
+              <span className="mt-2 block text-sm font-semibold text-red-700">{joinError}</span>
+            ) : null}
           </label>
           <Button
             type="button"
             variant="secondary"
             className="mt-8 w-full"
-            disabled={!connected || joinCode.replace(/\D/g, "").length < 4}
-            onClick={() => {
-              const digits = joinCode.replace(/\D/g, "").slice(-4).padStart(4, "0");
-              router.push(`/games/npat/lobby?code=${digits}`);
+            disabled={!connected || joining || joinCode.replace(/\D/g, "").length !== codeLen}
+            onClick={async () => {
+              setJoinError(null);
+              setJoining(true);
+              const result = await joinRoom(joinCode);
+              setJoining(false);
+              if (!result.ok) {
+                setJoinError(result.error?.message ?? "Could not join room");
+                return;
+              }
+              const code = result.data?.room?.code;
+              if (code) {
+                router.push(`/games/npat/lobby?code=${code}`);
+              }
             }}
           >
-            Join room
+            {joining ? "Joining…" : "Join room"}
           </Button>
         </motion.section>
       </div>

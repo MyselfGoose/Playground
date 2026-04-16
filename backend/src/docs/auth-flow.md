@@ -12,7 +12,11 @@ Access and refresh secrets **must differ** (`JWT_ACCESS_SECRET` vs `JWT_REFRESH_
 ## Transport
 
 - **Browser-friendly:** httpOnly cookies `access_token` and `refresh_token` (`Secure`, `SameSite`, and optional `Domain` from env).
-- **API / Postman:** send `Authorization: Bearer <access_token>` for protected routes. After login/register/refresh, the JSON body also includes **`accessToken`** for convenience; **refresh tokens are never returned in JSON** — use the cookie jar or copy the `Set-Cookie` refresh value for refresh testing.
+- **API / Postman:** send `Authorization: Bearer <access_token>` for protected routes. **No JWT is returned in the JSON body** — the access and refresh tokens live only in cookies (copy the `Set-Cookie` values for scripted testing).
+
+## Session liveness (server-side revocation)
+
+`requireAuth` (and the Socket.IO handshake) verify the access JWT **and** confirm that the associated `RefreshSession` (keyed by the JWT's `sid`) is still `revokedAt: null`, `replacedByJti: null`, and not expired. Logging out therefore invalidates access tokens immediately — clients receive `401 SESSION_REVOKED` on subsequent requests rather than waiting for the access JWT to expire.
 
 ## Login
 
@@ -24,9 +28,11 @@ Access and refresh secrets **must differ** (`JWT_ACCESS_SECRET` vs `JWT_REFRESH_
 ## Refresh (rotation)
 
 1. Client `POST /api/v1/auth/refresh` with `refresh_token` cookie.
-2. Server verifies refresh JWT signature + expiry, loads `RefreshSession` by `jti`.
-3. If the session row is **already** `revokedAt` or has `replacedByJti`, the refresh token is **stale or reused** → all refresh sessions for that user are revoked (**logout all devices** policy for suspected token theft).
-4. Otherwise server creates a **new** `RefreshSession` with a new `jti`, marks the old session rotated (`replacedByJti`, `revokedAt`), issues new JWTs, and resets cookies.
+2. Server verifies the refresh JWT signature + expiry.
+3. Server **atomically** updates the matching `RefreshSession` row (`findOneAndUpdate` guarded by `revokedAt: null`, `replacedByJti: null`, `expiresAt > now`) to set `replacedByJti: <newJti>` and `revokedAt: <now>`. Exactly one concurrent caller wins.
+4. On win, the server creates a new `RefreshSession` row for the new `jti`, issues new JWTs, and resets cookies.
+5. On loss (update returned null), the server inspects the row: if it is already revoked/replaced the refresh token is **reused** → **all** sessions for the user are revoked (`TOKEN_REUSE`); if expired → `SESSION_EXPIRED`; if missing → `INVALID_REFRESH`.
+6. **Any refresh failure clears both auth cookies** before responding 401 so the client stops replaying a bad token.
 
 ## Logout (single device)
 
