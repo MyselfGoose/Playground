@@ -39,16 +39,13 @@ export function createApp({ env, logger }) {
 
   app.use(helmet());
 
-  const corsOrigin =
-    env.CORS_ORIGIN === '*'
-      ? true
-      : env.CORS_ORIGIN.split(',')
-          .map((s) => s.trim())
-          .filter(Boolean);
+  const corsOrigin = env.CORS_ORIGIN.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   app.use(
     cors({
-      origin: corsOrigin,
+      origin: corsOrigin.length === 1 ? corsOrigin[0] : corsOrigin,
       credentials: true,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cookie'],

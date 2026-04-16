@@ -37,7 +37,7 @@ export function createAuthRouter({ env }) {
     asyncHandler(authController.register),
   );
   router.post('/login', authLimiter, validateBody(loginBodySchema), asyncHandler(authController.login));
-  router.post('/refresh', asyncHandler(authController.refresh));
+  router.post('/refresh', authLimiter, asyncHandler(authController.refresh));
   router.post('/logout', asyncHandler(authController.logout));
   router.post('/logout-all', requireAuth, asyncHandler(authController.logoutAll));
   router.get('/me', requireAuth, asyncHandler(authController.me));

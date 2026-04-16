@@ -15,7 +15,7 @@ const links = [
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, logout } = useUser();
+  const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
 
   return (
@@ -54,7 +54,9 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          {user ? (
+          {loading ? (
+            <span className="hidden text-sm font-bold text-ink-muted sm:inline">…</span>
+          ) : user ? (
             <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 href="/profile"
@@ -67,19 +69,27 @@ export function Navbar() {
               </Link>
               <button
                 type="button"
-                onClick={() => logout()}
+                onClick={() => void logout()}
                 className="rounded-2xl px-3 py-2 text-xs font-bold text-ink-muted underline-offset-4 hover:text-ink hover:underline"
               >
                 Sign out
               </button>
             </div>
           ) : (
-            <Link
-              href="/login"
-              className="rounded-2xl bg-accent px-4 py-2 text-sm font-bold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
-            >
-              Login
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/register"
+                className="hidden rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition-colors hover:bg-white/70 sm:inline"
+              >
+                Register
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-2xl bg-accent px-4 py-2 text-sm font-bold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
+              >
+                Login
+              </Link>
+            </div>
           )}
 
           <button
@@ -114,6 +124,15 @@ export function Navbar() {
                   {label}
                 </Link>
               ))}
+              {!loading && !user ? (
+                <Link
+                  href="/register"
+                  onClick={() => setOpen(false)}
+                  className="rounded-2xl px-4 py-3 text-base font-bold text-ink-muted hover:bg-white"
+                >
+                  Register
+                </Link>
+              ) : null}
             </div>
           </motion.div>
         ) : null}

@@ -55,7 +55,6 @@ export function createAuthController({ authService, env }) {
       res.status(201).json({
         data: {
           user: result.user,
-          accessToken: result.accessToken,
         },
       });
     },
@@ -72,7 +71,6 @@ export function createAuthController({ authService, env }) {
         res.status(200).json({
           data: {
             user: result.user,
-            accessToken: result.accessToken,
           },
         });
       } catch (err) {
@@ -100,7 +98,6 @@ export function createAuthController({ authService, env }) {
       res.status(200).json({
         data: {
           user: result.user,
-          accessToken: result.accessToken,
         },
       });
     },
@@ -111,9 +108,12 @@ export function createAuthController({ authService, env }) {
      */
     async logout(req, res) {
       const token = readAccessToken(req);
+      const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
       try {
         if (token) {
           await authService.logout(token);
+        } else if (refreshToken) {
+          await authService.logoutByRefresh(refreshToken);
         }
       } catch {
         req.log?.debug({ event: 'auth_logout_token_invalid' }, 'auth_event');

@@ -145,6 +145,20 @@ export function createAuthService({ env, passwordService, tokenService }) {
     },
 
     /**
+     * Revoke refresh session when no valid access token is available (e.g. access expired).
+     * @param {string} refreshToken
+     */
+    async logoutByRefresh(refreshToken) {
+      let jti;
+      try {
+        ({ jti } = await tokenService.verifyRefreshToken(refreshToken));
+      } catch {
+        return;
+      }
+      await refreshSessionRepository.revokeByJti(jti);
+    },
+
+    /**
      * @param {string} accessToken
      */
     async logoutAll(accessToken) {

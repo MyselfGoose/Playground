@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  DEFAULT_CORS_ORIGIN,
   DEFAULT_JWT_ACCESS_SECRET,
   DEFAULT_JWT_REFRESH_SECRET,
   DEFAULT_MONGO_URI,
@@ -25,8 +26,17 @@ export const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     /** Number of trusted reverse proxies (0 = do not trust `X-Forwarded-*`). */
     TRUST_PROXY: z.coerce.number().int().min(0).max(32).default(0),
-    /** Comma-separated origins, or `*` in non-production only. */
-    CORS_ORIGIN: z.string().min(1).default('*'),
+    /** Comma-separated allowed browser origins (required in production). */
+    CORS_ORIGIN: z.preprocess((v) => {
+      const raw = nonemptyOrUndefined(v);
+      if (isProductionEnv()) {
+        return raw ?? '';
+      }
+      if (!raw || raw === '*') {
+        return DEFAULT_CORS_ORIGIN;
+      }
+      return raw;
+    }, z.string().min(1, 'CORS_ORIGIN is required')),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
     REQUEST_BODY_LIMIT: z.string().min(1).default('100kb'),
@@ -70,13 +80,18 @@ export const envSchema = z
       .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   })
   .superRefine((data, ctx) => {
-    if (data.NODE_ENV === 'production' && data.CORS_ORIGIN.trim() === '*') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'CORS_ORIGIN must be an explicit comma-separated list in production, not "*"',
-        path: ['CORS_ORIGIN'],
-      });
+    if (data.NODE_ENV === 'production') {
+      const origins = data.CORS_ORIGIN.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (origins.length === 0 || origins.some((o) => o === '*')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'CORS_ORIGIN must be a non-empty comma-separated list of explicit origins in production (never "*")',
+          path: ['CORS_ORIGIN'],
+        });
+      }
     }
     if (data.NODE_ENV === 'production') {
       if (data.JWT_ACCESS_SECRET.length < 32) {

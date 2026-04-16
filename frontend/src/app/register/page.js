@@ -8,11 +8,12 @@ import { useUser } from "../../lib/context/UserContext.jsx";
 import { Button } from "../../components/Button.jsx";
 
 const passwordHint =
-  "Use the same strong password rules as registration (12+ chars, mixed case, number, symbol).";
+  "At least 12 characters with upper, lower, number, and a special character.";
 
-export default function LoginPage() {
-  const { login } = useUser();
+export default function RegisterPage() {
+  const { register } = useUser();
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setError("");
     setPending(true);
     try {
-      await login({ email: email.trim().toLowerCase(), password });
+      await register({ username: username.trim(), email: email.trim(), password });
       router.push("/");
     } catch (err) {
       const message =
@@ -37,9 +38,9 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
       <div className="w-full max-w-md rounded-[var(--radius-2xl)] bg-white/80 p-8 shadow-[var(--shadow-soft)] ring-2 ring-white/80 backdrop-blur-sm sm:p-10">
-        <h1 className="text-center text-3xl font-extrabold text-ink">Hey again!</h1>
+        <h1 className="text-center text-3xl font-extrabold text-ink">Create an account</h1>
         <p className="mt-2 text-center text-sm text-ink-muted">
-          Sign in with your account. Session uses secure httpOnly cookies on the API host.
+          You will be signed in automatically. Tokens stay in httpOnly cookies only.
         </p>
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 flex flex-col gap-5">
           {error ? (
@@ -51,6 +52,22 @@ export default function LoginPage() {
             </p>
           ) : null}
           <label className="block text-left">
+            <span className="mb-1.5 block text-sm font-bold text-ink-muted">Username</span>
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              required
+              minLength={3}
+              maxLength={32}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none ring-accent/0 transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
+              placeholder="cool_player"
+            />
+            <span className="mt-1 block text-xs text-ink-muted">Letters, numbers, underscore, or hyphen only.</span>
+          </label>
+          <label className="block text-left">
             <span className="mb-1.5 block text-sm font-bold text-ink-muted">Email</span>
             <input
               type="email"
@@ -59,8 +76,8 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none ring-accent/0 transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
-              placeholder="goose@example.com"
+              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
+              placeholder="you@example.com"
             />
           </label>
           <label className="block text-left">
@@ -68,27 +85,23 @@ export default function LoginPage() {
             <input
               type="password"
               name="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
-              placeholder="Your password"
+              placeholder="••••••••••••"
             />
             <span className="mt-1 block text-xs text-ink-muted">{passwordHint}</span>
           </label>
           <Button type="submit" variant="primary" className="mt-2 w-full" disabled={pending}>
-            {pending ? "Signing in…" : "Login"}
+            {pending ? "Creating account…" : "Register"}
           </Button>
         </form>
         <p className="mt-6 text-center text-sm text-ink-muted">
-          New here?{" "}
-          <Link href="/register" className="font-bold text-accent underline-offset-2 hover:underline">
-            Create an account
-          </Link>
-          {" · "}
-          <Link href="/games" className="font-bold text-accent underline-offset-2 hover:underline">
-            Browse games
+          Already have an account?{" "}
+          <Link href="/login" className="font-bold text-accent underline-offset-2 hover:underline">
+            Log in
           </Link>
         </p>
       </div>
