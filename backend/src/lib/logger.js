@@ -9,6 +9,8 @@ export function createLogger(env) {
       paths: [
         'req.headers.authorization',
         'req.headers.cookie',
+        'req.cookies.access_token',
+        'req.cookies.refresh_token',
         'password',
         'req.body.password',
         'token',

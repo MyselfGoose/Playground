@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { requestContext } from './middleware/requestContext.js';
@@ -8,6 +9,7 @@ import { notFound } from './middleware/notFound.js';
 import { createErrorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
 import { apiRouter } from './routes/api.js';
+import { createAuthRouter } from './routes/auth.js';
 
 /**
  * Express application factory (no listen). Reusable for tests and future HTTP upgrades.
@@ -49,7 +51,7 @@ export function createApp({ env, logger }) {
       origin: corsOrigin,
       credentials: true,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cookie'],
       optionsSuccessStatus: 204,
       maxAge: 86_400,
     }),
@@ -66,10 +68,12 @@ export function createApp({ env, logger }) {
   });
   app.use(limiter);
 
+  app.use(cookieParser());
   app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
 
   app.use(apiRouter);
+  app.use('/api/v1/auth', createAuthRouter({ env }));
   app.use(healthRouter);
 
   app.use(notFound);
