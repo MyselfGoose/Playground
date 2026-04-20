@@ -23,6 +23,40 @@ export function createApp({ env, logger }) {
     app.set('trust proxy', env.TRUST_PROXY);
   }
 
+  const corsOrigins = env.CORS_ORIGIN.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (env.NODE_ENV === 'production' && corsOrigins.some((o) => o === '*')) {
+    logger.error(
+      { CORS_ORIGIN: env.CORS_ORIGIN },
+      'cors_rejected_wildcard_in_production_set_explicit_origins_only',
+    );
+  }
+
+  /** @type {import('cors').CorsOptions} */
+  const corsOptions = {
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    // Cookie header required for httpOnly JWT cookies; X-Request-Id for correlation.
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id'],
+    optionsSuccessStatus: 204,
+    maxAge: 86_400,
+    preflightContinue: false,
+  };
+
+  // CORS MUST be the first middleware so preflight never hits logging, limits, or parsers.
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      console.log('CORS preflight hit:', req.method, req.path);
+    }
+    next();
+  });
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
+
   app.use(requestContext());
   app.use(
     pinoHttp({
@@ -37,25 +71,6 @@ export function createApp({ env, logger }) {
     }),
   );
 
-  const corsOrigins = env.CORS_ORIGIN.split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  /** @type {import('cors').CorsOptions} */
-  const corsOptions = {
-    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
-    credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cookie', 'X-Requested-With'],
-    exposedHeaders: ['X-Request-Id'],
-    optionsSuccessStatus: 204,
-    maxAge: 86_400,
-  };
-
-  // CORS before helmet so preflight gets consistent headers; required for browser credentialed fetches from Vercel.
-  app.use(cors(corsOptions));
-  app.options('*', cors(corsOptions));
-
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   const limiter = rateLimit({
@@ -63,7 +78,7 @@ export function createApp({ env, logger }) {
     limit: env.RATE_LIMIT_MAX,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
-    skip: (req) => req.path === '/health',
+    skip: (req) => req.method === 'OPTIONS' || req.path === '/health',
     validate: { trustProxy: env.TRUST_PROXY > 0 },
     keyGenerator: (req) => req.ip ?? req.socket?.remoteAddress ?? 'unknown',
   });

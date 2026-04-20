@@ -51,6 +51,9 @@ export function createAuthMiddleware({ tokenService }) {
    * @type {import('express').RequestHandler}
    */
   async function requireAuth(req, res, next) {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
     try {
       const token = readAccessToken(req);
       if (!token) {

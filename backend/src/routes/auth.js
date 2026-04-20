@@ -15,6 +15,14 @@ import { registerBodySchema, loginBodySchema } from '../validation/auth.schemas.
 export function createAuthRouter({ env }) {
   const router = Router();
 
+  // Preflight must never hit body validation or auth — CORS at app level should answer first; this is defensive.
+  router.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+    next();
+  });
+
   const passwordService = createPasswordService({ bcryptCost: env.BCRYPT_COST });
   const tokenService = createTokenService(env);
   const authService = createAuthService({ env, passwordService, tokenService });
