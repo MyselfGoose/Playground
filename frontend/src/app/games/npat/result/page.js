@@ -185,7 +185,7 @@ function NpatResultInner() {
       >
         <h1 className="text-4xl font-extrabold text-ink sm:text-5xl">Game over</h1>
         <p className="mt-2 text-lg text-ink-muted">
-          Pick a round and a player to review answers in a clean table — open notes on every field.
+          Scroll through every letter; choose a player once to see their answers and notes for the whole game.
         </p>
       </motion.header>
 
