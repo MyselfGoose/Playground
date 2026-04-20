@@ -34,6 +34,7 @@ export function createAuthRouter({ env }) {
     limit: env.AUTH_RATE_LIMIT_MAX,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
     validate: { trustProxy: env.TRUST_PROXY > 0 },
     keyGenerator: (req) => req.ip ?? req.socket?.remoteAddress ?? 'unknown',
   });

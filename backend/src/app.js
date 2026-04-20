@@ -39,7 +39,6 @@ export function createApp({ env, logger }) {
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    // Cookie header required for httpOnly JWT cookies; X-Request-Id for correlation.
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Request-Id'],
     exposedHeaders: ['X-Request-Id'],
     optionsSuccessStatus: 204,
@@ -47,15 +46,15 @@ export function createApp({ env, logger }) {
     preflightContinue: false,
   };
 
-  // CORS MUST be the first middleware so preflight never hits logging, limits, or parsers.
+  const corsMiddleware = cors(corsOptions);
+
+  // FIRST app.use: CORS for every request — `cors` ends OPTIONS preflight with 204 + headers before anything else runs.
   app.use((req, res, next) => {
     if (req.method === 'OPTIONS') {
-      console.log('CORS preflight hit:', req.method, req.path);
+      console.log('OPTIONS HIT', req.path, req.method);
     }
-    next();
+    return corsMiddleware(req, res, next);
   });
-  app.use(cors(corsOptions));
-  app.options('*', cors(corsOptions));
 
   app.use(requestContext());
   app.use(
@@ -88,6 +87,7 @@ export function createApp({ env, logger }) {
   app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
 
+  // Routes mount only after CORS + parsers.
   app.use(apiRouter);
   app.use('/api/v1/auth', createAuthRouter({ env }));
   app.use(healthRouter);
