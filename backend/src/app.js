@@ -48,13 +48,13 @@ export function createApp({ env, logger }) {
 
   const corsMiddleware = cors(corsOptions);
 
-  // FIRST app.use: CORS for every request — `cors` ends OPTIONS preflight with 204 + headers before anything else runs.
-  app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') {
-      console.log('OPTIONS HIT', req.path, req.method);
-    }
-    return corsMiddleware(req, res, next);
+  app.use((req, _res, next) => {
+    logger.info({ method: req.method, path: req.path, origin: req.get('origin') }, 'request_hit');
+    next();
   });
+
+  app.use(corsMiddleware);
+  app.options('*', corsMiddleware);
 
   app.use(requestContext());
   app.use(

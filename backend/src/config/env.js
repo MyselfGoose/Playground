@@ -94,7 +94,13 @@ export const envSchema = z
       if (s === 'false' || s === '0') return false;
       return val;
     }, z.boolean().optional()),
-    COOKIE_SAME_SITE: z.enum(['strict', 'lax', 'none']).default('lax'),
+    COOKIE_SAME_SITE: z.preprocess((v) => {
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim().toLowerCase();
+      // Cross-origin deployments (e.g. Vercel frontend → Railway backend) require
+      // SameSite=None so the browser actually sends cookies on cross-site requests.
+      if (isProductionEnv()) return 'none';
+      return 'lax';
+    }, z.enum(['strict', 'lax', 'none'])),
     COOKIE_DOMAIN: z
       .string()
       .optional()

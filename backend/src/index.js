@@ -9,6 +9,12 @@ import { registerProcessHandlers } from './processHandlers.js';
 import { attachSocketIo } from './games/npat/npatSocket.js';
 import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
 
+if (globalThis.__server_started) {
+  console.error('[boot] FATAL: index.js executed more than once — aborting duplicate start');
+  process.exit(1);
+}
+globalThis.__server_started = true;
+
 function bootTrace(msg, extra = {}) {
   console.log(`[boot] ${msg}`, Object.keys(extra).length ? JSON.stringify(extra) : '');
 }
@@ -81,7 +87,11 @@ async function main() {
       nodeEnv: env.NODE_ENV,
       port: env.PORT,
       trustProxy: env.TRUST_PROXY,
+      corsOrigin: env.CORS_ORIGIN,
       corsOriginCount: env.CORS_ORIGIN.split(',').filter((s) => s.trim()).length,
+      cookieSecure: env.COOKIE_SECURE,
+      cookieSameSite: env.COOKIE_SAME_SITE,
+      cookieDomain: env.COOKIE_DOMAIN ?? '(unset)',
       gemini: Boolean(env.GEMINI_API_KEY),
     },
     'boot_config',
