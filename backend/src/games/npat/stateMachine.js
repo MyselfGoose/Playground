@@ -2,7 +2,10 @@ export const GAME_STATES = {
   WAITING: 'WAITING',
   STARTING: 'STARTING',
   IN_ROUND: 'IN_ROUND',
+  /** @deprecated Persisted legacy; hydrated as EVALUATING */
   ROUND_ENDING: 'ROUND_ENDING',
+  /** AI evaluation of the closed round before between-rounds or game end */
+  EVALUATING: 'EVALUATING',
   BETWEEN_ROUNDS: 'BETWEEN_ROUNDS',
   FINISHED: 'FINISHED',
 };
@@ -28,8 +31,10 @@ export function canTransition(from, to, ctx = {}) {
       if (to === GAME_STATES.IN_ROUND && (rp === 'collecting' || rp === 'countdown')) {
         return true;
       }
-      return to === GAME_STATES.ROUND_ENDING || to === GAME_STATES.FINISHED;
+      return to === GAME_STATES.EVALUATING || to === GAME_STATES.FINISHED;
     case GAME_STATES.ROUND_ENDING:
+      return to === GAME_STATES.EVALUATING || to === GAME_STATES.BETWEEN_ROUNDS || to === GAME_STATES.FINISHED;
+    case GAME_STATES.EVALUATING:
       return to === GAME_STATES.BETWEEN_ROUNDS || to === GAME_STATES.FINISHED;
     case GAME_STATES.BETWEEN_ROUNDS:
       return to === GAME_STATES.IN_ROUND || to === GAME_STATES.FINISHED;

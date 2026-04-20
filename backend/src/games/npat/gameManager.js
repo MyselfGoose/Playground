@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
+import { evaluateNpatRound } from '../../services/npat/npatEvaluationService.js';
+import { evaluateNpatRoundFallback } from '../../services/npat/npatEvaluationFallback.js';
+import { buildNpatEvaluationInput } from '../../services/npat/npatEvaluationInput.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
 import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
 
@@ -137,8 +141,11 @@ export class NpatRoomEngine {
     /** @type {Map<string, Record<string, string>>} */
     this.submissions = new Map();
 
-    /** @type {{ rounds: Array<{ roundIndex: number, letter: string, submissions: Record<string, Record<string, string>>, endedAt: string }> }} */
+    /** @type {{ rounds: Array<Record<string, unknown>> }} */
     this.results = { rounds: [] };
+
+    /** @type {Promise<void> | null} */
+    this._evaluationFlight = null;
 
     /** @type {NodeJS.Timeout | null} */
     this._startingTimer = null;
@@ -180,7 +187,11 @@ export class NpatRoomEngine {
       persist: deps.persist,
     });
 
-    engine.state = doc.engineState || GAME_STATES.WAITING;
+    {
+      let st = doc.engineState || GAME_STATES.WAITING;
+      if (st === GAME_STATES.ROUND_ENDING) st = GAME_STATES.EVALUATING;
+      engine.state = st;
+    }
     engine.roundPhase = doc.roundPhase || 'none';
     engine.teams = doc.teams?.length ? doc.teams : engine.teams;
     engine.letterPool = Array.isArray(doc.letterPool) ? [...doc.letterPool] : [];
@@ -219,6 +230,16 @@ export class NpatRoomEngine {
         letter: r.letter,
         submissions: r.submissions ?? {},
         endedAt: r.endedAt instanceof Date ? r.endedAt.toISOString() : String(r.endedAt),
+        evaluationStatus: r.evaluationStatus ?? (r.evaluation ? 'complete' : 'pending'),
+        evaluationSource: r.evaluationSource,
+        evaluatedAt:
+          r.evaluatedAt != null
+            ? r.evaluatedAt instanceof Date
+              ? r.evaluatedAt.toISOString()
+              : String(r.evaluatedAt)
+            : undefined,
+        evaluation: r.evaluation,
+        evaluationError: r.evaluationError,
       })),
     };
 
@@ -274,6 +295,15 @@ export class NpatRoomEngine {
             () => this._leaveBetween(),
             this.env.NPAT_BETWEEN_ROUNDS_MS,
           );
+        }
+        return;
+      }
+      case GAME_STATES.EVALUATING: {
+        const pending = this.results.rounds.filter((x) => x.evaluationStatus === 'pending');
+        if (pending.length > 0) {
+          const last = pending[pending.length - 1];
+          const finishGame = this.letterPool.length === 0;
+          void this._queueRoundEvaluation(last.roundIndex, { finishGame });
         }
         return;
       }
@@ -581,8 +611,8 @@ export class NpatRoomEngine {
       this._roundTimer = null;
     }
     this.roundEndDeadline = null;
-    assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
-    this.state = GAME_STATES.ROUND_ENDING;
+    assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.EVALUATING;
     this.roundPhase = 'none';
     this.countdownTriggeredByUserId = null;
     this._finalizeRoundSnapshot();
@@ -592,8 +622,8 @@ export class NpatRoomEngine {
   _endRoundFromTimer() {
     this._roundTimer = null;
     if (this.state !== GAME_STATES.IN_ROUND) return;
-    assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
-    this.state = GAME_STATES.ROUND_ENDING;
+    assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.EVALUATING;
     this.roundPhase = 'none';
     this.countdownTriggeredByUserId = null;
     this._finalizeRoundSnapshot();
@@ -613,6 +643,7 @@ export class NpatRoomEngine {
       letter,
       submissions: snap,
       endedAt,
+      evaluationStatus: 'pending',
     });
 
     void this.persist(
@@ -621,7 +652,13 @@ export class NpatRoomEngine {
         roundPhase: this.roundPhase,
         currentRound: this._currentRoundDoc(),
       },
-      { roundIndex, letter, submissions: snap, endedAt: new Date() },
+      {
+        roundIndex,
+        letter,
+        submissions: snap,
+        endedAt: new Date(),
+        evaluationStatus: 'pending',
+      },
     );
 
     this.emit('round_ended', {
@@ -629,14 +666,116 @@ export class NpatRoomEngine {
       roundIndex,
       letter,
       submissions: snap,
+      evaluationPending: true,
     });
 
     const hasMore = this.letterPool.length > 0;
-    if (!hasMore) {
-      this._finishGame();
-      return;
-    }
+    void this._queueRoundEvaluation(roundIndex, { finishGame: !hasMore });
+  }
 
+  /**
+   * Run Gemini (or fallback), persist scores, then move to BETWEEN_ROUNDS or FINISHED.
+   * @param {number} roundIndex
+   * @param {{ finishGame: boolean }} opts
+   */
+  _queueRoundEvaluation(roundIndex, opts) {
+    if (this._evaluationFlight) return;
+    this._evaluationFlight = (async () => {
+      try {
+        const input = buildNpatEvaluationInput(this, roundIndex);
+        let source = /** @type {'gemini' | 'fallback'} */ ('fallback');
+        /** @type {Record<string, unknown>} */
+        let payload;
+        try {
+          const out = await evaluateNpatRound(this.env, input, this.logger);
+          source = out.source;
+          payload = out.payload;
+        } catch (e) {
+          this.logger.warn({ err: e, roundIndex, event: 'npat_eval_inner' }, 'npat_room');
+          payload = evaluateNpatRoundFallback({
+            roundLetter: input.roundLetter,
+            players: input.players,
+          });
+          source = 'fallback';
+        }
+
+        const round = this.results.rounds.find((r) => r.roundIndex === roundIndex);
+        if (!round) return;
+
+        round.evaluation = payload;
+        round.evaluationStatus = 'complete';
+        round.evaluationSource = source;
+        round.evaluatedAt = new Date().toISOString();
+        round.evaluationError = undefined;
+
+        try {
+          await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, roundIndex, {
+            evaluation: payload,
+            evaluationStatus: 'complete',
+            evaluationSource: source,
+            evaluatedAt: new Date(),
+            evaluationError: null,
+          });
+        } catch (pe) {
+          this.logger.warn({ err: pe, code: this.code, roundIndex }, 'npat_eval_persist');
+        }
+
+        this.emit('round_evaluated', {
+          room: this.toPublicDto(),
+          roundIndex,
+          source,
+          evaluation: payload,
+        });
+
+        if (opts.finishGame) {
+          this._applyFinishGameFromEvaluation();
+        } else {
+          this._applyBetweenRoundsAfterEvaluation();
+        }
+      } catch (err) {
+        this.logger.error({ err, code: this.code, roundIndex, event: 'npat_eval_failed' }, 'npat_room');
+        try {
+          const input = buildNpatEvaluationInput(this, roundIndex);
+          const payload = evaluateNpatRoundFallback({
+            roundLetter: input.roundLetter,
+            players: input.players,
+          });
+          const round = this.results.rounds.find((r) => r.roundIndex === roundIndex);
+          if (round) {
+            round.evaluation = payload;
+            round.evaluationStatus = 'complete';
+            round.evaluationSource = 'fallback';
+            round.evaluatedAt = new Date().toISOString();
+          }
+          await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, roundIndex, {
+            evaluation: payload,
+            evaluationStatus: 'complete',
+            evaluationSource: 'fallback',
+            evaluatedAt: new Date(),
+            evaluationError: null,
+          }).catch(() => {});
+          this.emit('round_evaluated', {
+            room: this.toPublicDto(),
+            roundIndex,
+            source: 'fallback',
+            evaluation: payload,
+          });
+        } catch (_) {
+          /* ignore */
+        }
+        if (opts.finishGame) {
+          this._applyFinishGameFromEvaluation();
+        } else {
+          this._applyBetweenRoundsAfterEvaluation();
+        }
+      } finally {
+        this._evaluationFlight = null;
+      }
+    })();
+  }
+
+  _applyBetweenRoundsAfterEvaluation() {
+    if (this.state !== GAME_STATES.EVALUATING) return;
     assertTransition(this.state, GAME_STATES.BETWEEN_ROUNDS);
     this.state = GAME_STATES.BETWEEN_ROUNDS;
     this.betweenEndDeadline = Date.now() + this.env.NPAT_BETWEEN_ROUNDS_MS;
@@ -647,6 +786,32 @@ export class NpatRoomEngine {
 
     if (this._betweenTimer) clearTimeout(this._betweenTimer);
     this._betweenTimer = setTimeout(() => this._leaveBetween(), this.env.NPAT_BETWEEN_ROUNDS_MS);
+  }
+
+  _applyFinishGameFromEvaluation() {
+    if (this.state === GAME_STATES.FINISHED) return;
+    this.clearTimers();
+    this.earlyFinishProposal = null;
+    assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.FINISHED;
+    this.roundPhase = 'none';
+    this.roundStartAt = null;
+    this.roundEndDeadline = null;
+    this.betweenEndDeadline = null;
+    this.currentLetter = null;
+
+    void this.persist(
+      {
+        engineState: this.state,
+        roundPhase: this.roundPhase,
+        finishedAt: new Date(),
+        currentRound: this._currentRoundDoc(),
+        earlyFinishProposal: null,
+      },
+      undefined,
+    );
+
+    this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
   }
 
   _leaveBetween() {
@@ -706,13 +871,20 @@ export class NpatRoomEngine {
       letter,
       submissions: snap,
       endedAt,
+      evaluationStatus: 'pending',
     });
     void this.persist(
       {
         currentRound: this._currentRoundDoc(),
         earlyFinishProposal: null,
       },
-      { roundIndex, letter, submissions: snap, endedAt: new Date() },
+      {
+        roundIndex,
+        letter,
+        submissions: snap,
+        endedAt: new Date(),
+        evaluationStatus: 'pending',
+      },
     );
   }
 
@@ -725,6 +897,31 @@ export class NpatRoomEngine {
     if (this.state === GAME_STATES.FINISHED) return;
     if (this.state === GAME_STATES.IN_ROUND) {
       this._appendCurrentRoundToResultsIfNeeded();
+      const row = this.results.rounds.find((r) => r.roundIndex === this.currentRoundIndex);
+      if (row && row.evaluationStatus === 'pending') {
+        assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
+        this.state = GAME_STATES.EVALUATING;
+        this.roundPhase = 'none';
+        void this.persist(
+          {
+            engineState: this.state,
+            roundPhase: this.roundPhase,
+            currentRound: this._currentRoundDoc(),
+            earlyFinishProposal: null,
+          },
+          undefined,
+        );
+        this.emit('round_ended', {
+          room: this.toPublicDto(),
+          roundIndex: row.roundIndex,
+          letter: row.letter,
+          submissions: row.submissions ?? {},
+          evaluationPending: true,
+        });
+        void this._queueRoundEvaluation(row.roundIndex, { finishGame: true });
+        this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
+        return;
+      }
     }
     assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.FINISHED;
@@ -952,7 +1149,13 @@ export class NpatRoomEngine {
       betweenRoundsEndsAt: this.betweenEndDeadline,
       letterPoolRemaining: this.letterPool.length,
       countdownTriggeredByUserId: this.countdownTriggeredByUserId,
-      results: this.state === GAME_STATES.FINISHED ? this.results : null,
+      evaluatingRoundIndex: this.state === GAME_STATES.EVALUATING ? this.currentRoundIndex : null,
+      results:
+        this.results.rounds.length > 0 &&
+        this.state !== GAME_STATES.WAITING &&
+        this.state !== GAME_STATES.STARTING
+          ? this.results
+          : null,
       earlyFinish:
         this.state !== GAME_STATES.FINISHED && this.earlyFinishProposal
           ? {

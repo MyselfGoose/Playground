@@ -124,15 +124,17 @@ function NpatPlayInner() {
     : null;
 
   const phaseLabel =
-    state === "BETWEEN_ROUNDS"
-      ? "Between rounds"
-      : state === "IN_ROUND" && roundPhase === "countdown"
-        ? "Closing round"
-        : state === "IN_ROUND" && roundPhase === "collecting"
-          ? "Writing answers"
-          : state === "IN_ROUND"
-            ? "Round"
-            : state;
+    state === "EVALUATING"
+      ? "Evaluating"
+      : state === "BETWEEN_ROUNDS"
+        ? "Between rounds"
+        : state === "IN_ROUND" && roundPhase === "countdown"
+          ? "Closing round"
+          : state === "IN_ROUND" && roundPhase === "collecting"
+            ? "Writing answers"
+            : state === "IN_ROUND"
+              ? "Round"
+              : state;
 
   if (!code) {
     return (
@@ -218,11 +220,13 @@ function NpatPlayInner() {
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                state === "BETWEEN_ROUNDS"
-                  ? "bg-amber-400"
-                  : roundPhase === "countdown"
-                    ? "animate-pulse bg-red-500"
-                    : "bg-emerald-400"
+                state === "EVALUATING"
+                  ? "animate-pulse bg-violet-500"
+                  : state === "BETWEEN_ROUNDS"
+                    ? "bg-amber-400"
+                    : roundPhase === "countdown"
+                      ? "animate-pulse bg-red-500"
+                      : "bg-emerald-400"
               }`}
               aria-hidden
             />
@@ -249,7 +253,24 @@ function NpatPlayInner() {
         </p>
       ) : null}
 
-      {state === "BETWEEN_ROUNDS" ? (
+      {state === "EVALUATING" ? (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[var(--radius-2xl)] border-2 border-violet-300/60 bg-gradient-to-br from-violet-100/90 via-white to-accent/10 px-6 py-12 text-center shadow-[var(--shadow-soft)] ring-2 ring-white/90"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-violet-500 border-t-transparent"
+            aria-hidden
+          />
+          <p className="mt-6 text-xl font-black text-ink">Evaluating answers…</p>
+          <p className="mt-2 text-sm font-semibold text-ink-muted">
+            Scoring each answer — hang tight for a moment.
+          </p>
+        </motion.div>
+      ) : state === "BETWEEN_ROUNDS" ? (
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -333,17 +354,19 @@ function NpatPlayInner() {
         </div>
       ) : null}
 
-      <RoundFields
-        key={room?.currentRoundIndex ?? 0}
-        canSubmit={canSubmit}
-        mine={mine}
-        players={players}
-        submissions={submissions}
-        localUserId={localUserId}
-        roundPhase={roundPhase}
-        gameState={state}
-        onSubmit={(field, value) => submitField(field, value)}
-      />
+      {state === "IN_ROUND" ? (
+        <RoundFields
+          key={room?.currentRoundIndex ?? 0}
+          canSubmit={canSubmit}
+          mine={mine}
+          players={players}
+          submissions={submissions}
+          localUserId={localUserId}
+          roundPhase={roundPhase}
+          gameState={state}
+          onSubmit={(field, value) => submitField(field, value)}
+        />
+      ) : null}
     </div>
   );
 }

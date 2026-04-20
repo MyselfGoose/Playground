@@ -12,6 +12,16 @@ const FIELDS = [
 ];
 
 /**
+ * @param {unknown} score
+ */
+function scoreTone(score) {
+  if (score === 10) return "ring-emerald-400/80 bg-emerald-50/90";
+  if (score === 5) return "ring-amber-400/80 bg-amber-50/90";
+  if (score === 0) return "ring-red-400/70 bg-red-50/90";
+  return "ring-ink/10 bg-white/90";
+}
+
+/**
  * @param {{ room: Record<string, unknown> | null, rounds: Array<Record<string, unknown>> }} props
  */
 export function ResultsCarousel({ room, rounds }) {
@@ -22,8 +32,34 @@ export function ResultsCarousel({ room, rounds }) {
 
   const [roundIdx, setRoundIdx] = useState(0);
   const [playerIdx, setPlayerIdx] = useState(0);
+  const [openCommentField, setOpenCommentField] = useState(/** @type {string | null} */ (null));
 
   const round = sorted[roundIdx] ?? null;
+
+  const leaderboard = useMemo(() => {
+    const totals = new Map();
+    for (const r of sorted) {
+      const ev = r.evaluation;
+      if (!ev || typeof ev !== "object") continue;
+      const results = /** @type {{ results?: Array<{ playerId?: string, totalScore?: number }> }} */ (ev)
+        .results;
+      if (!Array.isArray(results)) continue;
+      for (const row of results) {
+        const id = row.playerId;
+        if (!id) continue;
+        const t = typeof row.totalScore === "number" ? row.totalScore : 0;
+        totals.set(id, (totals.get(id) ?? 0) + t);
+      }
+    }
+    const pl = room?.players;
+    const list = [...totals.entries()].map(([id, score]) => ({
+      id,
+      name: Array.isArray(pl) ? pl.find((p) => p.userId === id)?.username ?? id.slice(-4) : id,
+      score,
+    }));
+    list.sort((a, b) => b.score - a.score);
+    return list;
+  }, [sorted, room?.players]);
 
   const playerIds = useMemo(() => {
     if (!round) return [];
@@ -51,6 +87,15 @@ export function ResultsCarousel({ room, rounds }) {
       ? room.players.find((p) => p.userId === uid)?.username ?? `Player ${uid.slice(-4)}`
       : "—";
 
+  const evalRow = useMemo(() => {
+    if (!uid || !round) return null;
+    const ev = round.evaluation;
+    if (!ev || typeof ev !== "object") return null;
+    const results = /** @type {{ results?: Array<{ playerId?: string }> }} */ (ev).results;
+    if (!Array.isArray(results)) return null;
+    return results.find((x) => x.playerId === uid) ?? null;
+  }, [round, uid]);
+
   const goRound = useCallback(
     (delta) => {
       if (sorted.length === 0) return;
@@ -59,6 +104,7 @@ export function ResultsCarousel({ room, rounds }) {
         return n;
       });
       setPlayerIdx(0);
+      setOpenCommentField(null);
     },
     [sorted.length],
   );
@@ -67,6 +113,7 @@ export function ResultsCarousel({ room, rounds }) {
     (delta) => {
       if (playerIds.length === 0) return;
       setPlayerIdx((i) => (i + delta + playerIds.length) % playerIds.length);
+      setOpenCommentField(null);
     },
     [playerIds.length],
   );
@@ -102,9 +149,38 @@ export function ResultsCarousel({ room, rounds }) {
 
   const letter = typeof round?.letter === "string" ? round.letter : "—";
   const ri = typeof round?.roundIndex === "number" ? round.roundIndex : roundIdx;
+  const evalPending = round?.evaluationStatus === "pending";
+  const evalSource =
+    typeof round?.evaluationSource === "string" ? round.evaluationSource : null;
 
   return (
     <div className="flex flex-col gap-6">
+      {leaderboard.length > 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[var(--radius-2xl)] border border-ink/10 bg-gradient-to-br from-white/95 to-accent/5 p-5 shadow-[var(--shadow-card)] ring-2 ring-white/90"
+        >
+          <p className="text-xs font-extrabold uppercase tracking-widest text-ink-muted">Leaderboard</p>
+          <ol className="mt-3 space-y-2">
+            {leaderboard.map((e, i) => (
+              <li
+                key={e.id}
+                className="flex items-center justify-between rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-bold text-ink ring-1 ring-ink/5"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-xs font-black text-accent">
+                    {i + 1}
+                  </span>
+                  {e.name}
+                </span>
+                <span className="tabular-nums text-lg font-black text-accent">{e.score}</span>
+              </li>
+            ))}
+          </ol>
+        </motion.div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-2 ring-white/90">
         <span className="text-xs font-bold uppercase tracking-widest text-ink-muted">Round</span>
         <div className="flex items-center gap-2">
@@ -118,7 +194,19 @@ export function ResultsCarousel({ room, rounds }) {
             →
           </Button>
         </div>
-        <span className="text-2xl font-black text-accent">{letter}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {evalPending ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-900">
+              Scoring…
+            </span>
+          ) : null}
+          {evalSource ? (
+            <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[10px] font-bold uppercase text-ink-muted">
+              {evalSource === "gemini" ? "AI scored" : "Offline scored"}
+            </span>
+          ) : null}
+          <span className="text-2xl font-black text-accent">{letter}</span>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -141,19 +229,53 @@ export function ResultsCarousel({ room, rounds }) {
               <p className="mt-1 text-xs font-bold text-ink-muted">
                 {safePlayerIdx + 1} of {playerIds.length}
               </p>
+              {evalRow && typeof evalRow.totalScore === "number" ? (
+                <p className="mt-2 text-sm font-extrabold text-accent">Round total: {evalRow.totalScore} pts</p>
+              ) : null}
             </div>
           </div>
 
           <dl className="mt-8 grid gap-3 sm:grid-cols-2">
-            {FIELDS.map(({ key, label }) => (
-              <div
-                key={key}
-                className="rounded-2xl bg-white/90 px-4 py-3 ring-1 ring-ink/10"
-              >
-                <dt className="text-xs font-extrabold uppercase tracking-wide text-ink-muted">{label}</dt>
-                <dd className="mt-1 text-lg font-bold text-ink">{row[key]?.trim() ? row[key] : "—"}</dd>
-              </div>
-            ))}
+            {FIELDS.map(({ key, label }) => {
+              const cell =
+                evalRow?.answers && typeof evalRow.answers === "object"
+                  ? /** @type {Record<string, { value?: string, score?: number, comment?: string }>} */ (
+                      evalRow.answers
+                    )[key]
+                  : null;
+              const sc = typeof cell?.score === "number" ? cell.score : null;
+              const show = openCommentField === key;
+              return (
+                <div
+                  key={key}
+                  className={`rounded-2xl px-4 py-3 ring-2 transition-colors ${scoreTone(sc)}`}
+                >
+                  <dt className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-ink-muted">{label}</span>
+                    {sc != null ? (
+                      <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-black text-ink ring-1 ring-ink/10">
+                        {sc} pts
+                      </span>
+                    ) : null}
+                  </dt>
+                  <dd className="mt-1 text-lg font-bold text-ink">{row[key]?.trim() ? row[key] : "—"}</dd>
+                  {cell?.comment ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-accent underline underline-offset-2"
+                        onClick={() => setOpenCommentField(show ? null : key)}
+                      >
+                        {show ? "Hide note" : "View note"}
+                      </button>
+                      {show ? (
+                        <p className="mt-1 text-xs font-medium leading-snug text-ink-muted">{cell.comment}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </dl>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -182,6 +304,7 @@ export function ResultsCarousel({ room, rounds }) {
             onClick={() => {
               setRoundIdx(i);
               setPlayerIdx(0);
+              setOpenCommentField(null);
             }}
           />
         ))}

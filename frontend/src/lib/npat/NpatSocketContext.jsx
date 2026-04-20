@@ -141,8 +141,10 @@ export function NpatProvider({ children }) {
     });
     socket.on("disconnect", () => {
       setConnected(false);
-      // Keep a FINISHED room snapshot so the results route can still render while the socket reconnects.
-      setRoom((prev) => (prev?.state === "FINISHED" ? prev : null));
+      // Keep FINISHED / EVALUATING snapshots so results / play can render while reconnecting.
+      setRoom((prev) =>
+        prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null,
+      );
     });
     socket.on("connect_error", (err) => {
       setSocketErrorState(err?.message ?? "Could not connect");
@@ -154,6 +156,7 @@ export function NpatProvider({ children }) {
     socket.on("round_started", onRoomPayload);
     socket.on("timer_started", onRoomPayload);
     socket.on("round_ended", onRoomPayload);
+    socket.on("round_evaluated", onRoomPayload);
     socket.on("game_finished", (payload) => {
       if (payload?.room) {
         applyRoom({

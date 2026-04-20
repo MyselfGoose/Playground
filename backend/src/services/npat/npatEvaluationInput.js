@@ -1,0 +1,32 @@
+/**
+ * Build the payload sent to Gemini / fallback from a closed round snapshot.
+ *
+ * @param {{
+ *   results: { rounds: Array<{ roundIndex: number, letter?: string, submissions?: Record<string, Record<string, string>> }> },
+ *   players: Map<string, { username?: string }>,
+ * }} engine
+ * @param {number} roundIndex
+ */
+export function buildNpatEvaluationInput(engine, roundIndex) {
+  const round = engine.results.rounds.find((r) => r.roundIndex === roundIndex);
+  if (!round) {
+    throw new Error(`Round ${roundIndex} not found in engine results`);
+  }
+  const letter = String(round.letter ?? '?').toUpperCase().slice(0, 1);
+  const subs = round.submissions && typeof round.submissions === 'object' ? round.submissions : {};
+  const players = [];
+  for (const [playerId, row] of Object.entries(subs)) {
+    const p = engine.players.get(playerId);
+    players.push({
+      playerId,
+      playerName: p?.username ?? 'Player',
+      answers: {
+        name: row?.name ?? '',
+        place: row?.place ?? '',
+        animal: row?.animal ?? '',
+        thing: row?.thing ?? '',
+      },
+    });
+  }
+  return { roundLetter: letter, language: 'en', players };
+}

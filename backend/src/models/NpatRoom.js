@@ -26,6 +26,12 @@ const roundSnapshotSchema = new mongoose.Schema(
     letter: { type: String, required: true },
     submissions: { type: mongoose.Schema.Types.Mixed, default: {} },
     endedAt: { type: Date, default: Date.now },
+    evaluationStatus: { type: String, enum: ['pending', 'complete', 'failed'], default: 'pending' },
+    evaluationSource: { type: String, enum: ['gemini', 'fallback'], default: undefined },
+    evaluatedAt: { type: Date, default: undefined },
+    evaluationError: { type: String, default: undefined },
+    /** Full payload: { round, results } plus deterministic scores */
+    evaluation: { type: mongoose.Schema.Types.Mixed, default: undefined },
   },
   { _id: false },
 );

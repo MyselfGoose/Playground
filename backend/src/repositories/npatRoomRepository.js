@@ -61,6 +61,25 @@ export const npatRoomRepository = {
   },
 
   /**
+   * Patch evaluation fields on a single roundsHistory element (matched by roundIndex).
+   * @param {string} code
+   * @param {number} roundIndex
+   * @param {Record<string, unknown>} fields
+   */
+  patchRoundHistoryByRoundIndex(code, roundIndex, fields) {
+    /** @type {Record<string, string>} */
+    const $set = {};
+    for (const [k, v] of Object.entries(fields)) {
+      $set[`roundsHistory.$[r].${k}`] = v;
+    }
+    return NpatRoom.updateOne(
+      { code },
+      { $set, $inc: { version: 1 } },
+      { arrayFilters: [{ 'r.roundIndex': roundIndex }] },
+    );
+  },
+
+  /**
    * @param {string} code
    */
   deleteByCode(code) {

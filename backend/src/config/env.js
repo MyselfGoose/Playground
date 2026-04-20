@@ -89,6 +89,13 @@ export const envSchema = z
     NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(1000),
     NPAT_EARLY_FINISH_PROPOSE_RATE_MS: z.coerce.number().int().min(500).max(60_000).default(4000),
     NPAT_EARLY_FINISH_VOTE_RATE_MS: z.coerce.number().int().min(100).max(10_000).default(400),
+
+    /** Google Gemini (server-only). Optional: rounds fall back to heuristic scoring if unset. */
+    GEMINI_API_KEY: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    GEMINI_MODEL: z.string().min(1).default('gemini-2.0-flash'),
+    NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
+    NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+    NPAT_EVAL_MAX_ANSWER_CHARS: z.coerce.number().int().min(20).max(500).default(120),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
