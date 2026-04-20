@@ -19,6 +19,7 @@ export async function listen(server, { port, host, logger }) {
     server.once('error', onErr);
     server.listen(port, host, () => {
       server.off('error', onErr);
+      console.log('[boot] TRACE_LISTEN_CALLBACK', JSON.stringify({ port, host }));
       resolve();
     });
   });

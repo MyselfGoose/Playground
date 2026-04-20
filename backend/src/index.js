@@ -1,16 +1,79 @@
 import 'dotenv/config';
-import { getEnv } from './config/env.js';
-import { connectDb, disconnectDb } from './config/db.js';
+import mongoose from 'mongoose';
+import { getEnv, EnvValidationError } from './config/env.js';
+import { disconnectDb, startMongoConnectionBackground } from './config/db.js';
 import { createLogger } from './lib/logger.js';
 import { createApp } from './app.js';
 import { createHttpServer, listen, setupGracefulShutdown } from './server.js';
 import { registerProcessHandlers } from './processHandlers.js';
 import { attachSocketIo } from './games/npat/npatSocket.js';
+import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
+
+function bootTrace(msg, extra = {}) {
+  console.log(`[boot] ${msg}`, Object.keys(extra).length ? JSON.stringify(extra) : '');
+}
+
+/** @param {unknown} registry */
+function scheduleNpatBootHydrateWhenMongoReady(registry, logger) {
+  const run = () => {
+    void registry.bootHydrate().catch((err) => {
+      logger.error({ err, event: 'npat_boot_hydrate_error' }, 'npat_room');
+    });
+  };
+  if (mongoose.connection.readyState === 1) {
+    run();
+  } else {
+    mongoose.connection.once('connected', run);
+  }
+}
+
+/**
+ * Env invalid: still listen so Railway proxy is never "connection refused".
+ */
+async function startMinimalHttpServer(envErr) {
+  const flatten = envErr instanceof EnvValidationError ? envErr.flatten : undefined;
+  const port = Number(process.env.PORT) || 4000;
+  bootTrace('ENV_INVALID_STARTING_MINIMAL_HTTP', { port });
+
+  const logger = createLogger({ NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development' });
+  registerProcessHandlers({ logger });
+  logger.error(
+    { err: envErr, flatten },
+    'boot_env_validation_failed_minimal_server_only_fix_env_and_redeploy',
+  );
+
+  const app = createMinimalListenApp({ flatten });
+  const server = createHttpServer(app);
+
+  setupGracefulShutdown({
+    server,
+    logger,
+    beforeHttpClose: async () => {},
+    onBeforeExit: async () => {},
+  });
+
+  bootTrace('BEFORE_LISTEN_MINIMAL', { port, host: '0.0.0.0' });
+  await listen(server, { port, host: '0.0.0.0', logger });
+  logger.info({ port, host: '0.0.0.0' }, 'server_listening');
+  logger.info('SERVER_BOOT_COMPLETE');
+  console.log('[boot] SERVER_BOOT_COMPLETE (minimal)');
+}
 
 async function main() {
-  const env = getEnv();
-  const logger = createLogger(env);
+  bootTrace('TRACE_START');
 
+  let env;
+  try {
+    bootTrace('TRACE_BEFORE_ENV');
+    env = getEnv();
+    bootTrace('TRACE_AFTER_ENV_OK');
+  } catch (e) {
+    bootTrace('TRACE_ENV_FAILED', { name: e?.name, message: e?.message });
+    await startMinimalHttpServer(e);
+    return;
+  }
+
+  const logger = createLogger(env);
   registerProcessHandlers({ logger });
 
   logger.info(
@@ -24,20 +87,25 @@ async function main() {
     'boot_config',
   );
 
-  await connectDb({ mongoUri: env.MONGO_URI, logger });
+  bootTrace('TRACE_BEFORE_DB_BACKGROUND');
+  startMongoConnectionBackground({ mongoUri: env.MONGO_URI, logger });
+  logger.warn(
+    { mode: 'degraded_until_mongo' },
+    'mongodb_connection_started_in_background_server_not_blocked',
+  );
+  bootTrace('TRACE_AFTER_DB_SCHEDULED');
 
+  bootTrace('TRACE_BEFORE_CREATE_APP');
   const app = createApp({ env, logger });
   const server = createHttpServer(app);
+  bootTrace('TRACE_AFTER_CREATE_APP');
+
+  bootTrace('TRACE_BEFORE_SOCKET_IO');
   const { io, registry } = attachSocketIo({ server, env, logger });
+  bootTrace('TRACE_AFTER_SOCKET_IO');
 
-  // Rehydrate any non-finished rooms from Mongo so mid-round games survive restarts.
-  try {
-    await registry.bootHydrate();
-  } catch (err) {
-    logger.error({ err, event: 'npat_boot_hydrate_error' }, 'npat_room');
-  }
+  scheduleNpatBootHydrateWhenMongoReady(registry, logger);
 
-  // Periodic cleanup of very old waiting/finished rooms.
   const cleanupInterval = setInterval(() => {
     registry.cleanupStale().catch((err) => {
       logger.warn({ err, event: 'npat_cleanup_error' }, 'npat_room');
@@ -62,12 +130,16 @@ async function main() {
     onBeforeExit: () => disconnectDb({ logger }),
   });
 
+  bootTrace('TRACE_BEFORE_LISTEN', { port: env.PORT, host: '0.0.0.0' });
   await listen(server, { port: env.PORT, host: '0.0.0.0', logger });
+  logger.info({ port: env.PORT, host: '0.0.0.0' }, 'server_listening');
+  logger.info('SERVER_BOOT_COMPLETE');
+  console.log('[boot] SERVER_BOOT_COMPLETE');
 }
 
 main().catch((err) => {
   const msg = err instanceof Error ? err.message : String(err);
-  console.error('[bootstrap] Fatal — fix environment or dependencies, then redeploy:', msg);
+  console.error('[bootstrap] Fatal — unexpected error before listen could complete:', msg);
   if (err instanceof Error && err.stack) {
     console.error(err.stack);
   }

@@ -15,18 +15,19 @@ export function mongoUriMeta(mongoUri) {
   }
 }
 
-const MAX_ATTEMPTS = 8;
 const INITIAL_DELAY_MS = 500;
+const MAX_BACKOFF_MS = 30_000;
 
 /**
- * @param {{ mongoUri: string, logger: import('pino').Logger }} params
+ * Blocking connect with limited retries (scripts / tests).
+ * @param {{ mongoUri: string, logger: import('pino').Logger, maxAttempts?: number }} params
  */
-export async function connectDb({ mongoUri, logger }) {
+export async function connectDbBlocking({ mongoUri, logger, maxAttempts = 8 }) {
   const meta = mongoUriMeta(mongoUri);
   let attempt = 0;
   let delay = INITIAL_DELAY_MS;
 
-  while (attempt < MAX_ATTEMPTS) {
+  while (attempt < maxAttempts) {
     attempt += 1;
     try {
       mongoose.set('strictQuery', true);
@@ -34,8 +35,8 @@ export async function connectDb({ mongoUri, logger }) {
       logger.info({ ...meta, attempt }, 'mongodb_connected');
       return;
     } catch (err) {
-      logger.warn({ err, ...meta, attempt, maxAttempts: MAX_ATTEMPTS }, 'mongodb_connect_attempt_failed');
-      if (attempt >= MAX_ATTEMPTS) {
+      logger.warn({ err, ...meta, attempt, maxAttempts }, 'mongodb_connect_attempt_failed');
+      if (attempt >= maxAttempts) {
         logger.error({ ...meta }, 'mongodb_connect_exhausted');
         throw err;
       }
@@ -43,6 +44,39 @@ export async function connectDb({ mongoUri, logger }) {
       delay = Math.min(delay * 2, 10_000);
     }
   }
+}
+
+/**
+ * Non-blocking: retries in the background forever until connected. HTTP server must start without awaiting this.
+ * @param {{ mongoUri: string, logger: import('pino').Logger }} params
+ */
+export function startMongoConnectionBackground({ mongoUri, logger }) {
+  const meta = mongoUriMeta(mongoUri);
+  let attempt = 0;
+  let delay = INITIAL_DELAY_MS;
+
+  void (async function mongoRetryLoop() {
+    while (true) {
+      attempt += 1;
+      try {
+        if (mongoose.connection.readyState === 1) {
+          logger.info({ ...meta, attempt }, 'mongodb_already_connected');
+          return;
+        }
+        mongoose.set('strictQuery', true);
+        await mongoose.connect(mongoUri);
+        logger.info({ ...meta, attempt }, 'mongodb_connected');
+        return;
+      } catch (err) {
+        logger.warn(
+          { err, ...meta, attempt, mode: 'degraded' },
+          'mongodb_connect_attempt_failed_will_retry',
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(delay * 2, MAX_BACKOFF_MS);
+      }
+    }
+  })();
 }
 
 /**

@@ -178,7 +178,23 @@ export const envSchema = z
 let cached;
 
 /**
- * Parsed, validated environment. Call once during boot; throws via process.exit on failure.
+ * Thrown when `process.env` fails Zod validation. Callers must not use `process.exit` — log and decide.
+ */
+export class EnvValidationError extends Error {
+  /**
+   * @param {import('zod').FlattenMaps} flatten
+   */
+  constructor(flatten) {
+    super('Invalid environment configuration');
+    this.name = 'EnvValidationError';
+    /** @type {import('zod').FlattenMaps} */
+    this.flatten = flatten;
+  }
+}
+
+/**
+ * Parsed, validated environment. Call once during boot.
+ * @throws {EnvValidationError} when validation fails (never calls `process.exit`)
  * @returns {Env}
  */
 export function getEnv() {
@@ -195,8 +211,8 @@ export function getEnv() {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     const detail = parsed.error.flatten();
-    console.error('Invalid environment configuration:', detail.fieldErrors, detail.formErrors);
-    process.exit(1);
+    console.error('[config] Invalid environment configuration:', detail.fieldErrors, detail.formErrors);
+    throw new EnvValidationError(detail);
   }
 
   cached = parsed.data;
