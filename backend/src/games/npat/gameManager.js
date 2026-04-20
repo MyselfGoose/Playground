@@ -1,8 +1,6 @@
 import mongoose from 'mongoose';
 import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
-import { evaluateNpatRound } from '../../services/npat/npatEvaluationService.js';
-import { evaluateNpatRoundFallback } from '../../services/npat/npatEvaluationFallback.js';
-import { buildNpatEvaluationInput } from '../../services/npat/npatEvaluationInput.js';
+import { evaluateNpatFullGame, evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvaluationService.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
 import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
 
@@ -189,7 +187,7 @@ export class NpatRoomEngine {
 
     {
       let st = doc.engineState || GAME_STATES.WAITING;
-      if (st === GAME_STATES.ROUND_ENDING) st = GAME_STATES.EVALUATING;
+      if (st === GAME_STATES.ROUND_ENDING) st = GAME_STATES.BETWEEN_ROUNDS;
       engine.state = st;
     }
     engine.roundPhase = doc.roundPhase || 'none';
@@ -299,12 +297,7 @@ export class NpatRoomEngine {
         return;
       }
       case GAME_STATES.EVALUATING: {
-        const pending = this.results.rounds.filter((x) => x.evaluationStatus === 'pending');
-        if (pending.length > 0) {
-          const last = pending[pending.length - 1];
-          const finishGame = this.letterPool.length === 0;
-          void this._queueRoundEvaluation(last.roundIndex, { finishGame });
-        }
+        void this._queueFullGameEvaluation();
         return;
       }
       default:
@@ -611,8 +604,8 @@ export class NpatRoomEngine {
       this._roundTimer = null;
     }
     this.roundEndDeadline = null;
-    assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
-    this.state = GAME_STATES.EVALUATING;
+    assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.ROUND_ENDING;
     this.roundPhase = 'none';
     this.countdownTriggeredByUserId = null;
     this._finalizeRoundSnapshot();
@@ -622,14 +615,19 @@ export class NpatRoomEngine {
   _endRoundFromTimer() {
     this._roundTimer = null;
     if (this.state !== GAME_STATES.IN_ROUND) return;
-    assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
-    this.state = GAME_STATES.EVALUATING;
+    assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.ROUND_ENDING;
     this.roundPhase = 'none';
     this.countdownTriggeredByUserId = null;
     this._finalizeRoundSnapshot();
   }
 
+  /**
+   * Snapshot the closed round. Scoring runs once at game end, not here.
+   * Between rounds: go straight to BETWEEN_ROUNDS. Last round: EVALUATING then batch score.
+   */
   _finalizeRoundSnapshot() {
+    if (this.state !== GAME_STATES.ROUND_ENDING) return;
     const letter = this.currentLetter ?? '?';
     const roundIndex = this.currentRoundIndex;
     /** @type {Record<string, Record<string, string>>} */
@@ -666,126 +664,129 @@ export class NpatRoomEngine {
       roundIndex,
       letter,
       submissions: snap,
-      evaluationPending: true,
+      evaluationPending: false,
     });
 
     const hasMore = this.letterPool.length > 0;
-    void this._queueRoundEvaluation(roundIndex, { finishGame: !hasMore });
+    if (hasMore) {
+      assertTransition(this.state, GAME_STATES.BETWEEN_ROUNDS);
+      this.state = GAME_STATES.BETWEEN_ROUNDS;
+      this.betweenEndDeadline = Date.now() + this.env.NPAT_BETWEEN_ROUNDS_MS;
+
+      void this.persist({ engineState: this.state }, undefined);
+
+      this.emit('room_update', { room: this.toPublicDto() });
+
+      if (this._betweenTimer) clearTimeout(this._betweenTimer);
+      this._betweenTimer = setTimeout(() => this._leaveBetween(), this.env.NPAT_BETWEEN_ROUNDS_MS);
+      return;
+    }
+
+    assertTransition(this.state, GAME_STATES.EVALUATING);
+    this.state = GAME_STATES.EVALUATING;
+    void this.persist({ engineState: this.state }, undefined);
+    void this._queueFullGameEvaluation();
   }
 
   /**
-   * Run Gemini (or fallback), persist scores, then move to BETWEEN_ROUNDS or FINISHED.
-   * @param {number} roundIndex
-   * @param {{ finishGame: boolean }} opts
+   * Score all recorded rounds at once (Gemini or fallback), then finish the game.
    */
-  _queueRoundEvaluation(roundIndex, opts) {
+  _queueFullGameEvaluation() {
     if (this._evaluationFlight) return;
     this._evaluationFlight = (async () => {
       try {
-        const input = buildNpatEvaluationInput(this, roundIndex);
         let source = /** @type {'gemini' | 'fallback'} */ ('fallback');
-        /** @type {Record<string, unknown>} */
-        let payload;
+        /** @type {{ rounds: Array<{ roundIndex: number, round: string, results: unknown[] }> }} */
+        let batch;
         try {
-          const out = await evaluateNpatRound(this.env, input, this.logger);
+          const out = await evaluateNpatFullGame(this.env, this, this.logger);
           source = out.source;
-          payload = out.payload;
+          batch = out.payload;
         } catch (e) {
-          this.logger.warn({ err: e, roundIndex, event: 'npat_eval_inner' }, 'npat_room');
-          payload = evaluateNpatRoundFallback({
-            roundLetter: input.roundLetter,
-            players: input.players,
-          });
+          this.logger.warn({ err: e, event: 'npat_full_eval_inner' }, 'npat_room');
+          batch = evaluateNpatFullGameFallback(this);
           source = 'fallback';
         }
 
-        const round = this.results.rounds.find((r) => r.roundIndex === roundIndex);
-        if (!round) return;
-
-        round.evaluation = payload;
-        round.evaluationStatus = 'complete';
-        round.evaluationSource = source;
-        round.evaluatedAt = new Date().toISOString();
-        round.evaluationError = undefined;
-
-        try {
-          await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, roundIndex, {
-            evaluation: payload,
-            evaluationStatus: 'complete',
-            evaluationSource: source,
-            evaluatedAt: new Date(),
-            evaluationError: null,
-          });
-        } catch (pe) {
-          this.logger.warn({ err: pe, code: this.code, roundIndex }, 'npat_eval_persist');
+        for (const br of batch.rounds) {
+          const round = this.results.rounds.find((r) => r.roundIndex === br.roundIndex);
+          if (!round) continue;
+          const evaluation = { round: br.round, results: br.results };
+          round.evaluation = evaluation;
+          round.evaluationStatus = 'complete';
+          round.evaluationSource = source;
+          round.evaluatedAt = new Date().toISOString();
+          round.evaluationError = undefined;
+          try {
+            await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, br.roundIndex, {
+              evaluation,
+              evaluationStatus: 'complete',
+              evaluationSource: source,
+              evaluatedAt: new Date(),
+              evaluationError: null,
+            });
+          } catch (pe) {
+            this.logger.warn({ err: pe, code: this.code, roundIndex: br.roundIndex }, 'npat_full_eval_persist');
+          }
         }
 
-        this.emit('round_evaluated', {
-          room: this.toPublicDto(),
-          roundIndex,
-          source,
-          evaluation: payload,
-        });
+        this.emit('room_update', { room: this.toPublicDto() });
+        this.emit('game_evaluated', { room: this.toPublicDto(), source });
 
-        if (opts.finishGame) {
-          this._applyFinishGameFromEvaluation();
-        } else {
-          this._applyBetweenRoundsAfterEvaluation();
-        }
+        this._applyFinishGameFromEvaluation();
       } catch (err) {
-        this.logger.error({ err, code: this.code, roundIndex, event: 'npat_eval_failed' }, 'npat_room');
+        this.logger.error({ err, code: this.code, event: 'npat_full_eval_failed' }, 'npat_room');
         try {
-          const input = buildNpatEvaluationInput(this, roundIndex);
-          const payload = evaluateNpatRoundFallback({
-            roundLetter: input.roundLetter,
-            players: input.players,
-          });
-          const round = this.results.rounds.find((r) => r.roundIndex === roundIndex);
-          if (round) {
-            round.evaluation = payload;
+          const batch = evaluateNpatFullGameFallback(this);
+          for (const br of batch.rounds) {
+            const round = this.results.rounds.find((r) => r.roundIndex === br.roundIndex);
+            if (!round) continue;
+            const evaluation = { round: br.round, results: br.results };
+            round.evaluation = evaluation;
             round.evaluationStatus = 'complete';
             round.evaluationSource = 'fallback';
             round.evaluatedAt = new Date().toISOString();
+            await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, br.roundIndex, {
+              evaluation,
+              evaluationStatus: 'complete',
+              evaluationSource: 'fallback',
+              evaluatedAt: new Date(),
+              evaluationError: null,
+            }).catch(() => {});
           }
-          await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, roundIndex, {
-            evaluation: payload,
-            evaluationStatus: 'complete',
-            evaluationSource: 'fallback',
-            evaluatedAt: new Date(),
-            evaluationError: null,
-          }).catch(() => {});
-          this.emit('round_evaluated', {
-            room: this.toPublicDto(),
-            roundIndex,
-            source: 'fallback',
-            evaluation: payload,
-          });
+          this.emit('room_update', { room: this.toPublicDto() });
         } catch (_) {
           /* ignore */
         }
-        if (opts.finishGame) {
-          this._applyFinishGameFromEvaluation();
-        } else {
-          this._applyBetweenRoundsAfterEvaluation();
-        }
+        this._applyFinishGameFromEvaluation();
       } finally {
         this._evaluationFlight = null;
       }
     })();
   }
 
-  _applyBetweenRoundsAfterEvaluation() {
-    if (this.state !== GAME_STATES.EVALUATING) return;
-    assertTransition(this.state, GAME_STATES.BETWEEN_ROUNDS);
-    this.state = GAME_STATES.BETWEEN_ROUNDS;
-    this.betweenEndDeadline = Date.now() + this.env.NPAT_BETWEEN_ROUNDS_MS;
-
-    void this.persist({ engineState: this.state }, undefined);
-
-    this.emit('room_update', { room: this.toPublicDto() });
-
-    if (this._betweenTimer) clearTimeout(this._betweenTimer);
-    this._betweenTimer = setTimeout(() => this._leaveBetween(), this.env.NPAT_BETWEEN_ROUNDS_MS);
+  /**
+   * Drop the in-progress round (early finish): remove letter from stats and restore pool.
+   */
+  _discardInProgressRound() {
+    if (this.state !== GAME_STATES.IN_ROUND || this.currentRoundIndex < 0) return;
+    const L = this.currentLetter;
+    if (L && this.usedLetters.length > 0 && this.usedLetters[this.usedLetters.length - 1] === L) {
+      this.usedLetters.pop();
+    }
+    if (L) {
+      this.letterPool.unshift(L);
+    }
+    this.currentRoundIndex = Math.max(-1, this.currentRoundIndex - 1);
+    this.currentLetter = null;
+    this.roundPhase = 'none';
+    this.roundEndDeadline = null;
+    this._countdownStarted = false;
+    this.countdownTriggeredByUserId = null;
+    this.submissions = new Map();
+    for (const uid of this.players.keys()) {
+      this.submissions.set(uid, {});
+    }
   }
 
   _applyFinishGameFromEvaluation() {
@@ -828,6 +829,22 @@ export class NpatRoomEngine {
     this.clearTimers();
     if (this.state === GAME_STATES.FINISHED) return;
     this.earlyFinishProposal = null;
+    if (this.results.rounds.length > 0) {
+      assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
+      this.state = GAME_STATES.EVALUATING;
+      this.roundPhase = 'none';
+      void this.persist(
+        {
+          engineState: this.state,
+          roundPhase: this.roundPhase,
+          currentRound: this._currentRoundDoc(),
+          earlyFinishProposal: null,
+        },
+        undefined,
+      );
+      void this._queueFullGameEvaluation();
+      return;
+    }
     assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
@@ -851,78 +868,48 @@ export class NpatRoomEngine {
   }
 
   /**
-   * Snapshot the in-progress round into `results` if we are mid-round and it is not already
-   * recorded (e.g. early finish during IN_ROUND).
-   */
-  _appendCurrentRoundToResultsIfNeeded() {
-    if (this.state !== GAME_STATES.IN_ROUND) return;
-    if (this.currentRoundIndex < 0) return;
-    if (this.results.rounds.some((r) => r.roundIndex === this.currentRoundIndex)) return;
-    const letter = this.currentLetter ?? '?';
-    const roundIndex = this.currentRoundIndex;
-    /** @type {Record<string, Record<string, string>>} */
-    const snap = {};
-    for (const [uid, row] of this.submissions) {
-      snap[uid] = { ...row };
-    }
-    const endedAt = new Date().toISOString();
-    this.results.rounds.push({
-      roundIndex,
-      letter,
-      submissions: snap,
-      endedAt,
-      evaluationStatus: 'pending',
-    });
-    void this.persist(
-      {
-        currentRound: this._currentRoundDoc(),
-        earlyFinishProposal: null,
-      },
-      {
-        roundIndex,
-        letter,
-        submissions: snap,
-        endedAt: new Date(),
-        evaluationStatus: 'pending',
-      },
-    );
-  }
-
-  /**
    * End the game after a successful unanimous early-finish vote.
+   * Discards the in-progress round (letter + submissions) so it does not count.
    */
   _finishGameEarly() {
     this.earlyFinishProposal = null;
     this.clearTimers();
     if (this.state === GAME_STATES.FINISHED) return;
     if (this.state === GAME_STATES.IN_ROUND) {
-      this._appendCurrentRoundToResultsIfNeeded();
-      const row = this.results.rounds.find((r) => r.roundIndex === this.currentRoundIndex);
-      if (row && row.evaluationStatus === 'pending') {
-        assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
-        this.state = GAME_STATES.EVALUATING;
-        this.roundPhase = 'none';
-        void this.persist(
-          {
-            engineState: this.state,
-            roundPhase: this.roundPhase,
-            currentRound: this._currentRoundDoc(),
-            earlyFinishProposal: null,
-          },
-          undefined,
-        );
-        this.emit('round_ended', {
-          room: this.toPublicDto(),
-          roundIndex: row.roundIndex,
-          letter: row.letter,
-          submissions: row.submissions ?? {},
-          evaluationPending: true,
-        });
-        void this._queueRoundEvaluation(row.roundIndex, { finishGame: true });
-        this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
-        return;
-      }
+      this._discardInProgressRound();
     }
+    void this.persist(
+      {
+        letterPool: this.letterPool,
+        usedLetters: this.usedLetters,
+        currentRoundIndex: this.currentRoundIndex,
+        currentLetter: this.currentLetter ?? '',
+        currentRound: this._currentRoundDoc(),
+        engineState: this.state,
+        roundPhase: this.roundPhase,
+        earlyFinishProposal: null,
+      },
+      undefined,
+    );
+
+    if (this.results.rounds.length > 0) {
+      assertTransition(this.state, GAME_STATES.EVALUATING, { roundPhase: this.roundPhase });
+      this.state = GAME_STATES.EVALUATING;
+      this.roundPhase = 'none';
+      void this.persist(
+        {
+          engineState: this.state,
+          roundPhase: this.roundPhase,
+          currentRound: this._currentRoundDoc(),
+          earlyFinishProposal: null,
+        },
+        undefined,
+      );
+      void this._queueFullGameEvaluation();
+      this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
+      return;
+    }
+
     assertTransition(this.state, GAME_STATES.FINISHED, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
@@ -1149,7 +1136,8 @@ export class NpatRoomEngine {
       betweenRoundsEndsAt: this.betweenEndDeadline,
       letterPoolRemaining: this.letterPool.length,
       countdownTriggeredByUserId: this.countdownTriggeredByUserId,
-      evaluatingRoundIndex: this.state === GAME_STATES.EVALUATING ? this.currentRoundIndex : null,
+      /** Full-game batch scoring at the end (not tied to a single round index). */
+      evaluatingRoundIndex: null,
       results:
         this.results.rounds.length > 0 &&
         this.state !== GAME_STATES.WAITING &&

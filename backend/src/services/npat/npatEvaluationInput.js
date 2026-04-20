@@ -30,3 +30,24 @@ export function buildNpatEvaluationInput(engine, roundIndex) {
   }
   return { roundLetter: letter, language: 'en', players };
 }
+
+/**
+ * All completed rounds for end-of-game batch scoring.
+ *
+ * @param {{
+ *   results: { rounds: Array<{ roundIndex: number }> },
+ *   players: Map<string, { username?: string }>,
+ * }} engine
+ */
+export function buildNpatFullGameEvaluationInput(engine) {
+  const rounds = [];
+  for (const r of engine.results.rounds) {
+    const one = buildNpatEvaluationInput(engine, r.roundIndex);
+    rounds.push({
+      roundIndex: r.roundIndex,
+      roundLetter: one.roundLetter,
+      players: one.players,
+    });
+  }
+  return { language: 'en', rounds };
+}

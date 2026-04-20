@@ -156,7 +156,7 @@ export function NpatProvider({ children }) {
     socket.on("round_started", onRoomPayload);
     socket.on("timer_started", onRoomPayload);
     socket.on("round_ended", onRoomPayload);
-    socket.on("round_evaluated", onRoomPayload);
+    socket.on("game_evaluated", onRoomPayload);
     socket.on("game_finished", (payload) => {
       if (payload?.room) {
         applyRoom({
