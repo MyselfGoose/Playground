@@ -140,9 +140,16 @@ async function main() {
     onBeforeExit: () => disconnectDb({ logger }),
   });
 
-  bootTrace('TRACE_BEFORE_LISTEN', { port: env.PORT, host: '0.0.0.0' });
-  await listen(server, { port: env.PORT, host: '0.0.0.0', logger });
-  logger.info({ port: env.PORT, host: '0.0.0.0' }, 'server_listening');
+  const listenPort = env.PORT;
+  bootTrace('TRACE_BEFORE_LISTEN', { port: listenPort, host: '0.0.0.0', rawPortEnv: process.env.PORT });
+  if (String(listenPort) !== String(process.env.PORT)) {
+    logger.warn(
+      { listenPort, rawPortEnv: process.env.PORT },
+      'PORT_MISMATCH_resolved_port_differs_from_process_env_PORT_check_Railway_variables',
+    );
+  }
+  await listen(server, { port: listenPort, host: '0.0.0.0', logger });
+  logger.info({ port: listenPort, host: '0.0.0.0' }, 'server_listening');
   logger.info('SERVER_BOOT_COMPLETE');
   console.log('[boot] SERVER_BOOT_COMPLETE');
 }
