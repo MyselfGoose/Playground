@@ -70,6 +70,19 @@ function completionTriggered(mode, players, submissions) {
   return false;
 }
 
+/**
+ * Every connected player has submitted all four fields (personal completion).
+ */
+function allConnectedPlayersFinished(players, submissions) {
+  let any = false;
+  for (const [uid, p] of players) {
+    if (!p.connected) continue;
+    any = true;
+    if (!playerHasAllSolo(submissions, uid)) return false;
+  }
+  return any;
+}
+
 function shuffleLetters() {
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for (let i = letters.length - 1; i > 0; i -= 1) {
@@ -144,6 +157,9 @@ export class NpatRoomEngine {
      * @type {{ proposedBy: string, votes: Record<string, 'yes' | 'no'>, proposedAt: number } | null}
      */
     this.earlyFinishProposal = null;
+
+    /** @type {string | null} User who caused the final countdown to start (first to finish all fields in solo). */
+    this.countdownTriggeredByUserId = null;
   }
 
   /**
@@ -219,6 +235,11 @@ export class NpatRoomEngine {
         proposedAt: typeof ef.proposedAt === 'number' ? ef.proposedAt : Date.now(),
       };
     }
+
+    engine.countdownTriggeredByUserId =
+      doc.countdownTriggeredByUserId != null && String(doc.countdownTriggeredByUserId).trim()
+        ? String(doc.countdownTriggeredByUserId)
+        : null;
 
     engine._resumeTimers();
     return engine;
@@ -296,6 +317,7 @@ export class NpatRoomEngine {
       teams: this.teams,
       lastPublicSnapshot: this.toPublicDto(),
       earlyFinishProposal: this.earlyFinishProposal,
+      countdownTriggeredByUserId: this.countdownTriggeredByUserId ?? '',
     };
   }
 
@@ -440,6 +462,7 @@ export class NpatRoomEngine {
     this.results = { rounds: [] };
     this.roundStartAt = Date.now();
     this.earlyFinishProposal = null;
+    this.countdownTriggeredByUserId = null;
 
     void this.persist(
       {
@@ -451,6 +474,7 @@ export class NpatRoomEngine {
         roundsHistory: [],
         currentRound: this._currentRoundDoc(),
         earlyFinishProposal: null,
+        countdownTriggeredByUserId: '',
       },
       undefined,
     );
@@ -482,6 +506,7 @@ export class NpatRoomEngine {
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
+    this.countdownTriggeredByUserId = null;
     this.submissions = new Map();
     for (const uid of this.players.keys()) {
       this.submissions.set(uid, {});
@@ -496,6 +521,7 @@ export class NpatRoomEngine {
         currentRoundIndex: this.currentRoundIndex,
         currentLetter: letter,
         currentRound: this._currentRoundDoc(),
+        countdownTriggeredByUserId: '',
       },
       undefined,
     );
@@ -508,17 +534,26 @@ export class NpatRoomEngine {
     });
   }
 
-  _maybeStartCountdown() {
+  /**
+   * First player (or team rule) completes → optional 10s countdown for everyone else.
+   * @param {string} triggerUserId
+   */
+  _maybeStartCountdown(triggerUserId) {
     if (this.state !== GAME_STATES.IN_ROUND || this.roundPhase !== 'collecting') return;
     if (this._countdownStarted) return;
     if (!completionTriggered(this.mode, this.players, this.submissions)) return;
     this._countdownStarted = true;
     this.roundPhase = 'countdown';
+    this.countdownTriggeredByUserId = triggerUserId;
     const endsAt = Date.now() + this.env.NPAT_ROUND_END_COUNTDOWN_MS;
     this.roundEndDeadline = endsAt;
 
     void this.persist(
-      { roundPhase: this.roundPhase, currentRound: this._currentRoundDoc() },
+      {
+        roundPhase: this.roundPhase,
+        currentRound: this._currentRoundDoc(),
+        countdownTriggeredByUserId: this.countdownTriggeredByUserId ?? '',
+      },
       undefined,
     );
 
@@ -526,10 +561,32 @@ export class NpatRoomEngine {
       room: this.toPublicDto(),
       endsAt,
       msRemaining: this.env.NPAT_ROUND_END_COUNTDOWN_MS,
+      triggeredByUserId: triggerUserId,
     });
 
     if (this._roundTimer) clearTimeout(this._roundTimer);
     this._roundTimer = setTimeout(() => this._endRoundFromTimer(), this.env.NPAT_ROUND_END_COUNTDOWN_MS);
+  }
+
+  /**
+   * When every connected player has all four fields, end the round immediately (no waiting timer).
+   * @returns {boolean} true if the round was completed
+   */
+  _maybeCompleteRoundIfEveryoneDone() {
+    if (this.state !== GAME_STATES.IN_ROUND) return false;
+    if (this.roundPhase !== 'collecting' && this.roundPhase !== 'countdown') return false;
+    if (!allConnectedPlayersFinished(this.players, this.submissions)) return false;
+    if (this._roundTimer) {
+      clearTimeout(this._roundTimer);
+      this._roundTimer = null;
+    }
+    this.roundEndDeadline = null;
+    assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
+    this.state = GAME_STATES.ROUND_ENDING;
+    this.roundPhase = 'none';
+    this.countdownTriggeredByUserId = null;
+    this._finalizeRoundSnapshot();
+    return true;
   }
 
   _endRoundFromTimer() {
@@ -538,6 +595,7 @@ export class NpatRoomEngine {
     assertTransition(this.state, GAME_STATES.ROUND_ENDING, { roundPhase: this.roundPhase });
     this.state = GAME_STATES.ROUND_ENDING;
     this.roundPhase = 'none';
+    this.countdownTriggeredByUserId = null;
     this._finalizeRoundSnapshot();
   }
 
@@ -796,7 +854,11 @@ export class NpatRoomEngine {
     row[field] = value;
     // Incremental persist so a crash keeps answers durable.
     void this.persist({ currentRound: this._currentRoundDoc() }, undefined);
-    this._maybeStartCountdown();
+
+    if (this._maybeCompleteRoundIfEveryoneDone()) {
+      return;
+    }
+    this._maybeStartCountdown(userId);
     this.emit('room_update', { room: this.toPublicDto() });
   }
 
@@ -889,6 +951,7 @@ export class NpatRoomEngine {
       timerEndsAt: this.roundEndDeadline,
       betweenRoundsEndsAt: this.betweenEndDeadline,
       letterPoolRemaining: this.letterPool.length,
+      countdownTriggeredByUserId: this.countdownTriggeredByUserId,
       results: this.state === GAME_STATES.FINISHED ? this.results : null,
       earlyFinish:
         this.state !== GAME_STATES.FINISHED && this.earlyFinishProposal

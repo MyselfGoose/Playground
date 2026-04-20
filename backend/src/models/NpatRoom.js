@@ -59,6 +59,8 @@ const npatRoomSchema = new mongoose.Schema(
     letterPool: { type: [String], default: [] },
     currentRoundIndex: { type: Number, default: -1 },
     currentLetter: { type: String, default: '' },
+    /** Who caused the final countdown to start (solo: first to finish all four fields). */
+    countdownTriggeredByUserId: { type: String, default: '' },
     currentRound: { type: currentRoundSchema, default: () => ({}) },
     players: { type: [playerSchema], default: [] },
     teams: { type: [teamSchema], default: [] },

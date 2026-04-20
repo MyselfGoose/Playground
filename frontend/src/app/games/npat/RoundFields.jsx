@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "../../../components/Button.jsx";
 
 const FIELDS = [
@@ -11,6 +11,14 @@ const FIELDS = [
 ];
 
 /**
+ * @param {Record<string, string> | undefined} row
+ */
+function rowComplete(row) {
+  if (!row || typeof row !== "object") return false;
+  return FIELDS.every((f) => Boolean(row[f.key]?.trim()));
+}
+
+/**
  * @typedef {{ ok: true, data?: unknown } | { ok: false, error?: { code?: string, message?: string } }} AckResult
  */
 
@@ -19,9 +27,23 @@ const FIELDS = [
  *   canSubmit: boolean,
  *   mine: Record<string, string>,
  *   onSubmit: (field: string, value: string) => Promise<AckResult>,
+ *   players?: Array<{ userId?: string, username?: string, connected?: boolean }>,
+ *   submissions?: Record<string, Record<string, string>>,
+ *   localUserId?: string | null,
+ *   roundPhase?: string,
+ *   gameState?: string,
  * }} props
  */
-export function RoundFields({ canSubmit, mine, onSubmit }) {
+export function RoundFields({
+  canSubmit,
+  mine,
+  onSubmit,
+  players = [],
+  submissions = {},
+  localUserId = null,
+  roundPhase = "none",
+  gameState = "",
+}) {
   const [drafts, setDrafts] = useState(() => ({ name: "", place: "", animal: "", thing: "" }));
   const [pending, setPending] = useState(
     /** @type {Record<string, boolean>} */ ({ name: false, place: false, animal: false, thing: false }),
@@ -29,6 +51,22 @@ export function RoundFields({ canSubmit, mine, onSubmit }) {
   const [errors, setErrors] = useState(
     /** @type {Record<string, string | null>} */ ({ name: null, place: null, animal: null, thing: null }),
   );
+
+  const presence = useMemo(() => {
+    if (!Array.isArray(players) || players.length === 0) return [];
+    const list = [...players].filter((p) => p?.connected);
+    list.sort((a, b) => {
+      if (a.userId === localUserId) return -1;
+      if (b.userId === localUserId) return 1;
+      return (a.username ?? "").localeCompare(b.username ?? "");
+    });
+    return list.map((p) => {
+      const uid = p.userId ?? "";
+      const row = uid ? submissions[uid] : undefined;
+      const done = rowComplete(row);
+      return { userId: uid, username: p.username ?? "Player", done, isSelf: uid === localUserId };
+    });
+  }, [players, submissions, localUserId]);
 
   async function handleSubmit(key) {
     const value = drafts[key].trim();
@@ -42,8 +80,32 @@ export function RoundFields({ canSubmit, mine, onSubmit }) {
     }
   }
 
+  const showPresence = gameState === "IN_ROUND" && (roundPhase === "collecting" || roundPhase === "countdown");
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <section className="space-y-3">
+      {showPresence && presence.length > 0 ? (
+        <p
+          className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold leading-snug text-ink sm:text-sm"
+          aria-label="Who has submitted all four answers"
+        >
+          {presence.map((p, i) => (
+            <span key={p.userId}>
+              {i > 0 ? <span className="text-ink-muted"> · </span> : null}
+              <span className={p.done ? "text-emerald-700" : "text-ink"}>
+                {p.username}
+                {p.isSelf ? <span className="font-normal text-ink-muted"> (you)</span> : null}
+                <span className={p.done ? " text-emerald-700" : " text-amber-700"}>
+                  {" "}
+                  — {p.done ? "Done" : "Writing"}
+                </span>
+              </span>
+            </span>
+          ))}
+        </p>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
       {FIELDS.map(({ key, label }) => {
         const filled = Boolean(mine[key]?.trim());
         const isPending = pending[key];
@@ -85,6 +147,7 @@ export function RoundFields({ canSubmit, mine, onSubmit }) {
           </div>
         );
       })}
-    </div>
+      </div>
+    </section>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Button } from "../../../components/Button.jsx";
 
 const ACTIVE_GAME = new Set(["STARTING", "IN_ROUND", "BETWEEN_ROUNDS"]);
+
+const btnBase =
+  "rounded-xl px-3 py-1.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 /**
  * @param {{
@@ -52,80 +54,69 @@ export function EarlyFinishVote({ room, localUserId, proposeEarlyFinish, voteEar
   const proposedBy = typeof ef?.proposedBy === "string" ? ef.proposedBy : null;
   const proposerName =
     proposedBy && Array.isArray(room?.players)
-      ? room.players.find((p) => p.userId === proposedBy)?.username ?? "A player"
-      : "A player";
+      ? room.players.find((p) => p.userId === proposedBy)?.username ?? "Player"
+      : "Player";
 
   const imConnected = Boolean(
     localUserId && connectedPlayers.some((p) => p.userId === localUserId),
   );
 
+  const imProposer = Boolean(proposedBy && localUserId && proposedBy === localUserId);
+
+  const agreed = Object.values(votes).filter((v) => v === "yes").length;
+  const total = connectedPlayers.length;
+
+  if (!ef) {
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void propose()}
+          title="Ask everyone to end the game after this round (unanimous vote)"
+          className={`${btnBase} border border-red-300/80 bg-white/90 text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-red-500`}
+        >
+          {busy ? "…" : "End Early?"}
+        </button>
+        {err ? (
+          <span className="max-w-[12rem] text-right text-[11px] font-semibold leading-tight text-red-600">{err}</span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <section className="rounded-[var(--radius-2xl)] border-2 border-ink/10 bg-white/90 p-5 shadow-[var(--shadow-card)] ring-2 ring-white/80">
-      <h2 className="text-lg font-extrabold text-ink">End game early</h2>
-      <p className="mt-1 text-sm text-ink-muted">
-        Anyone can propose finishing now. Every connected player must vote <span className="font-bold text-ink">yes</span>{" "}
-        to jump to results. One <span className="font-bold text-ink">no</span> cancels the vote.
-      </p>
-
-      {ef ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm font-semibold text-ink">
-            <span className="text-accent">{proposerName}</span> wants to end the game and see results now.
-          </p>
-          <ul className="flex flex-col gap-2 rounded-2xl bg-ink/[0.03] p-3">
-            {connectedPlayers.map((p) => {
-              const v = votes[p.userId];
-              const label =
-                v === "yes" ? "✓ Yes" : v === "no" ? "✗ No" : "… Waiting";
-              return (
-                <li
-                  key={p.userId}
-                  className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-ink"
-                >
-                  <span>
-                    {p.username}
-                    {p.userId === localUserId ? (
-                      <span className="ml-2 text-xs font-bold uppercase text-ink-muted">You</span>
-                    ) : null}
-                  </span>
-                  <span
-                    className={
-                      v === "yes"
-                        ? "text-emerald-700"
-                        : v === "no"
-                          ? "text-red-700"
-                          : "text-ink-muted"
-                    }
-                  >
-                    {label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-
-          {imConnected ? (
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" variant="primary" disabled={busy} onClick={() => void vote(true)}>
-                Vote yes
-              </Button>
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => void vote(false)}>
-                Vote no
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm font-semibold text-ink-muted">Reconnect to cast your vote.</p>
-          )}
-        </div>
+    <div className="flex flex-col items-end gap-1 text-right">
+      <span className="text-[11px] font-semibold leading-tight text-ink-muted">
+        {proposerName} · end after this round · {agreed}/{total} yes
+      </span>
+      {imConnected ? (
+        imProposer ? (
+          <span className="text-[11px] font-bold text-emerald-700">You agreed — waiting for others</span>
+        ) : (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void vote(true)}
+              className={`${btnBase} bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600`}
+            >
+              Agree
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void vote(false)}
+              className={`${btnBase} border border-ink/15 bg-white/90 text-ink hover:bg-ink/[0.04] focus-visible:outline-accent`}
+            >
+              Decline
+            </button>
+          </div>
+        )
       ) : (
-        <div className="mt-4">
-          <Button type="button" variant="secondary" disabled={busy} onClick={() => void propose()}>
-            {busy ? "Starting vote…" : "Propose ending game now"}
-          </Button>
-        </div>
+        <span className="text-[11px] text-ink-muted">Reconnect to vote</span>
       )}
-
-      {err ? <p className="mt-3 text-sm font-semibold text-red-700">{err}</p> : null}
-    </section>
+      {err ? <span className="max-w-[14rem] text-[11px] font-semibold text-red-600">{err}</span> : null}
+    </div>
   );
 }
