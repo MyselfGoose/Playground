@@ -20,22 +20,43 @@ function nonemptyOrUndefined(val) {
   return s.length > 0 ? s : undefined;
 }
 
+/**
+ * Comma-separated origins: trim each, strip trailing slashes (browser `Origin` never includes one).
+ */
+function normalizeCorsOriginString(v) {
+  const raw = nonemptyOrUndefined(v);
+  if (!raw) return raw;
+  return raw
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+    .join(',');
+}
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-    /** Number of trusted reverse proxies (0 = do not trust `X-Forwarded-*`). */
-    TRUST_PROXY: z.coerce.number().int().min(0).max(32).default(0),
+    /**
+     * Trusted reverse-proxy hops (Railway, Vercel, etc. need ≥1 for correct `req.ip` and rate-limit).
+     * Defaults to 1 in production when unset so express-rate-limit does not reject forwarded clients.
+     */
+    TRUST_PROXY: z.preprocess((v) => {
+      if (v === undefined || v === null || String(v).trim() === '') {
+        return isProductionEnv() ? 1 : 0;
+      }
+      return v;
+    }, z.coerce.number().int().min(0).max(32)),
     /** Comma-separated allowed browser origins (required in production). */
     CORS_ORIGIN: z.preprocess((v) => {
       const raw = nonemptyOrUndefined(v);
       if (isProductionEnv()) {
-        return raw ?? '';
+        return normalizeCorsOriginString(raw) ?? '';
       }
       if (!raw || raw === '*') {
         return DEFAULT_CORS_ORIGIN;
       }
-      return raw;
+      return normalizeCorsOriginString(raw) ?? DEFAULT_CORS_ORIGIN;
     }, z.string().min(1, 'CORS_ORIGIN is required')),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),

@@ -37,22 +37,26 @@ export function createApp({ env, logger }) {
     }),
   );
 
-  app.use(helmet());
-
-  const corsOrigin = env.CORS_ORIGIN.split(',')
+  const corsOrigins = env.CORS_ORIGIN.split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  app.use(
-    cors({
-      origin: corsOrigin.length === 1 ? corsOrigin[0] : corsOrigin,
-      credentials: true,
-      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cookie'],
-      optionsSuccessStatus: 204,
-      maxAge: 86_400,
-    }),
-  );
+  /** @type {import('cors').CorsOptions} */
+  const corsOptions = {
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cookie', 'X-Requested-With'],
+    exposedHeaders: ['X-Request-Id'],
+    optionsSuccessStatus: 204,
+    maxAge: 86_400,
+  };
+
+  // CORS before helmet so preflight gets consistent headers; required for browser credentialed fetches from Vercel.
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
+
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   const limiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,

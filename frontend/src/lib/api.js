@@ -2,10 +2,24 @@
  * Browser API client: cookies (httpOnly JWTs) are sent automatically; never persist tokens in JS.
  */
 
+/**
+ * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
+ */
+function normalizeApiBase(raw) {
+  let s = String(raw).trim();
+  s = s.replace(/\/+$/, "");
+  if (s.endsWith("/api/v1")) {
+    s = s.slice(0, -"/api/v1".length);
+  } else if (s.endsWith("/api")) {
+    s = s.slice(0, -"/api".length);
+  }
+  return s.replace(/\/+$/, "");
+}
+
 function resolveApiBase() {
   const fromEnv =
     typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
-      ? String(process.env.NEXT_PUBLIC_API_URL).replace(/\/$/, "")
+      ? normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
       : "";
   if (fromEnv) return fromEnv;
   if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {

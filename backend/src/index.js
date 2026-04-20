@@ -13,6 +13,17 @@ async function main() {
 
   registerProcessHandlers({ logger });
 
+  logger.info(
+    {
+      nodeEnv: env.NODE_ENV,
+      port: env.PORT,
+      trustProxy: env.TRUST_PROXY,
+      corsOriginCount: env.CORS_ORIGIN.split(',').filter((s) => s.trim()).length,
+      gemini: Boolean(env.GEMINI_API_KEY),
+    },
+    'boot_config',
+  );
+
   await connectDb({ mongoUri: env.MONGO_URI, logger });
 
   const app = createApp({ env, logger });
@@ -55,6 +66,10 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error('[bootstrap] Fatal — fix environment or dependencies, then redeploy:', msg);
+  if (err instanceof Error && err.stack) {
+    console.error(err.stack);
+  }
   process.exit(1);
 });
