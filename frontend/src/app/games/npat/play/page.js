@@ -7,6 +7,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { RoundFields } from "../RoundFields.jsx";
 import { EarlyFinishVote } from "../EarlyFinishVote.jsx";
+import { NpatEvaluatingPanel } from "../NpatEvaluatingPanel.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
@@ -254,22 +255,7 @@ function NpatPlayInner() {
       ) : null}
 
       {state === "EVALUATING" ? (
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-[var(--radius-2xl)] border-2 border-violet-300/60 bg-gradient-to-br from-violet-100/90 via-white to-accent/10 px-6 py-12 text-center shadow-[var(--shadow-soft)] ring-2 ring-white/90"
-          role="status"
-          aria-live="polite"
-        >
-          <div
-            className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-violet-500 border-t-transparent"
-            aria-hidden
-          />
-          <p className="mt-6 text-xl font-black text-ink">Evaluating answers…</p>
-          <p className="mt-2 text-sm font-semibold text-ink-muted">
-            Scoring each answer — hang tight for a moment.
-          </p>
-        </motion.div>
+        <NpatEvaluatingPanel />
       ) : state === "BETWEEN_ROUNDS" ? (
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}

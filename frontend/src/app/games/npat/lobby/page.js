@@ -258,19 +258,20 @@ function NpatLobbyInner() {
                     </select>
                   ) : null}
                   {p.userId === localUserId ? (
-                    <label className="flex items-center gap-2 text-sm font-bold text-ink-muted">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(p.ready)}
-                        disabled={room?.state !== "WAITING"}
-                        onChange={async (e) => {
-                          setActionError(null);
-                          const r = await setReady(e.target.checked);
-                          if (!r.ok) setActionError(r.error?.message ?? "Could not update ready state");
-                        }}
-                      />
-                      Ready
-                    </label>
+                    <Button
+                      type="button"
+                      variant={p.ready ? "secondary" : "primary"}
+                      className="min-w-[10.5rem] px-5 py-2.5 text-sm"
+                      title={p.ready ? "Click to mark yourself as not ready" : "Mark yourself ready for the host to start"}
+                      disabled={room?.state !== "WAITING"}
+                      onClick={async () => {
+                        setActionError(null);
+                        const r = await setReady(!p.ready);
+                        if (!r.ok) setActionError(r.error?.message ?? "Could not update ready state");
+                      }}
+                    >
+                      {p.ready ? "Ready ✓" : "I'm ready"}
+                    </Button>
                   ) : (
                     <span className="text-sm font-bold text-ink-muted">{p.ready ? "Ready" : "Not ready"}</span>
                   )}

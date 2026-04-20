@@ -184,7 +184,9 @@ function NpatResultInner() {
         className="text-center"
       >
         <h1 className="text-4xl font-extrabold text-ink sm:text-5xl">Game over</h1>
-        <p className="mt-2 text-lg text-ink-muted">Browse each round and player — one card at a time.</p>
+        <p className="mt-2 text-lg text-ink-muted">
+          Pick a round and a player to review answers in a clean table — open notes on every field.
+        </p>
       </motion.header>
 
       <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />

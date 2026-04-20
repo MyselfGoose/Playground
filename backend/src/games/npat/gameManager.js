@@ -685,6 +685,7 @@ export class NpatRoomEngine {
     assertTransition(this.state, GAME_STATES.EVALUATING);
     this.state = GAME_STATES.EVALUATING;
     void this.persist({ engineState: this.state }, undefined);
+    this.emit('room_update', { room: this.toPublicDto() });
     void this._queueFullGameEvaluation();
   }
 
@@ -842,6 +843,7 @@ export class NpatRoomEngine {
         },
         undefined,
       );
+      this.emit('room_update', { room: this.toPublicDto() });
       void this._queueFullGameEvaluation();
       return;
     }
@@ -905,6 +907,7 @@ export class NpatRoomEngine {
         },
         undefined,
       );
+      this.emit('room_update', { room: this.toPublicDto() });
       void this._queueFullGameEvaluation();
       this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
       return;
