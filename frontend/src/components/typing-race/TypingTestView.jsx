@@ -17,21 +17,21 @@ export function TypingTestView() {
 
   return (
     <div
-      className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col font-mono text-[15px] leading-relaxed antialiased sm:text-[16px]"
+      className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased sm:text-[16px]"
       data-focus-mode={focusMode ? "true" : "false"}
     >
       <TypingHiddenInput />
-      <header className="mx-auto max-w-4xl px-4 pt-8 text-center">
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--tt-accent)]">
+      <header className="typing-race-chrome mx-auto max-w-2xl px-4 pt-8 text-center">
+        <p className="font-sans text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--tt-accent-soft)]">
           Typing test
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--tt-ink)] sm:text-3xl">
+        <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight text-[var(--tt-ink-strong)] sm:text-3xl">
           Stay smooth. Stay sharp.
         </h1>
       </header>
       <TypingToolbar />
       <TypingHud />
-      <div className="relative flex flex-1 flex-col">
+      <div className="relative flex flex-1 flex-col justify-center">
         {engine.status === "completed" ? (
           <ResultsPanel />
         ) : (
