@@ -27,6 +27,7 @@ export function GameCard({ game, index }) {
   const tilt = tilts[index % tilts.length];
   const accent = accentStyles[game.accent] ?? accentStyles.lavender;
   const isNpat = game.id === "name-place-animal-thing";
+  const isTypingRace = game.id === "typing-race";
 
   return (
     <motion.article
@@ -57,7 +58,7 @@ export function GameCard({ game, index }) {
             isNpat ? "bg-mint/50 text-ink" : "bg-white/60 text-ink-muted"
           }`}
         >
-          {isNpat ? "Live" : "Soon"}
+          {isNpat || isTypingRace ? "Live" : "Soon"}
         </span>
       </div>
       <div>
@@ -75,6 +76,15 @@ export function GameCard({ game, index }) {
             variant="secondary"
             className="w-full"
             onClick={() => router.push("/games/npat")}
+          >
+            Play
+          </Button>
+        ) : isTypingRace ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() => router.push("/games/typing-race")}
           >
             Play
           </Button>

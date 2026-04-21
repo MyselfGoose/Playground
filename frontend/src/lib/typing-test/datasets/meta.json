@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "wordsCount": 2800,
+  "sentencesCount": 600,
+  "sources": [
+    {
+      "name": "google-10000-english (first20hours)",
+      "url": "https://github.com/first20hours/google-10000-english",
+      "license": "Per upstream README; commonly treated as word-frequency derived list"
+    },
+    {
+      "name": "Alice's Adventures in Wonderland (Gutenberg #11)",
+      "url": "https://www.gutenberg.org/ebooks/11",
+      "license": "Public domain (US)"
+    },
+    {
+      "name": "Pride and Prejudice (Gutenberg #1342)",
+      "url": "https://www.gutenberg.org/ebooks/1342",
+      "license": "Public domain (US)"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+/* Scoped dark theme for typing test — avoids mutating global pastel tokens */
+.typing-race-root {
+  position: relative;
+  --tt-bg: #09090b;
+  --tt-surface: #18181b;
+  --tt-ink: #fafafa;
+  --tt-ink-muted: #a1a1aa;
+  --tt-correct: #71717a;
+  --tt-pending: #52525b;
+  --tt-error: #f87171;
+  --tt-caret: #fafafa;
+  --tt-accent: #a78bfa;
+  --tt-radius: 0.5rem;
+  color: var(--tt-ink);
+  background: var(--tt-bg);
+  min-height: calc(100vh - 4rem);
+}
+
+.typing-hidden-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  resize: none;
+}
+
+.typing-race-root[data-focus-mode="true"] .typing-race-chrome {
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
