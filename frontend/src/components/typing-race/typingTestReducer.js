@@ -15,7 +15,8 @@ import { generatePassage } from "../../lib/typing-test/text-gen.js";
  *   wordTarget: number;
  *   useSentences: boolean;
  * }} RestartAction
- * @typedef {KeyAction | TickAction | RestartAction} TypingAction
+ * @typedef {{ type: 'LOAD_SERVER_PASSAGE'; passage: string; seed: number }} LoadServerPassageAction
+ * @typedef {KeyAction | TickAction | RestartAction | LoadServerPassageAction} TypingAction
  */
 
 /**
@@ -51,6 +52,16 @@ export function typingTestReducer(state, action) {
           action.testMode === "time" ? action.timeLimitSec : undefined,
         wordTarget:
           action.testMode === "words" ? action.wordTarget : undefined,
+      });
+    }
+    case "LOAD_SERVER_PASSAGE": {
+      const passage = action.passage;
+      const wc = passage.trim().split(/\s+/).filter(Boolean).length;
+      return createInitialState({
+        mode: "words",
+        seed: action.seed,
+        passage,
+        wordTarget: wc,
       });
     }
     default:

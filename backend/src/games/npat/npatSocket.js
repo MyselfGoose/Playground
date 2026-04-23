@@ -5,6 +5,8 @@ import { ACCESS_TOKEN_COOKIE } from '../../constants/auth.js';
 import { parseCookies } from '../../utils/parseCookies.js';
 import { createNpatRoomRegistry } from './roomManager.js';
 import { installHandlers } from './socketHandlers.js';
+import { createTypingRaceRegistry } from '../typing-race/roomRegistry.js';
+import { installTypingRaceSocketServer } from '../typing-race/typingRaceSocket.js';
 
 /**
  * Read the access token off a Socket.IO handshake. Priority:
@@ -97,7 +99,11 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
  *   env: import('../../config/env.js').Env,
  *   logger: import('pino').Logger,
  * }} params
- * @returns {{ io: import('socket.io').Server, registry: ReturnType<import('./roomManager.js').createNpatRoomRegistry> }}
+ * @returns {{
+ *   io: import('socket.io').Server,
+ *   registry: ReturnType<import('./roomManager.js').createNpatRoomRegistry>,
+ *   typingRaceRegistry: ReturnType<import('../typing-race/roomRegistry.js').createTypingRaceRegistry>,
+ * }}
  */
 export function attachSocketIo({ server, env, logger }) {
   const origins = env.CORS_ORIGIN.split(',')
@@ -116,6 +122,15 @@ export function attachSocketIo({ server, env, logger }) {
   const registry = createNpatRoomRegistry({ env, logger, npatNs });
   installNpatSocketServer({ npatNs, registry, env, logger, tokenService });
 
-  logger.info('socket_io_attached');
-  return { io, registry };
+  const typingRaceNs = io.of("/typing-race");
+  const typingRaceRegistry = createTypingRaceRegistry({ typingNs: typingRaceNs, logger });
+  installTypingRaceSocketServer({
+    typingRaceNs,
+    registry: typingRaceRegistry,
+    logger,
+    tokenService,
+  });
+
+  logger.info("socket_io_attached");
+  return { io, registry, typingRaceRegistry };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { useTypingTest } from "./TypingTestContext.jsx";
 import { TypingHiddenInput } from "./TypingHiddenInput.jsx";
@@ -23,7 +24,13 @@ export function TypingTestView() {
       <TypingHiddenInput />
       <header className="typing-race-chrome mx-auto max-w-2xl px-4 pt-8 text-center">
         <p className="font-sans text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--tt-accent-soft)]">
-          Typing test
+          Typing test ·{" "}
+          <Link
+            href="/games/typing-race/multi"
+            className="text-[var(--tt-accent)] underline-offset-2 hover:underline"
+          >
+            Multiplayer
+          </Link>
         </p>
         <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight text-[var(--tt-ink-strong)] sm:text-3xl">
           Stay smooth. Stay sharp.
