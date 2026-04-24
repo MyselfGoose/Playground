@@ -9,7 +9,7 @@
     "start": "node src/index.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/dbReset.js",
-    "test": "node --test src/games/typing-race/*.test.js"
+    "test": "node --test src/games/typing-race/*.test.js src/services/*.test.js"
   },
   "keywords": [],
   "author": "",

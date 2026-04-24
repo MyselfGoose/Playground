@@ -13,7 +13,10 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 
-export function Navbar() {
+/**
+ * @param {{ onOpenFeedback?: (source?: "desktop" | "mobile") => void }} [props]
+ */
+export function Navbar({ onOpenFeedback } = {}) {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
@@ -51,6 +54,14 @@ export function Navbar() {
               </Link>
             );
           })}
+          <button
+            id="feedback-trigger-desktop"
+            type="button"
+            onClick={() => onOpenFeedback?.("desktop")}
+            className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted transition-colors hover:bg-white/60 hover:text-ink"
+          >
+            Feedback
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -129,6 +140,17 @@ export function Navbar() {
                   {label}
                 </Link>
               ))}
+              <button
+                id="feedback-trigger-mobile"
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenFeedback?.("mobile");
+                }}
+                className="rounded-2xl px-4 py-3 text-left text-base font-bold text-ink-muted hover:bg-white"
+              >
+                Feedback
+              </button>
               {!loading && !user ? (
                 <>
                   <Link

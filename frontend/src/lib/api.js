@@ -112,6 +112,7 @@ const NO_AUTO_REFRESH = new Set([
   "/api/v1/auth/register",
   "/api/v1/auth/refresh",
   "/api/v1/auth/logout",
+  "/api/v1/feedback",
 ]);
 
 function shouldAutoRefresh(path, options) {

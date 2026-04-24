@@ -10,6 +10,7 @@ import { createErrorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
 import { apiRouter } from './routes/api.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createFeedbackRouter } from './routes/feedback.js';
 
 /**
  * Express application factory (no listen). Reusable for tests and future HTTP upgrades.
@@ -84,12 +85,17 @@ export function createApp({ env, logger }) {
   app.use(limiter);
 
   app.use(cookieParser());
-  app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }));
+  app.use((req, res, next) => {
+    const limit =
+      req.method === 'POST' && req.path === '/api/v1/feedback' ? env.FEEDBACK_BODY_LIMIT : env.REQUEST_BODY_LIMIT;
+    express.json({ limit })(req, res, next);
+  });
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
 
   // Routes mount only after CORS + parsers.
   app.use(apiRouter);
   app.use('/api/v1/auth', createAuthRouter({ env }));
+  app.use('/api/v1/feedback', createFeedbackRouter({ env }));
   app.use(healthRouter);
 
   app.use(notFound);

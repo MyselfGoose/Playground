@@ -123,6 +123,29 @@ export const envSchema = z
     NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
     NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     NPAT_EVAL_MAX_ANSWER_CHARS: z.coerce.number().int().min(20).max(500).default(120),
+
+    /** GitHub Issues API — optional; feedback POST returns 503 until all three are set (unless FEEDBACK_ENABLED=false). */
+    GITHUB_TOKEN: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    GITHUB_OWNER: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    GITHUB_REPO: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    /**
+     * When false, POST /api/v1/feedback always responds 503 (kill switch).
+     * When true (default), feedback is available only if GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO are all non-empty.
+     */
+    FEEDBACK_ENABLED: z.preprocess((v) => {
+      if (v === undefined || v === null || String(v).trim() === '') return true;
+      const s = String(v).toLowerCase().trim();
+      if (s === 'false' || s === '0') return false;
+      return true;
+    }, z.boolean().default(true)),
+    FEEDBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
+    FEEDBACK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+    /** JSON body limit for POST /api/v1/feedback only (base64 screenshots). */
+    FEEDBACK_BODY_LIMIT: z.string().min(1).default('8mb'),
+    /** Decoded image bytes max for optional feedback screenshot. */
+    FEEDBACK_SCREENSHOT_MAX_BYTES: z.coerce.number().int().min(50_000).max(5_000_000).default(1_048_576),
+    /** Repo path prefix for uploaded screenshots (Contents API). */
+    FEEDBACK_SCREENSHOTS_PATH: z.string().min(1).default('.github/feedback-screenshots'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
