@@ -1,1 +1,286 @@
 @import "../typing-race.css";
+
+/* ===== Phase transitions ===== */
+.multi-phase-enter {
+  animation: multi-fade-in 0.3s ease-out both;
+}
+
+@keyframes multi-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .multi-phase-enter {
+    animation: none;
+  }
+}
+
+/* ===== Loading spinner ===== */
+.multi-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--tt-ink-faint);
+  border-top-color: var(--tt-accent);
+  border-radius: 50%;
+  animation: multi-spin 0.7s linear infinite;
+}
+
+@keyframes multi-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Room code badge ===== */
+.multi-room-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--tt-radius-md);
+  border: 1px solid rgb(124 108 240 / 0.25);
+  background: rgb(124 108 240 / 0.08);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.multi-room-code-badge:hover {
+  background: rgb(124 108 240 / 0.15);
+  border-color: rgb(124 108 240 / 0.4);
+}
+
+.multi-room-code-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tt-ink-muted);
+}
+
+.multi-room-code-digits {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--tt-ink-strong);
+}
+
+.multi-room-code-copy {
+  font-size: 0.8rem;
+  color: var(--tt-accent-soft);
+  margin-left: 0.15rem;
+}
+
+/* ===== Player card (lobby) ===== */
+.multi-player-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--tt-radius-md);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: var(--tt-bg-elevated);
+  transition: background 0.15s ease;
+}
+
+.multi-player-card:hover {
+  background: rgb(21 19 28 / 0.95);
+}
+
+/* ===== Player color dot ===== */
+.multi-player-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== Badges ===== */
+.multi-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.multi-badge--ready {
+  color: #5bbfb3;
+  background: rgb(91 191 179 / 0.1);
+  border-color: rgb(91 191 179 / 0.2);
+}
+
+.multi-badge--waiting {
+  color: var(--tt-ink-faint);
+  background: rgb(255 255 255 / 0.03);
+  border-color: rgb(255 255 255 / 0.06);
+}
+
+.multi-badge--host {
+  color: var(--tt-accent);
+  background: rgb(124 108 240 / 0.1);
+  border-color: rgb(124 108 240 / 0.2);
+}
+
+/* ===== Race track ===== */
+.multi-track {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: var(--tt-radius-lg);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: var(--tt-bg-elevated);
+}
+
+.multi-track-lane {
+  position: relative;
+  height: 2rem;
+  border-radius: var(--tt-radius-sm);
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.02);
+}
+
+.multi-track-lane--self {
+  background: rgb(124 108 240 / 0.04);
+}
+
+.multi-track-lane--finished {
+  opacity: 0.7;
+}
+
+.multi-track-fill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  border-radius: var(--tt-radius-sm);
+  transition: width 0.15s ease-out;
+  will-change: width;
+}
+
+.multi-track-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 0.5rem;
+}
+
+/* ===== Finish card (self) ===== */
+.multi-finish-card {
+  padding: 1rem 1.25rem;
+  border-radius: var(--tt-radius-lg);
+  border: 1px solid rgb(91 191 179 / 0.25);
+  background: rgb(91 191 179 / 0.06);
+  animation: multi-finish-pop 0.4s ease-out both;
+}
+
+@keyframes multi-finish-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  60% {
+    transform: scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ===== Result cards ===== */
+.multi-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: var(--tt-radius-md);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: var(--tt-bg-elevated);
+  transition: transform 0.2s ease;
+}
+
+.multi-result-card--winner {
+  border-color: rgb(124 108 240 / 0.35);
+  background: rgb(124 108 240 / 0.08);
+}
+
+.multi-result-card--self {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.multi-result-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: var(--tt-radius-sm);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--tt-ink-muted);
+  background: rgb(255 255 255 / 0.04);
+}
+
+.multi-result-rank--gold {
+  color: #ffd866;
+  background: rgb(255 216 102 / 0.1);
+  border: 1px solid rgb(255 216 102 / 0.2);
+}
+
+/* ===== Peer cursors in passage ===== */
+.tt-peer-caret {
+  position: absolute;
+  z-index: 2;
+  width: 2px;
+  border-radius: 1px;
+  pointer-events: none;
+  background: var(--peer-color, var(--tt-accent-soft));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--peer-color, var(--tt-accent-soft)) 50%, transparent);
+  transition:
+    top 0.12s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.12s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.08s ease,
+    opacity 0.1s ease;
+  will-change: transform, top, left;
+}
+
+.tt-peer-caret-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--tt-ink-strong);
+  background: var(--peer-color, var(--tt-accent-soft));
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-peer-caret {
+    transition: opacity 0.1s ease;
+  }
+  .multi-finish-card {
+    animation: none;
+  }
+}

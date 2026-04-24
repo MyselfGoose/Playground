@@ -13,18 +13,19 @@ import { TypingChar } from "./TypingChar.jsx";
 import { findActiveWordPartIndex, splitPassageWords } from "./typing-passage-build.js";
 
 /**
- * Root causes fixed:
- * - Caret in flow (Framer layout) broke line boxes → overlay caret only.
- * - Words as display:inline → mid-word breaks → inline-block + nowrap per token.
- * - nbsp in chars → bad breaks → normal spaces in space runs.
- *
- * @param {{ passage: string; cursor: number; errorStack: string }} props
+ * @param {{
+ *   passage: string;
+ *   cursor: number;
+ *   errorStack: string;
+ *   peerCursors?: Array<{ userId: string; displayName: string; color?: string; cursorDisplay?: number; finishedAtMs?: number | null }>;
+ * }} props
  */
-function TypingPassageInner({ passage, cursor, errorStack }) {
+function TypingPassageInner({ passage, cursor, errorStack, peerCursors }) {
   const reduce = useReducedMotion();
   const containerRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const currentCharRef = useRef(/** @type {HTMLSpanElement | null} */ (null));
   const eofRef = useRef(/** @type {HTMLSpanElement | null} */ (null));
+  const charRefsMap = useRef(/** @type {Map<number, HTMLSpanElement>} */ (new Map()));
 
   const [caret, setCaret] = useState(
     /** @type {{ left: number; top: number; height: number; visible: boolean }} */ ({
@@ -35,9 +36,23 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
     }),
   );
 
+  const [peerCarets, setPeerCarets] = useState(
+    /** @type {Array<{ userId: string; displayName: string; color: string; left: number; top: number; height: number; visible: boolean }>} */ ([]),
+  );
+
   const setCurrentRef = useCallback((el) => {
     currentCharRef.current = el;
   }, []);
+
+  const registerCharRef = useCallback((gi, el) => {
+    if (el) {
+      charRefsMap.current.set(gi, el);
+    } else {
+      charRefsMap.current.delete(gi);
+    }
+  }, []);
+
+  const hasPeers = Array.isArray(peerCursors) && peerCursors.length > 0;
 
   const content = useMemo(
     () =>
@@ -47,8 +62,9 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
         errorStack,
         setCurrentRef,
         eofRef,
+        hasPeers ? registerCharRef : null,
       ),
-    [passage, cursor, errorStack, setCurrentRef],
+    [passage, cursor, errorStack, setCurrentRef, hasPeers, registerCharRef],
   );
 
   const updateCaret = useCallback(() => {
@@ -56,7 +72,6 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
     if (!container) {
       return;
     }
-    /** Prefer current-char anchor; after line end use zero-width EOF anchor */
     const anchor =
       cursor < passage.length
         ? currentCharRef.current
@@ -80,10 +95,43 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
     });
   }, [cursor, passage.length]);
 
+  const updatePeerCarets = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || !hasPeers) {
+      setPeerCarets([]);
+      return;
+    }
+    const cr = container.getBoundingClientRect();
+    const result = [];
+    for (const peer of peerCursors) {
+      if (peer.finishedAtMs != null) continue;
+      const gi = peer.cursorDisplay ?? 0;
+      const el = charRefsMap.current.get(gi) ?? charRefsMap.current.get(gi - 1);
+      if (!el) continue;
+      const er = el.getBoundingClientRect();
+      const left = Math.round(er.left - cr.left + container.scrollLeft);
+      const top = Math.round(er.top - cr.top + container.scrollTop);
+      const height = Math.max(1, er.height);
+      result.push({
+        userId: peer.userId,
+        displayName: peer.displayName,
+        color: peer.color ?? "var(--tt-accent-soft)",
+        left,
+        top,
+        height,
+        visible: height > 0,
+      });
+    }
+    setPeerCarets(result);
+  }, [hasPeers, peerCursors]);
+
   useLayoutEffect(() => {
-    const id = requestAnimationFrame(() => updateCaret());
+    const id = requestAnimationFrame(() => {
+      updateCaret();
+      updatePeerCarets();
+    });
     return () => cancelAnimationFrame(id);
-  }, [updateCaret, passage, cursor, errorStack]);
+  }, [updateCaret, updatePeerCarets, passage, cursor, errorStack, peerCursors]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -91,15 +139,22 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
       return undefined;
     }
     const ro = new ResizeObserver(() => {
-      requestAnimationFrame(() => updateCaret());
+      requestAnimationFrame(() => {
+        updateCaret();
+        updatePeerCarets();
+      });
     });
     ro.observe(el);
-    window.addEventListener("resize", updateCaret);
+    const onResize = () => {
+      updateCaret();
+      updatePeerCarets();
+    };
+    window.addEventListener("resize", onResize);
     return () => {
       ro.disconnect();
-      window.removeEventListener("resize", updateCaret);
+      window.removeEventListener("resize", onResize);
     };
-  }, [updateCaret]);
+  }, [updateCaret, updatePeerCarets]);
 
   return (
     <div className="typing-passage-wrap mx-auto w-full max-w-[min(76ch,100%-1.5rem)] px-3 py-8 sm:px-6">
@@ -110,6 +165,7 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
         aria-label="Typing passage"
       >
         {content}
+        {/* Self caret */}
         <div
           aria-hidden
           className={`tt-caret-overlay pointer-events-none ${reduce ? "" : "tt-caret-overlay--motion tt-caret-blink"}`}
@@ -121,6 +177,24 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
             visibility: caret.visible ? "visible" : "hidden",
           }}
         />
+        {/* Peer carets */}
+        {peerCarets.map((pc) => (
+          <div
+            key={pc.userId}
+            aria-hidden
+            className="tt-peer-caret pointer-events-none"
+            style={{
+              left: pc.left,
+              top: pc.top,
+              height: pc.height,
+              opacity: pc.visible ? 1 : 0,
+              visibility: pc.visible ? "visible" : "hidden",
+              "--peer-color": pc.color,
+            }}
+          >
+            <span className="tt-peer-caret-label">{pc.displayName}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -132,6 +206,7 @@ function TypingPassageInner({ passage, cursor, errorStack }) {
  * @param {string} errorStack
  * @param {(el: HTMLSpanElement | null) => void} setCurrentRef
  * @param {React.MutableRefObject<HTMLSpanElement | null>} eofRef
+ * @param {((gi: number, el: HTMLSpanElement | null) => void) | null} registerCharRef
  */
 function buildWordNodes(
   passage,
@@ -139,6 +214,7 @@ function buildWordNodes(
   errorStack,
   setCurrentRef,
   eofRef,
+  registerCharRef,
 ) {
   const parts = splitPassageWords(passage);
   const activeWi = findActiveWordPartIndex(parts, cursor);
@@ -160,10 +236,15 @@ function buildWordNodes(
       const gi = globalStart + o;
       const ch = text[o];
 
+      const charRef = registerCharRef
+        ? (el) => registerCharRef(gi, el)
+        : undefined;
+
       if (gi < cursor) {
         inner.push(
           <TypingChar
             key={`${wi}-${o}-c`}
+            ref={charRef}
             ch={ch}
             state="correct"
             id={`c-${gi}`}
@@ -184,7 +265,10 @@ function buildWordNodes(
           inner.push(
             <TypingChar
               key={`${wi}-${o}-cur`}
-              ref={setCurrentRef}
+              ref={(el) => {
+                setCurrentRef(el);
+                if (registerCharRef) registerCharRef(gi, el);
+              }}
               ch={ch}
               state="current"
               id={`cur-${gi}`}
@@ -194,7 +278,13 @@ function buildWordNodes(
         insertedAtCursor = true;
       } else {
         inner.push(
-          <TypingChar key={`${wi}-${o}-p`} ch={ch} state="pending" id={`p-${gi}`} />,
+          <TypingChar
+            key={`${wi}-${o}-p`}
+            ref={charRef}
+            ch={ch}
+            state="pending"
+            id={`p-${gi}`}
+          />,
         );
       }
     }

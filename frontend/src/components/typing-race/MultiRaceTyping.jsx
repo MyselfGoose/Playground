@@ -8,9 +8,14 @@ import { TypingPassage } from "./TypingPassage.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 
 /**
- * @param {{ raceConfig: { passage: string; seed: number }; isRacing: boolean; onDone: () => void }} props
+ * @param {{
+ *   raceConfig: { passage: string; seed: number };
+ *   isRacing: boolean;
+ *   onDone: () => void;
+ *   peerCursors?: Array<{ userId: string; displayName: string; color?: string; cursorDisplay?: number; finishedAtMs?: number | null }>;
+ * }} props
  */
-export function MultiRaceTyping({ raceConfig, isRacing, onDone }) {
+export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   const { sendProgress } = useTypingRace();
   const inputRef = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const engineRef = useRef(
@@ -107,6 +112,7 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone }) {
         passage={engine.passage}
         cursor={engine.cursor}
         errorStack={engine.errorStack}
+        peerCursors={peerCursors}
       />
     </div>
   );

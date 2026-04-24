@@ -15,16 +15,19 @@ export default function TypingMultiHubPage() {
   const [err, setErr] = useState(/** @type {string | null} */ (null));
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
+    <div className="multi-phase-enter mx-auto w-full max-w-2xl flex-1 px-4 py-12">
       <p className="text-center text-xs font-bold uppercase tracking-widest text-[var(--tt-accent-soft)]">
         Multiplayer
       </p>
       <h1 className="mt-2 text-center font-sans text-2xl font-bold text-[var(--tt-ink-strong)]">
         Typing race
       </h1>
-      <p className="mt-2 text-center text-sm text-[var(--tt-ink-muted)]">
-        {connected ? "Connected to server" : "Connecting…"}
-      </p>
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {!connected && !socketError && <div className="multi-spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} />}
+        <p className="text-center text-sm text-[var(--tt-ink-muted)]">
+          {connected ? "Connected to server" : "Connecting\u2026"}
+        </p>
+      </div>
       {(socketError || err) && (
         <p className="mt-2 text-center text-sm text-red-400">{err ?? socketError}</p>
       )}
