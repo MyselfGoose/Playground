@@ -36,7 +36,32 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     if (!room) {
       return;
     }
-    room.removeSocket(socket);
+    room.removeSocket(socket, { hardLeave: true });
+    room.emitRoom();
+    if (room.players.size === 0) {
+      room.destroy();
+      rooms.delete(code);
+    }
+  }
+
+  /**
+   * Transport disconnect: keep lobby players in the in-memory room so
+   * `joinRoom` after a new socket (same user) can reattach. Avoids
+   * destroying the room on every brief disconnect during client navigation.
+   * @param {import('socket.io').Socket} socket
+   */
+  function onSocketDisconnect(socket) {
+    const code = socketToRoom.get(socket.id);
+    if (!code) {
+      return;
+    }
+    socketToRoom.delete(socket.id);
+    socket.leave(code);
+    const room = rooms.get(code);
+    if (!room) {
+      return;
+    }
+    room.removeSocket(socket, { hardLeave: false });
     room.emitRoom();
     if (room.players.size === 0) {
       room.destroy();
@@ -135,6 +160,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     rooms,
     socketToRoom,
     leaveRoom,
+    onSocketDisconnect,
     getRoomForSocket,
     createRoom,
     joinRoom,

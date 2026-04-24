@@ -162,5 +162,20 @@ export function createAuthController({ authService, env }) {
       const user = await authService.me(req.user.id);
       res.status(200).json({ data: { user } });
     },
+
+    /**
+     * Returns the current access token for clients that use Socket.IO `auth: { token }` because
+     * some browsers or proxies do not forward cookies on the engine.io handshake the same
+     * way as `fetch` with `credentials: "include"`.
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async socketHandshake(req, res) {
+      const token = readAccessToken(req);
+      if (!token) {
+        throw new AppError(401, 'Authentication required', { code: 'UNAUTHENTICATED', expose: true });
+      }
+      res.status(200).json({ data: { token } });
+    },
   };
 }

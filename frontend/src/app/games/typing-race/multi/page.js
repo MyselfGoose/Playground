@@ -8,7 +8,8 @@ import { Button } from "../../../../components/Button.jsx";
 
 export default function TypingMultiHubPage() {
   const router = useRouter();
-  const { createRoom, joinRoom, connected, socketError } = useTypingRace();
+  const { createRoom, joinRoom, connected, socketError, typingRaceUserFacingError } =
+    useTypingRace();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(/** @type {string | null} */ (null));
@@ -39,12 +40,13 @@ export default function TypingMultiHubPage() {
             const r = await createRoom();
             setBusy(false);
             if (!r.ok) {
-              setErr(r.error?.message ?? "Failed");
+              setErr(typingRaceUserFacingError(r.error));
               return;
             }
-            const c = /** @type {any} */ (r.data)?.roomCode;
-            if (c) {
-              router.push(`/games/typing-race/multi/room/${c}`);
+            const data = /** @type {any} */ (r.data);
+            const c = data?.roomCode ?? data?.room?.roomCode;
+            if (typeof c === "string" && c.replace(/\D/g, "").length >= 6) {
+              router.push(`/games/typing-race/multi/room/${c.replace(/\D/g, "")}`);
             }
           }}
         >
@@ -73,7 +75,7 @@ export default function TypingMultiHubPage() {
               const r = await joinRoom(code);
               setBusy(false);
               if (!r.ok) {
-                setErr(r.error?.message ?? "Failed");
+                setErr(typingRaceUserFacingError(r.error));
                 return;
               }
               const digits = code.replace(/\D/g, "");

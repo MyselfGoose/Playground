@@ -65,7 +65,7 @@ export function installTypingRaceSocketServer({
         { event: "typing_race_disconnect", reason, userId, socketId: socket.id },
         "typing_race",
       );
-      registry.leaveRoom(socket);
+      registry.onSocketDisconnect(socket);
     });
   });
 }

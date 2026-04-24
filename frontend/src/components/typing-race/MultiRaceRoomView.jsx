@@ -17,6 +17,9 @@ export function MultiRaceRoomView({ roomCode }) {
   const { user } = useUser();
   const {
     room,
+    connected,
+    isConnecting,
+    socketError,
     joinRoom,
     leaveRoom,
     setReady,
@@ -24,31 +27,57 @@ export function MultiRaceRoomView({ roomCode }) {
     finishRace,
     resetLobby,
     serverNow,
+    typingRaceUserFacingError,
   } = useTypingRace();
   const [joinErr, setJoinErr] = useState(/** @type {string | null} */ (null));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!connected) {
+      return undefined;
+    }
     let cancelled = false;
+    const digits = String(roomCode ?? "").replace(/\D/g, "");
+
     (async () => {
-      if (!roomCode) {
+      setJoinErr(null);
+      if (digits.length !== 6) {
+        if (!cancelled) {
+          setJoinErr("Invalid room code");
+        }
         return;
       }
-      if (room?.roomCode === roomCode) {
+      if (room?.roomCode === digits) {
         return;
       }
-      const r = await joinRoom(roomCode);
-      if (cancelled) {
-        return;
-      }
-      if (!r.ok) {
-        setJoinErr(r.error?.message ?? "Could not join");
-      }
+
+      const attemptJoin = async (isRetry) => {
+        const r = await joinRoom(digits);
+        if (cancelled) {
+          return;
+        }
+        if (r.ok) {
+          setJoinErr(null);
+          return;
+        }
+        const errCode = /** @type {any} */ (r.error)?.code;
+        if (errCode === "ROOM_NOT_FOUND" && !isRetry) {
+          await new Promise((resolve) => setTimeout(resolve, 450));
+          if (!cancelled) {
+            await attemptJoin(true);
+          }
+          return;
+        }
+        setJoinErr(typingRaceUserFacingError(r.error));
+      };
+
+      await attemptJoin(false);
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [roomCode, room?.roomCode, joinRoom, room]);
+  }, [connected, roomCode, room?.roomCode, joinRoom, room, typingRaceUserFacingError]);
 
   const phase = typeof room?.phase === "string" ? room.phase : "lobby";
   const players = Array.isArray(room?.players) ? room.players : [];
@@ -59,6 +88,23 @@ export function MultiRaceRoomView({ roomCode }) {
   const onTypingDone = useCallback(async () => {
     await finishRace();
   }, [finishRace]);
+
+  if (!connected && !joinErr) {
+    return (
+      <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-16 text-center text-[var(--tt-ink-muted)]">
+        {socketError ? (
+          <>
+            <p className="text-red-400">{socketError}</p>
+            <Button type="button" className="mt-6" onClick={() => router.push("/games/typing-race/multi")}>
+              Back
+            </Button>
+          </>
+        ) : (
+          "Connecting to server\u2026"
+        )}
+      </div>
+    );
+  }
 
   if (joinErr) {
     return (
@@ -74,7 +120,7 @@ export function MultiRaceRoomView({ roomCode }) {
   if (!room || room.roomCode !== roomCode) {
     return (
       <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-16 text-center text-[var(--tt-ink-muted)]">
-        Joining room…
+        Joining room\u2026
       </div>
     );
   }
@@ -118,7 +164,7 @@ export function MultiRaceRoomView({ roomCode }) {
             <Button
               type="button"
               variant="secondary"
-              disabled={busy}
+              disabled={!connected || busy}
               onClick={async () => {
                 setBusy(true);
                 const me = players.find((p) => p.userId === selfId);
@@ -131,7 +177,7 @@ export function MultiRaceRoomView({ roomCode }) {
             {isHost && (
               <Button
                 type="button"
-                disabled={busy}
+                disabled={!connected || busy}
                 onClick={async () => {
                   setBusy(true);
                   const r = await startCountdown();

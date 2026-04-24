@@ -43,3 +43,18 @@ If a socket drops during `racing`, the player stays in the room with `connected:
 
 - Max players per room: `TYPING_RACE_MAX_PLAYERS` (8).  
 - For manual fan-out checks, open several browser sessions (or use a Socket.IO load harness with valid JWTs) and watch CPU during `typing_progress_update` bursts; server throttles per-socket updates in handlers.
+
+## Production deployment
+
+Rooms live in an **in-memory** registry inside each Node process (`roomRegistry.js` in this folder). For correct behavior:
+
+1. **Single API/WebSocket process per environment**, **or** load balancer **sticky sessions** so the same client always hits the same instance for HTTP and Socket.IO. Otherwise `typing_create_room` on instance A and `typing_join_room` on instance B yields `ROOM_NOT_FOUND`.
+2. **Frontend:** `NEXT_PUBLIC_API_URL` must be the API **origin** (no `/api/v1` suffix; `frontend/src/lib/api.js` `normalizeApiBase` strips it if present).
+3. **Backend:** `CORS_ORIGIN` must include the Next.js site origin so the browser can open the `/typing-race` namespace with credentials (same Socket.IO `Server` options as `npatSocket.js` in this repo).
+4. Cross-site cookies: use appropriate `SameSite` / HTTPS so the access token cookie reaches the socket handshake (`typingRaceSocket.js` reads the same cookie as NPAT).
+
+**Horizontal scaling (future):** add `@socket.io/redis-adapter` (or similar) for multi-node fan-out **and** move room state to Redis or another shared store; until then, treat typing-race as single-instance.
+
+## Client join quirk (mitigated)
+
+Re-joining the **same** room code on the **same** socket after create must **not** call `leaveRoom` first, or a solo lobby room is destroyed (`alreadyInThisRoom` guard in `joinRoom`).

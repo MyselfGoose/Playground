@@ -50,6 +50,7 @@ export function createAuthRouter({ env }) {
   router.post('/logout', asyncHandler(authController.logout));
   router.post('/logout-all', requireAuth, asyncHandler(authController.logoutAll));
   router.get('/me', requireAuth, asyncHandler(authController.me));
+  router.get('/socket-handshake', requireAuth, asyncHandler(authController.socketHandshake));
 
   return router;
 }

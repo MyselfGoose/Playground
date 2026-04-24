@@ -153,8 +153,10 @@ export class TypingRaceRoom {
 
   /**
    * @param {import('socket.io').Socket} socket
+   * @param {{ hardLeave?: boolean }} [opts] - `hardLeave: true` (default) = user left, switched room, or host kicked — remove a lobby player from the room. `false` = TCP/transport disconnect only: keep the lobby row so a quick reconnect (e.g. Next.js navigation) can reattach without `ROOM_NOT_FOUND`.
    */
-  removeSocket(socket) {
+  removeSocket(socket, opts = {}) {
+    const hardLeave = opts.hardLeave !== false;
     for (const [uid, p] of this.players) {
       if (p.socketId !== socket.id) {
         continue;
@@ -164,13 +166,13 @@ export class TypingRaceRoom {
       if (this.phase === "racing") {
         p.disconnectedAtMs = Date.now();
       }
-      if (this.phase === "lobby") {
+      if (this.phase === "lobby" && hardLeave) {
         const wasHost = uid === this.hostUserId;
         this.players.delete(uid);
         if (wasHost) {
           this.hostUserId = this.players.keys().next().value ?? null;
         }
-      } else if (this.hostUserId === uid) {
+      } else if (this.phase !== "lobby" && this.hostUserId === uid) {
         this._migrateHost();
       }
       break;
