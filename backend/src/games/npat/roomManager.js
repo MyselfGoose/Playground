@@ -346,6 +346,55 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
   /**
    * @param {import('socket.io').Socket} socket
    */
+  /**
+   * Client explicitly left the room (or switched rooms / created a new one): remove the user
+   * from the engine roster so session resume and DB lookups do not reattach them.
+   *
+   * @param {import('socket.io').Socket} socket
+   */
+  function leaveRoomExplicit(socket) {
+    const userId = /** @type {string} */ (socket.data.userId);
+    const code = socketToRoom.get(socket.id);
+    if (!code) {
+      return;
+    }
+    const engine = engines.get(code);
+    logger.info({ event: 'npat_leave_room_explicit', roomCode: code, userId, socketId: socket.id }, 'npat_room');
+    socket.leave(code);
+    socketToRoom.delete(socket.id);
+    if (!engine) {
+      return;
+    }
+
+    void roomLock.run(code, async () => {
+      const eng = engines.get(code);
+      if (!eng) {
+        return;
+      }
+      const { empty } = eng.removePlayerCompletely(userId);
+      if (empty) {
+        cancelPendingDelete(code);
+        eng.destroy();
+        engines.delete(code);
+        void npatRoomRepository.deleteByCode(code).catch(() => {});
+        return;
+      }
+
+      const anyConnected = [...eng.players.values()].some((p) => p.connected);
+      if (!anyConnected) {
+        const terminal = eng.state === 'WAITING' || eng.state === 'FINISHED';
+        if (terminal) {
+          scheduleRoomDelete(code, 'empty');
+        } else {
+          logger.info(
+            { event: 'npat_room_orphan_sockets', roomCode: code, engineState: eng.state },
+            'npat_room',
+          );
+        }
+      }
+    });
+  }
+
   function leaveRoom(socket) {
     const code = socketToRoom.get(socket.id);
     if (!code) return;
@@ -530,6 +579,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     createRoom,
     joinRoom,
     leaveRoom,
+    leaveRoomExplicit,
     getEngineForSocket,
     attachActiveRoomForUser,
     bootHydrate,

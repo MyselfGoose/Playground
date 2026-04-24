@@ -21,6 +21,7 @@ export function NpatPlayClient() {
     room,
     connected,
     joinRoom,
+    leaveRoom,
     submitField,
     proposeEarlyFinish,
     voteEarlyFinish,
@@ -208,12 +209,24 @@ export function NpatPlayClient() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <Link
-          href={`/games/npat/lobby?code=${room?.code ?? code}`}
-          className="inline-flex items-center gap-2 text-sm font-bold text-accent underline decoration-2 underline-offset-4"
-        >
-          <span aria-hidden>←</span> Lobby
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/games/npat/lobby?code=${room?.code ?? code}`}
+            className="inline-flex items-center gap-2 text-sm font-bold text-accent underline decoration-2 underline-offset-4"
+          >
+            <span aria-hidden>←</span> Lobby
+          </Link>
+          <button
+            type="button"
+            className="text-sm font-bold text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+            onClick={async () => {
+              await leaveRoom();
+              router.replace("/games/npat");
+            }}
+          >
+            Leave game
+          </button>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span
             className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-[var(--shadow-card)] ring-1 ring-ink/10"

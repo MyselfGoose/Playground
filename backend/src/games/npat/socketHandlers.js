@@ -162,7 +162,7 @@ export function installHandlers({ socket, registry, env, logger }) {
   register('create_room', {
     schema: createRoomSchema,
     handler: async ({ data }) => {
-      registry.leaveRoom(socket);
+      registry.leaveRoomExplicit(socket);
       const { mode } = data;
       const { engine } = await registry.createRoom(mode, userId, username, socket);
       const room = engine.toPublicDto();
@@ -176,7 +176,7 @@ export function installHandlers({ socket, registry, env, logger }) {
     handler: async ({ data }) => {
       const prevCode = registry.socketToRoom.get(socket.id);
       if (prevCode && prevCode !== data.code) {
-        registry.leaveRoom(socket);
+        registry.leaveRoomExplicit(socket);
       }
       const engine = await registry.joinRoom(data.code, userId, username, socket);
       const room = engine.toPublicDto();
@@ -187,7 +187,7 @@ export function installHandlers({ socket, registry, env, logger }) {
 
   register('leave_room', {
     handler: () => {
-      registry.leaveRoom(socket);
+      registry.leaveRoomExplicit(socket);
       return { left: true };
     },
   });

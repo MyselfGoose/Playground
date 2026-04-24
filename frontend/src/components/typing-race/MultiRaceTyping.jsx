@@ -11,7 +11,7 @@ import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx
  * @param {{
  *   raceConfig: { passage: string; seed: number };
  *   isRacing: boolean;
- *   onDone: () => void;
+ *   onDone: (stats?: { wpm: number; rawWpm: number; accuracy: number; errorCount: number; elapsedSec: number }) => void | Promise<void>;
  *   peerCursors?: Array<{ userId: string; displayName: string; color?: string; cursorDisplay?: number; finishedAtMs?: number | null }>;
  * }} props
  */
@@ -73,7 +73,21 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   useEffect(() => {
     if (engine.status === "completed" && !doneRef.current) {
       doneRef.current = true;
-      onDone();
+      const eng = engineRef.current;
+      const elapsedSec =
+        eng.startedAtMs != null
+          ? Math.max(0.001, (performance.now() - eng.startedAtMs) / 1000)
+          : 0.001;
+      const m = computeTypingMetrics(eng.stats, elapsedSec);
+      void Promise.resolve(
+        onDone({
+          wpm: m.wpm,
+          rawWpm: m.rawWpm,
+          accuracy: m.accuracy,
+          errorCount: m.errorCount,
+          elapsedSec,
+        }),
+      );
     }
   }, [engine.status, onDone]);
 

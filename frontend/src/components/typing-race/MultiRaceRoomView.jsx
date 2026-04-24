@@ -18,7 +18,6 @@ export function MultiRaceRoomView({ roomCode }) {
   const {
     room,
     connected,
-    isConnecting,
     socketError,
     joinRoom,
     leaveRoom,
@@ -33,6 +32,10 @@ export function MultiRaceRoomView({ roomCode }) {
   const [joinErr, setJoinErr] = useState(/** @type {string | null} */ (null));
   const [busy, setBusy] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  /** Local snapshot the moment you complete the passage (before server ack). */
+  const [raceLocalStats, setRaceLocalStats] = useState(
+    /** @type {{ wpm: number; rawWpm: number; accuracy: number; errorCount: number; elapsedSec: number } | null} */ (null),
+  );
 
   useEffect(() => {
     if (!connected) {
@@ -89,6 +92,12 @@ export function MultiRaceRoomView({ roomCode }) {
   const selfPlayer = players.find((p) => p.userId === selfId);
   const selfFinished = selfPlayer?.finishedAtMs != null;
 
+  useEffect(() => {
+    if (phase !== "racing") {
+      setRaceLocalStats(null);
+    }
+  }, [phase]);
+
   const sortedResults = useMemo(() => {
     return [...players].sort((a, b) => {
       const ka = a.rank != null ? a.rank : a.finishedAtMs != null ? 500 : 999;
@@ -97,9 +106,15 @@ export function MultiRaceRoomView({ roomCode }) {
     });
   }, [players]);
 
-  const onTypingDone = useCallback(async () => {
-    await finishRace();
-  }, [finishRace]);
+  const onRaceComplete = useCallback(
+    async (localStats) => {
+      if (localStats) {
+        setRaceLocalStats(localStats);
+      }
+      await finishRace();
+    },
+    [finishRace],
+  );
 
   const copyRoomCode = useCallback(() => {
     navigator.clipboard?.writeText(roomCode).then(() => {
@@ -271,14 +286,18 @@ export function MultiRaceRoomView({ roomCode }) {
 
           {selfFinished ? (
             <div className="multi-phase-enter mt-6">
-              <SelfFinishCard player={selfPlayer} />
-              <WaitingForOthers players={players} />
+              <SelfFinishCard
+                player={selfPlayer}
+                localStats={raceLocalStats}
+                raceStartAtMs={room.raceStartAtMs}
+              />
+              <WaitingForOthers players={players} selfId={selfId} />
             </div>
           ) : (
             <MultiRaceTyping
               raceConfig={rc}
               isRacing
-              onDone={onTypingDone}
+              onDone={onRaceComplete}
               peerCursors={players.filter((p) => p.userId !== selfId)}
             />
           )}
@@ -352,29 +371,51 @@ export function MultiRaceRoomView({ roomCode }) {
 
 /* ---------- Sub-components ---------- */
 
-function SelfFinishCard({ player }) {
-  if (!player) return null;
+function SelfFinishCard({ player, localStats, raceStartAtMs }) {
+  if (!player && !localStats) return null;
+  const fmt1 = (n) => (Number.isFinite(n) ? (Math.round(n * 10) / 10).toFixed(1) : "0.0");
+  const wpm = localStats ? Math.round(localStats.wpm) : Math.round(player?.wpm ?? 0);
+  const rawWpm = localStats ? Math.round(localStats.rawWpm) : null;
+  const acc = localStats ? fmt1(localStats.accuracy) : null;
+  const errs = localStats ? localStats.errorCount : (player?.errorLen ?? 0);
+  const timeFromServer =
+    player?.finishedAtMs != null && typeof raceStartAtMs === "number"
+      ? Math.max(0, (player.finishedAtMs - raceStartAtMs) / 1000)
+      : null;
+  const timeLocal = localStats?.elapsedSec != null ? Number(localStats.elapsedSec.toFixed(1)) : null;
+
   return (
     <div className="multi-finish-card">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-[var(--tt-accent)]">
-            Finished!
+            You finished!
           </p>
           <p className="mt-1 font-sans text-lg font-bold text-[var(--tt-ink-strong)]">
-            #{player.rank ?? "?"}
+            {player?.rank != null ? `Place #${player.rank}` : "Finishing up\u2026"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--tt-ink-muted)]">
+            Final rank updates when the server confirms your run.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-right">
-          <StatMini label="WPM" value={Math.round(player.wpm ?? 0)} highlight />
-          <StatMini label="Errors" value={player.errorLen ?? 0} />
+        <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-right sm:grid-cols-3">
+          <StatMini label="WPM" value={String(wpm)} highlight />
+          {rawWpm != null ? <StatMini label="Raw" value={String(rawWpm)} /> : null}
+          {acc != null ? <StatMini label="Accuracy" value={`${acc}%`} /> : null}
+          <StatMini label="Errors" value={String(errs)} />
+          {(timeFromServer != null || timeLocal != null) && (
+            <StatMini
+              label="Time"
+              value={timeFromServer != null ? `${timeFromServer.toFixed(1)}s` : `${timeLocal}s`}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function WaitingForOthers({ players }) {
+function WaitingForOthers({ players, selfId }) {
   const still = players.filter((p) => p.finishedAtMs == null);
   const done = players.filter((p) => p.finishedAtMs != null);
   if (still.length === 0) return null;
@@ -382,19 +423,28 @@ function WaitingForOthers({ players }) {
   return (
     <div className="mt-4 rounded-[var(--tt-radius-md)] border border-[var(--tt-ink-muted)]/10 bg-[var(--tt-bg-elevated)]/60 px-4 py-3">
       <p className="text-xs font-medium text-[var(--tt-ink-muted)]">
-        Waiting for {still.length} player{still.length > 1 ? "s" : ""}&hellip;
+        Waiting for {still.length} other player{still.length > 1 ? "s" : ""} to finish&hellip;
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {done.map((p) => (
-          <span key={p.userId} className="multi-badge multi-badge--ready" style={{ borderColor: p.color }}>
-            {p.displayName} #{p.rank}
-          </span>
-        ))}
-        {still.map((p) => (
-          <span key={p.userId} className="multi-badge multi-badge--waiting">
-            {p.displayName} {Math.round((p.progress01 ?? 0) * 100)}%
-          </span>
-        ))}
+      <div className="mt-3 space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--tt-ink-faint)]">Done</p>
+        <div className="flex flex-wrap gap-2">
+          {done.map((p) => (
+            <span key={p.userId} className="multi-badge multi-badge--ready" style={{ borderColor: p.color }}>
+              {p.displayName}
+              {p.userId === selfId ? " (you)" : ""}
+              {p.rank != null ? ` · #${p.rank}` : ""}
+            </span>
+          ))}
+        </div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--tt-ink-faint)]">Still typing</p>
+        <div className="flex flex-wrap gap-2">
+          {still.map((p) => (
+            <span key={p.userId} className="multi-badge multi-badge--waiting">
+              {p.displayName} · {Math.round((p.progress01 ?? 0) * 100)}%
+              {typeof p.wpm === "number" && p.wpm > 0 ? ` · ${Math.round(p.wpm)} wpm` : ""}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

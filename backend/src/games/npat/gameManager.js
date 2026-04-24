@@ -438,6 +438,59 @@ export class NpatRoomEngine {
   }
 
   /**
+   * Explicit leave / switch room / create new room: remove the user from the roster so
+   * `attachActiveRoomForUser` does not keep pulling them back after disconnect.
+   *
+   * @param {string} userId
+   * @returns {{ empty: boolean }}
+   */
+  removePlayerCompletely(userId) {
+    if (!this.players.has(userId)) {
+      return { empty: this.players.size === 0 };
+    }
+
+    if (this.earlyFinishProposal) {
+      const { votes, proposedBy } = this.earlyFinishProposal;
+      delete votes[userId];
+      if (proposedBy === userId || Object.keys(votes).length === 0) {
+        this.earlyFinishProposal = null;
+      }
+    }
+
+    if (this.countdownTriggeredByUserId === userId) {
+      this.countdownTriggeredByUserId = null;
+    }
+
+    const wasHost = this.hostUserId === userId;
+    this.players.delete(userId);
+    this.submissions.delete(userId);
+
+    if (wasHost && this.players.size > 0) {
+      const ordered = [...this.players.entries()].sort((a, b) => a[1].joinedAt - b[1].joinedAt);
+      this.hostUserId = ordered[0][0];
+    }
+
+    const empty = this.players.size === 0;
+    if (empty) {
+      return { empty: true };
+    }
+
+    void this.persist(
+      {
+        players: this.playersToMongo(),
+        hostUserId: new mongoose.Types.ObjectId(this.hostUserId),
+        lastPublicSnapshot: this.toPublicDto(),
+        earlyFinishProposal: this.earlyFinishProposal,
+        countdownTriggeredByUserId: this.countdownTriggeredByUserId ?? '',
+      },
+      undefined,
+    );
+    this.emit('room_update', { room: this.toPublicDto() });
+    this._evaluateEarlyFinishVotes();
+    return { empty: false };
+  }
+
+  /**
    * @param {string} userId
    */
   tryStartGame(userId) {

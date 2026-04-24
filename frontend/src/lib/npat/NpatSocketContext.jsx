@@ -166,6 +166,12 @@ export function NpatProvider({ children }) {
       }
     });
     socket.on("session_resumed", (payload) => {
+      if (
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("npat_suppress_resume") === "1"
+      ) {
+        return;
+      }
       if (payload?.room) {
         applyRoom(payload.room);
         const code = typeof payload.room.code === "string" ? payload.room.code : null;
@@ -201,7 +207,12 @@ export function NpatProvider({ children }) {
   const createRoom = useCallback(
     async (mode) => {
       const result = await emitAck(socketRef.current, "create_room", { mode });
-      if (result.ok) applyRoom(result.data?.room ?? null);
+      if (result.ok) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("npat_suppress_resume");
+        }
+        applyRoom(result.data?.room ?? null);
+      }
       return result;
     },
     [applyRoom],
@@ -222,15 +233,33 @@ export function NpatProvider({ children }) {
         };
       }
       const result = await emitAck(socketRef.current, "join_room", { code });
-      if (result.ok) applyRoom(result.data?.room ?? null);
+      if (result.ok) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("npat_suppress_resume");
+        }
+        applyRoom(result.data?.room ?? null);
+      }
       return result;
     },
     [applyRoom],
   );
 
   const leaveRoom = useCallback(async () => {
-    const result = await emitAck(socketRef.current, "leave_room", null);
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setRoom(null);
+      setResumedCode(null);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("npat_suppress_resume", "1");
+      }
+      return { ok: true, data: { left: true } };
+    }
+    const result = await emitAck(socket, "leave_room", null);
     setRoom(null);
+    setResumedCode(null);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("npat_suppress_resume", "1");
+    }
     return result;
   }, []);
 

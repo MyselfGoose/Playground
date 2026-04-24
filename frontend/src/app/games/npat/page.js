@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -13,6 +13,7 @@ export default function NpatEntryPage() {
   const {
     createRoom,
     joinRoom,
+    leaveRoom,
     connected,
     socketError,
     clearSocketError,
@@ -26,13 +27,6 @@ export default function NpatEntryPage() {
   const [createError, setCreateError] = useState(/** @type {string | null} */ (null));
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const codeLen = useMemo(() => getNpatRoomCodeLength(), []);
-
-  // If the server resumed an active session, bounce the user into the right route automatically.
-  useEffect(() => {
-    if (!resumedCode) return;
-    router.replace(`/games/npat/lobby?code=${resumedCode}`);
-    clearResumedCode();
-  }, [resumedCode, router, clearResumedCode]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
@@ -65,6 +59,40 @@ export default function NpatEntryPage() {
             Dismiss
           </button>
         </p>
+      ) : null}
+
+      {connected && resumedCode ? (
+        <div className="flex flex-col gap-4 rounded-2xl border-2 border-accent/35 bg-white/95 px-5 py-4 shadow-[var(--shadow-soft)] ring-1 ring-accent/25 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-ink">
+            You still have an active game in room{" "}
+            <span className="font-mono font-black tracking-[0.2em] text-accent">{resumedCode}</span>
+            . Rejoin to continue, or leave to stay on this page.
+          </p>
+          <div className="flex flex-shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              className="min-w-[7.5rem] px-4 py-2 text-sm"
+              onClick={() => {
+                router.replace(`/games/npat/lobby?code=${resumedCode}`);
+                clearResumedCode();
+              }}
+            >
+              Rejoin
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-w-[7.5rem] px-4 py-2 text-sm"
+              onClick={async () => {
+                await leaveRoom();
+                clearResumedCode();
+              }}
+            >
+              Leave session
+            </Button>
+          </div>
+        </div>
       ) : null}
 
       {createError ? (
