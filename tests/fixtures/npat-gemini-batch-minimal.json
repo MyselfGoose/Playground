@@ -1,0 +1,45 @@
+{
+  "rounds": [
+    {
+      "roundIndex": 0,
+      "round": "A",
+      "results": [
+        {
+          "playerId": "u1",
+          "playerName": "Alice",
+          "answers": {
+            "name": {
+              "value": "Amy",
+              "isValid": true,
+              "isDuplicate": false,
+              "score": 10,
+              "comment": "Valid name."
+            },
+            "place": {
+              "value": "Austin",
+              "isValid": true,
+              "isDuplicate": false,
+              "score": 10,
+              "comment": "Valid place."
+            },
+            "animal": {
+              "value": "Ant",
+              "isValid": true,
+              "isDuplicate": false,
+              "score": 10,
+              "comment": "Valid animal."
+            },
+            "thing": {
+              "value": "Apple",
+              "isValid": true,
+              "isDuplicate": false,
+              "score": 10,
+              "comment": "Valid thing."
+            }
+          },
+          "totalScore": 40
+        }
+      ]
+    }
+  ]
+}

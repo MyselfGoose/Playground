@@ -5,7 +5,7 @@
 /**
  * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
  */
-function normalizeApiBase(raw) {
+export function normalizeApiBase(raw) {
   let s = String(raw).trim();
   s = s.replace(/\/+$/, "");
   if (s.endsWith("/api/v1")) {

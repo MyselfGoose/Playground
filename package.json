@@ -1,0 +1,21 @@
+{
+  "name": "games-platform",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo root — orchestrates tests across backend and frontend",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npm test --prefix backend && npm test --prefix frontend",
+    "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:e2e": "playwright test --config=tests/e2e/playwright.config.mjs",
+    "test:all": "npm run test && npm run test:e2e",
+    "ci:e2e:serve": "npm run build --prefix frontend && npm run start --prefix frontend"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "mongodb-memory-server": "^10.1.4",
+    "pino": "^9.6.0",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.1.0"
+  }
+}

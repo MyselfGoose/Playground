@@ -15,6 +15,9 @@ NO_SEED=false
 FRESH=false
 VERBOSE=false
 QUIET=false
+SKIP_TESTS=false
+WITH_E2E=false
+CI_MODE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +26,9 @@ while [[ $# -gt 0 ]]; do
     --fresh) FRESH=true ;;
     --verbose | -v) VERBOSE=true ;;
     --quiet | -q) QUIET=true ;;
+    --skip-tests) SKIP_TESTS=true ;;
+    --with-e2e) WITH_E2E=true ;;
+    --ci) CI_MODE=true; WITH_E2E=true ;;
     -h | --help)
       cat <<'HELP'
 Games platform — local dev startup
@@ -33,6 +39,9 @@ Options:
   --no-install   Skip npm/pnpm/yarn install (fail if node_modules missing)
   --no-seed      Skip backend database seed
   --fresh        Run backend db:reset before seed (dev only; requires Mongo)
+  --skip-tests   Do not run unit/integration (or E2E) gates before servers start
+  --with-e2e     After unit+integration, run Playwright (requires frontend up or CI webServer)
+  --ci           Same as --with-e2e (stricter gate for automation)
   -v, --verbose  Extra diagnostic output
   -q, --quiet    Minimal output (errors still print)
 
@@ -376,6 +385,33 @@ cleanup() {
   log_ok "Stopped."
 }
 
+run_tests() {
+  if [[ "${SKIP_TESTS}" == true ]]; then
+    log_ok "Skipping tests (--skip-tests)"
+    return 0
+  fi
+  if [[ ! -f "${ROOT}/package.json" ]]; then
+    log_warn "No root package.json — skipping test gate"
+    return 0
+  fi
+  log_info "Running unit + integration tests (root npm run test)…"
+  pushd "${ROOT}" >/dev/null
+  if ! npm run test; then
+    popd >/dev/null
+    die "Tests failed — fix failing tests before starting servers. Tip: SKIP_TESTS=1 ./startup to bypass (not for CI)."
+  fi
+  if [[ "${WITH_E2E}" == true ]] || [[ "${CI_MODE}" == true ]]; then
+    log_info "Running Playwright E2E (--with-e2e / --ci)…"
+    npx playwright install chromium >/dev/null 2>&1 || log_warn "Playwright browser install had warnings (continuing)"
+    if ! npm run test:e2e; then
+      popd >/dev/null
+      die "Playwright E2E failed. In CI, ensure CI=true for webServer. Locally: start servers then PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run test:e2e"
+    fi
+  fi
+  popd >/dev/null
+  log_ok "Test gate passed"
+}
+
 start_servers() {
   local backend_port frontend_port
   backend_port="$(read_backend_port)"
@@ -424,9 +460,13 @@ main() {
   setup_env_files
   install_dir "$BACKEND_DIR" "Backend"
   install_dir "$FRONTEND_DIR" "Frontend"
+  if [[ -f "${ROOT}/package.json" ]]; then
+    install_dir "${ROOT}" "Monorepo root (shared tests)"
+  fi
   check_mongodb
   run_fresh_reset
   run_seed
+  run_tests
   start_servers
 }
 

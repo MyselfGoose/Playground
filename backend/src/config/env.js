@@ -256,3 +256,14 @@ export function getEnv() {
 
   return cached;
 }
+
+/**
+ * Clear parsed env cache so the next `getEnv()` re-reads `process.env`.
+ * Only allowed in test — prevents integration tests from polluting each other.
+ */
+export function resetEnvCacheForTests() {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('resetEnvCacheForTests is only for NODE_ENV=test');
+  }
+  cached = undefined;
+}
