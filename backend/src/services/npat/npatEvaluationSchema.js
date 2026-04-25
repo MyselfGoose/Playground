@@ -2,28 +2,52 @@ import { z } from 'zod';
 
 const FIELDS = ['name', 'place', 'animal', 'thing'];
 
+/**
+ * Normalize model `round` strings ("Round B", "Letter B") to a single A–Z letter.
+ * @param {unknown} v
+ */
+export function extractRoundLetter(v) {
+  const s = String(v ?? '').trim().toUpperCase();
+  if (!s) return '';
+  if (/^[A-Z]$/.test(s)) return s;
+  const parts = s.split(/[^A-Z]+/).filter((p) => p.length > 0);
+  const oneChar = parts.filter((p) => p.length === 1);
+  if (oneChar.length > 0) return oneChar[oneChar.length - 1];
+  const all = s.match(/[A-Z]/g);
+  return all && all.length > 0 ? all[all.length - 1] : '';
+}
+
+/** Gemini JSON mode occasionally omits null vs string; coerce for stable parsing. */
+const jsonString = z.preprocess((v) => (v == null ? '' : String(v)), z.string());
+
+const jsonBool = z.preprocess((v) => {
+  if (v === true || v === 'true' || v === 1 || v === '1') return true;
+  if (v === false || v === 'false' || v === 0 || v === '0') return false;
+  return v;
+}, z.boolean());
+
 export const npatAnswerCellSchema = z.object({
-  value: z.string(),
-  isValid: z.boolean(),
-  isDuplicate: z.boolean(),
-  score: z.number().int(),
-  comment: z.string(),
+  value: jsonString,
+  isValid: jsonBool,
+  isDuplicate: jsonBool,
+  score: z.coerce.number().int(),
+  comment: jsonString,
 });
 
 export const npatPlayerEvalSchema = z.object({
-  playerId: z.string(),
-  playerName: z.string(),
+  playerId: z.coerce.string(),
+  playerName: jsonString,
   answers: z.object({
     name: npatAnswerCellSchema,
     place: npatAnswerCellSchema,
     animal: npatAnswerCellSchema,
     thing: npatAnswerCellSchema,
   }),
-  totalScore: z.number().int(),
+  totalScore: z.coerce.number().int(),
 });
 
 export const npatEvaluationPayloadSchema = z.object({
-  round: z.string().min(1).max(4),
+  round: z.preprocess((v) => extractRoundLetter(v), z.string().min(1).max(1)),
   results: z.array(npatPlayerEvalSchema),
 });
 

@@ -1,9 +1,11 @@
 import { z } from 'zod';
-import { npatPlayerEvalSchema, recomputeScoresInPlace } from './npatEvaluationSchema.js';
+import { extractRoundLetter, npatPlayerEvalSchema, recomputeScoresInPlace } from './npatEvaluationSchema.js';
+
+const roundLetterField = z.preprocess((v) => extractRoundLetter(v), z.string().min(1).max(1));
 
 export const npatBatchRoundSchema = z.object({
-  roundIndex: z.number().int(),
-  round: z.string().min(1).max(4),
+  roundIndex: z.coerce.number().int(),
+  round: roundLetterField,
   results: z.array(npatPlayerEvalSchema),
 });
 

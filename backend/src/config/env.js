@@ -123,6 +123,8 @@ export const envSchema = z
     NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
     NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     NPAT_EVAL_MAX_ANSWER_CHARS: z.coerce.number().int().min(20).max(500).default(120),
+    /** Full-game JSON can be large; too low causes truncated JSON → parse failure → offline fallback. */
+    NPAT_EVAL_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(2048).max(65_536).default(8192),
 
     /** GitHub Issues API — optional; feedback POST returns 503 until all three are set (unless FEEDBACK_ENABLED=false). */
     GITHUB_TOKEN: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),

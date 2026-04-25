@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildNpatEvaluationInput, buildNpatFullGameEvaluationInput } from './npatEvaluationInput.js';
 import { evaluateNpatRoundFallback } from './npatEvaluationFallback.js';
+import { createNpatGenerativeModel } from './npatGeminiModel.js';
 import { safeParseFullGamePayload } from './npatGameEvaluationSchema.js';
 
 const BATCH_SYSTEM_PROMPT = `You are an expert judge for the game "Name, Place, Animal, Thing" (NPAT).
@@ -67,18 +67,12 @@ function cap(s, max) {
  * @param {{ language?: string, rounds: Array<{ roundIndex: number, roundLetter: string, players: Array<{ playerId: string, playerName: string, answers: Record<string, string> }> }> }} input
  * @param {import('pino').Logger} logger
  */
-async function callGeminiFullGame(env, input, logger) {
+async function callGeminiFullGame(env, input) {
   const key = env.GEMINI_API_KEY;
   if (!key?.trim()) {
     throw new Error('GEMINI_API_KEY missing');
   }
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({
-    model: env.GEMINI_MODEL,
-    generationConfig: {
-      responseMimeType: 'application/json',
-    },
-  });
+  const model = createNpatGenerativeModel(env);
   const capped = {
     ...input,
     rounds: input.rounds.map((r) => ({
@@ -99,7 +93,11 @@ async function callGeminiFullGame(env, input, logger) {
 
   const run = async () => {
     const res = await model.generateContent(prompt);
-    return stripJsonFence(res.response.text());
+    const raw = stripJsonFence(res.response.text());
+    if (!raw || !String(raw).trim()) {
+      throw new Error('Gemini returned empty evaluation JSON');
+    }
+    return raw;
   };
 
   const timeoutMs = env.NPAT_EVAL_TIMEOUT_MS;
@@ -163,7 +161,7 @@ export async function evaluateNpatFullGame(env, engine, logger) {
   const attempts = env.NPAT_EVAL_MAX_RETRIES + 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const rawText = await callGeminiFullGame(env, input, logger);
+      const rawText = await callGeminiFullGame(env, input);
       const json = JSON.parse(rawText);
       const parsed = safeParseFullGamePayload(json);
       if (!parsed.ok) {

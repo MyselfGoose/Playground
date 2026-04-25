@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { evaluateNpatRoundFallback } from './npatEvaluationFallback.js';
+import { createNpatGenerativeModel } from './npatGeminiModel.js';
 import { safeParseEvaluationPayload } from './npatEvaluationSchema.js';
 
 const SYSTEM_PROMPT = `You are an expert judge for the game "Name, Place, Animal, Thing" (NPAT).
@@ -65,18 +65,12 @@ function sleep(ms) {
  * @param {{ roundLetter: string, language?: string, players: Array<{ playerId: string, playerName: string, answers: Record<string, string> }> }} input
  * @param {import('pino').Logger} logger
  */
-async function callGemini(env, input, logger) {
+async function callGemini(env, input) {
   const key = env.GEMINI_API_KEY;
   if (!key?.trim()) {
     throw new Error('GEMINI_API_KEY missing');
   }
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({
-    model: env.GEMINI_MODEL,
-    generationConfig: {
-      responseMimeType: 'application/json',
-    },
-  });
+  const model = createNpatGenerativeModel(env);
   const capped = {
     ...input,
     players: input.players.map((p) => ({
@@ -94,8 +88,11 @@ async function callGemini(env, input, logger) {
 
   const run = async () => {
     const res = await model.generateContent(prompt);
-    const text = res.response.text();
-    return stripJsonFence(text);
+    const raw = stripJsonFence(res.response.text());
+    if (!raw || !String(raw).trim()) {
+      throw new Error('Gemini returned empty evaluation JSON');
+    }
+    return raw;
   };
 
   const timeoutMs = env.NPAT_EVAL_TIMEOUT_MS;
@@ -156,7 +153,7 @@ export async function evaluateNpatRound(env, input, logger) {
   const attempts = env.NPAT_EVAL_MAX_RETRIES + 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const rawText = await callGemini(env, input, logger);
+      const rawText = await callGemini(env, input);
       const json = JSON.parse(rawText);
       const parsed = safeParseEvaluationPayload(json);
       if (!parsed.ok) {

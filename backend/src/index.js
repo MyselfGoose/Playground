@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+
+/** Always load `backend/.env` — `import 'dotenv/config'` only reads CWD and misses the key if Node was started outside `backend/`. */
+dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 import { getEnv, EnvValidationError } from './config/env.js';
 import { disconnectDb, startMongoConnectionBackground } from './config/db.js';
 import { createLogger } from './lib/logger.js';
