@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
 import { evaluateNpatFullGame, evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvaluationService.js';
+import { persistNpatResults } from '../../services/leaderboardStatsService.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
 import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
 
@@ -867,6 +868,14 @@ export class NpatRoomEngine {
     );
 
     this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+
+    void persistNpatResults({
+      code: this.code,
+      mode: this.mode,
+      players: this.players,
+      results: this.results,
+      logger: this.logger,
+    });
   }
 
   _leaveBetween() {

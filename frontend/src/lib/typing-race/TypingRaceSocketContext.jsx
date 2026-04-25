@@ -362,8 +362,12 @@ export function TypingRaceProvider({ children }) {
     [emitAck],
   );
 
-  const finishRace = useCallback(async () => {
-    return emitAck("typing_finish", {});
+  const finishRace = useCallback(async (stats) => {
+    return emitAck("typing_finish", stats ? { stats } : {});
+  }, [emitAck]);
+
+  const reportSoloComplete = useCallback(async (stats) => {
+    return emitAck("typing_solo_complete", stats);
   }, [emitAck]);
 
   const forceEnd = useCallback(async () => {
@@ -390,6 +394,7 @@ export function TypingRaceProvider({ children }) {
       startCountdown,
       sendProgress,
       finishRace,
+      reportSoloComplete,
       forceEnd,
       resetLobby,
       router,
@@ -408,6 +413,7 @@ export function TypingRaceProvider({ children }) {
       startCountdown,
       sendProgress,
       finishRace,
+      reportSoloComplete,
       forceEnd,
       resetLobby,
       router,

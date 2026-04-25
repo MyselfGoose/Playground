@@ -2,10 +2,13 @@
 
 import { useTypingLiveMetrics } from "./useTypingLiveMetrics.js";
 import { useTypingTest } from "./TypingTestContext.jsx";
+import { useReportSoloTypingResult } from "../../hooks/useReportSoloTypingResult.js";
 
 export function ResultsPanel() {
   const { engine, nowMs, restart } = useTypingTest();
   const m = useTypingLiveMetrics(engine, nowMs);
+
+  useReportSoloTypingResult(engine, m);
 
   if (engine.status !== "completed") {
     return null;

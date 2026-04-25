@@ -86,6 +86,9 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
           accuracy: m.accuracy,
           errorCount: m.errorCount,
           elapsedSec,
+          correctChars: eng.stats.correctChars,
+          incorrectChars: eng.stats.incorrectChars,
+          extraChars: eng.stats.extraChars,
         }),
       );
     }

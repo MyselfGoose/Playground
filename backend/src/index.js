@@ -8,6 +8,7 @@ import { createHttpServer, listen, setupGracefulShutdown } from './server.js';
 import { registerProcessHandlers } from './processHandlers.js';
 import { attachSocketIo } from './games/npat/npatSocket.js';
 import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
+import { scheduleLeaderboardCron } from './jobs/leaderboardCron.js';
 
 if (globalThis.__server_started) {
   console.error('[boot] FATAL: index.js executed more than once — aborting duplicate start');
@@ -123,11 +124,14 @@ async function main() {
   }, 5 * 60 * 1000);
   cleanupInterval.unref();
 
+  const leaderboardCronInterval = scheduleLeaderboardCron(logger);
+
   setupGracefulShutdown({
     server,
     logger,
     beforeHttpClose: async () => {
       clearInterval(cleanupInterval);
+      clearInterval(leaderboardCronInterval);
       try {
         typingRaceRegistry.shutdown();
       } catch (err) {

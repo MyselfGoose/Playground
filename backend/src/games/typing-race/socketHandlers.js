@@ -1,9 +1,11 @@
+import { z } from "zod";
 import {
   typingJoinRoomSchema,
   typingProgressSchema,
   typingSetReadySchema,
 } from "./validation/typingRace.schemas.js";
 import { deliverAck, makeTypingRegister } from "./socketUtils.js";
+import { persistTypingAttempt } from "../../services/leaderboardStatsService.js";
 
 /**
  * @param {{
@@ -81,10 +83,42 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
     },
   });
 
+  const typingFinishSchema = z.object({
+    stats: z.object({
+      correctChars: z.number().int().min(0).max(100_000),
+      incorrectChars: z.number().int().min(0).max(100_000),
+      extraChars: z.number().int().min(0).max(100_000),
+      wpm: z.number().min(0).max(500),
+      rawWpm: z.number().min(0).max(500),
+      elapsedMs: z.number().min(0).max(3_600_000),
+    }).optional(),
+  }).optional();
+
   register("typing_finish", {
-    handler: async () => {
+    schema: typingFinishSchema,
+    handler: async ({ data }) => {
       const room = requireRoom();
       const roomSnap = room.finishPlayer(userId);
+      const player = roomSnap.players.find((p) => p.userId === userId);
+      const stats = data?.stats;
+      if (stats && player && room.raceConfig?.passage) {
+        void persistTypingAttempt({
+          userId,
+          username,
+          mode: 'multi',
+          roomCode: room.roomCode,
+          passageLength: room.raceConfig.passage.length,
+          correctChars: stats.correctChars,
+          incorrectChars: stats.incorrectChars,
+          extraChars: stats.extraChars,
+          wpm: stats.wpm,
+          rawWpm: stats.rawWpm,
+          elapsedMs: stats.elapsedMs,
+          rank: player.rank ?? null,
+          playerCount: roomSnap.players.length,
+          dnf: false,
+        }, logger);
+      }
       return { room: roomSnap };
     },
   });
@@ -102,6 +136,38 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
       const room = requireRoom();
       room.resetLobby(userId);
       return { room: room.toPublicSnapshot() };
+    },
+  });
+
+  const soloCompleteSchema = z.object({
+    passageLength: z.number().int().min(1).max(100_000),
+    correctChars: z.number().int().min(0).max(100_000),
+    incorrectChars: z.number().int().min(0).max(100_000),
+    extraChars: z.number().int().min(0).max(100_000),
+    wpm: z.number().min(0).max(500),
+    rawWpm: z.number().min(0).max(500),
+    elapsedMs: z.number().min(1).max(3_600_000),
+  });
+
+  register("typing_solo_complete", {
+    schema: soloCompleteSchema,
+    handler: async ({ data }) => {
+      void persistTypingAttempt({
+        userId,
+        username,
+        mode: 'solo',
+        passageLength: data.passageLength,
+        correctChars: data.correctChars,
+        incorrectChars: data.incorrectChars,
+        extraChars: data.extraChars,
+        wpm: data.wpm,
+        rawWpm: data.rawWpm,
+        elapsedMs: data.elapsedMs,
+        rank: null,
+        playerCount: 1,
+        dnf: false,
+      }, logger);
+      return { ok: true };
     },
   });
 }

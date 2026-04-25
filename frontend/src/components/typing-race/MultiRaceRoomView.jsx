@@ -111,7 +111,17 @@ export function MultiRaceRoomView({ roomCode }) {
       if (localStats) {
         setRaceLocalStats(localStats);
       }
-      await finishRace();
+      const statsPayload = localStats
+        ? {
+            correctChars: localStats.correctChars ?? 0,
+            incorrectChars: localStats.incorrectChars ?? 0,
+            extraChars: localStats.extraChars ?? 0,
+            wpm: localStats.wpm,
+            rawWpm: localStats.rawWpm,
+            elapsedMs: Math.round(localStats.elapsedSec * 1000),
+          }
+        : undefined;
+      await finishRace(statsPayload);
     },
     [finishRace],
   );

@@ -1,0 +1,286 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { createTokenService } from '../services/tokenService.js';
+import { readAccessToken, resolveAccessContext } from '../middleware/authMiddleware.js';
+import { validateBody } from '../middleware/validate.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { userStatsRepository } from '../repositories/userStatsRepository.js';
+import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
+
+const pageQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+const soloTypingSchema = z.object({
+  passageLength: z.number().int().min(1).max(100_000),
+  correctChars: z.number().int().min(0).max(100_000),
+  incorrectChars: z.number().int().min(0).max(100_000),
+  extraChars: z.number().int().min(0).max(100_000),
+  wpm: z.number().min(0).max(500),
+  rawWpm: z.number().min(0).max(500),
+  elapsedMs: z.number().min(1).max(3_600_000),
+});
+
+/** Simple in-memory TTL cache (60s). */
+const cache = new Map();
+const CACHE_TTL = 60_000;
+
+function cacheGet(key) {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    cache.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function cacheSet(key, data) {
+  cache.set(key, { data, ts: Date.now() });
+}
+
+function avatarUrl(username) {
+  return `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${encodeURIComponent(username || 'player')}`;
+}
+
+function mapEntries(entries, skip, primaryField, extraFields = []) {
+  return entries.map((e, i) => {
+    const base = {
+      rank: skip + i + 1,
+      userId: String(e.userId),
+      username: e.username,
+      avatarUrl: avatarUrl(e.username),
+      totalGames: (e.typing_totalGames ?? 0) + (e.npat_totalGames ?? 0),
+    };
+    base[primaryField] = e[primaryField];
+    for (const f of extraFields) {
+      base[f] = e[f];
+    }
+    return base;
+  });
+}
+
+/**
+ * @param {{ env: import('../config/env.js').Env }} params
+ */
+export function createLeaderboardRouter({ env }) {
+  const router = Router();
+  const tokenService = createTokenService(env);
+
+  /** Optional auth — attach user if logged in, proceed either way. */
+  async function optionalAuth(req, _res, next) {
+    try {
+      const token = readAccessToken(req);
+      if (token) req.user = await resolveAccessContext(token, { tokenService });
+    } catch { /* anonymous */ }
+    next();
+  }
+
+  /** Require auth for /me. */
+  async function requireAuth(req, _res, next) {
+    try {
+      const token = readAccessToken(req);
+      if (!token) return next({ statusCode: 401, message: 'Authentication required', code: 'UNAUTHENTICATED', expose: true });
+      req.user = await resolveAccessContext(token, { tokenService });
+      next();
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  router.get(
+    '/typing/wpm',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `typing_wpm:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'typing_bestWpm',
+        minGamesField: 'typing_totalGames',
+        minGames: 3,
+        page,
+        limit,
+      });
+      const data = {
+        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_bestWpm', ['typing_totalGames']),
+        total: result.total,
+        page,
+      };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/typing/accuracy',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `typing_acc:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'typing_weightedAccuracy',
+        minGamesField: 'typing_totalGames',
+        minGames: 3,
+        page,
+        limit,
+      });
+      const data = {
+        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_weightedAccuracy', ['typing_totalGames']),
+        total: result.total,
+        page,
+      };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/npat',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `npat:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'npat_averageScore',
+        minGamesField: 'npat_totalGames',
+        minGames: 2,
+        page,
+        limit,
+      });
+      const data = {
+        entries: mapEntries(result.entries, (page - 1) * limit, 'npat_averageScore', ['npat_totalGames', 'npat_winRate']),
+        total: result.total,
+        page,
+      };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/global',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `global:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'global_score',
+        minGamesField: 'typing_totalGames',
+        minGames: 0,
+        page,
+        limit,
+      });
+      const skip = (page - 1) * limit;
+      const entries = result.entries
+        .filter((e) => (e.typing_totalGames ?? 0) + (e.npat_totalGames ?? 0) >= 5)
+        .map((e, i) => ({
+          rank: e.global_rank ?? skip + i + 1,
+          userId: String(e.userId),
+          username: e.username,
+          avatarUrl: avatarUrl(e.username),
+          globalScore: e.global_score,
+          breakdown: {
+            typing: Math.round(Math.min(e.typing_bestWpm / 150, 1) * 100 * 100) / 100,
+            accuracy: Math.round((e.typing_weightedAccuracy ?? 0) * 100) / 100,
+            npat: Math.round(Math.min((e.npat_averageScore ?? 0) / 35, 1) * 100 * 100) / 100,
+            activity: Math.round(Math.min(((e.typing_totalGames ?? 0) + (e.npat_totalGames ?? 0)) / 100, 1) * 100 * 100) / 100,
+            consistency: Math.round(Math.min((e.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
+          },
+        }));
+      const data = { entries, total: entries.length, page };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/me',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const stats = await userStatsRepository.findByUserId(userId);
+      if (!stats) {
+        return res.json({
+          data: {
+            typing: { bestWpm: 0, weightedAccuracy: 0, totalGames: 0, wpmRank: null, accuracyRank: null },
+            npat: { averageScore: 0, totalGames: 0, winRate: 0, npatRank: null },
+            global: { score: 0, rank: null, breakdown: { typing: 0, accuracy: 0, npat: 0, activity: 0, consistency: 0 } },
+          },
+        });
+      }
+
+      const [wpmRank, accRank, npatRank] = await Promise.all([
+        userStatsRepository.rankFor({ userId, sortField: 'typing_bestWpm', minGamesField: 'typing_totalGames', minGames: 3 }),
+        userStatsRepository.rankFor({ userId, sortField: 'typing_weightedAccuracy', minGamesField: 'typing_totalGames', minGames: 3 }),
+        userStatsRepository.rankFor({ userId, sortField: 'npat_averageScore', minGamesField: 'npat_totalGames', minGames: 2 }),
+      ]);
+
+      const totalGames = (stats.typing_totalGames ?? 0) + (stats.npat_totalGames ?? 0);
+      res.json({
+        data: {
+          typing: {
+            bestWpm: stats.typing_bestWpm ?? 0,
+            weightedAccuracy: stats.typing_weightedAccuracy ?? 0,
+            totalGames: stats.typing_totalGames ?? 0,
+            multiWins: stats.typing_multiWins ?? 0,
+            wpmRank,
+            accuracyRank: accRank,
+          },
+          npat: {
+            averageScore: stats.npat_averageScore ?? 0,
+            totalGames: stats.npat_totalGames ?? 0,
+            winRate: stats.npat_winRate ?? 0,
+            wins: stats.npat_wins ?? 0,
+            npatRank,
+          },
+          global: {
+            score: stats.global_score ?? 0,
+            rank: stats.global_rank ?? null,
+            totalGames,
+            breakdown: {
+              typing: Math.round(Math.min((stats.typing_bestWpm ?? 0) / 150, 1) * 100 * 100) / 100,
+              accuracy: Math.round((stats.typing_weightedAccuracy ?? 0) * 100) / 100,
+              npat: Math.round(Math.min((stats.npat_averageScore ?? 0) / 35, 1) * 100 * 100) / 100,
+              activity: Math.round(Math.min(totalGames / 100, 1) * 100 * 100) / 100,
+              consistency: Math.round(Math.min((stats.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
+            },
+          },
+        },
+      });
+    }),
+  );
+
+  router.post(
+    '/typing/solo',
+    requireAuth,
+    validateBody(soloTypingSchema),
+    asyncHandler(async (req, res) => {
+      const { id: userId, username } = req.user;
+      const data = req.body;
+      void persistTypingAttempt({
+        userId,
+        username,
+        mode: 'solo',
+        passageLength: data.passageLength,
+        correctChars: data.correctChars,
+        incorrectChars: data.incorrectChars,
+        extraChars: data.extraChars,
+        wpm: data.wpm,
+        rawWpm: data.rawWpm,
+        elapsedMs: data.elapsedMs,
+      }, req.log);
+      res.status(201).json({ data: { ok: true } });
+    }),
+  );
+
+  return router;
+}
