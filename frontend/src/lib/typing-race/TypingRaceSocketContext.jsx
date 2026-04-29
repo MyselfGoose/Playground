@@ -17,6 +17,7 @@ import { useUser } from "../context/UserContext.jsx";
 const TypingRaceContext = createContext(null);
 
 const ACK_TIMEOUT_MS = 15_000;
+const DEV = process.env.NODE_ENV !== "production";
 
 const NOT_CONNECTED_HELP =
   "Could not reach the typing game server. Stay signed in, refresh the page, and set NEXT_PUBLIC_API_URL to the same API origin you use for REST (no trailing /api/v1).";
@@ -108,6 +109,7 @@ export function TypingRaceProvider({ children }) {
   );
   const socketRef = useRef(/** @type {import('socket.io-client').Socket | null} */ (null));
   const lastConnectErrorRef = useRef(/** @type {string | null} */ (null));
+  const eventRateRef = useRef({ tickAt: Date.now(), peerProgress: 0 });
 
   const isConnecting = !connected && !socketError;
 
@@ -127,7 +129,6 @@ export function TypingRaceProvider({ children }) {
     return (async () => {
       const socket = socketRef.current;
       if (!socket) {
-        console.debug("[TypingRace] emitAck(%s): socketRef is null (handshake not finished)", event);
         return {
           ok: false,
           error: Object.assign(
@@ -137,12 +138,10 @@ export function TypingRaceProvider({ children }) {
         };
       }
       if (!socket.connected) {
-        console.debug("[TypingRace] emitAck(%s): socket exists but disconnected, reconnecting\u2026", event);
         socket.connect();
         const ok = await waitUntilSocketConnected(socket, 10_000);
         if (!ok || !socket.connected) {
           const detail = lastConnectErrorRef.current || "The server did not accept the connection in time.";
-          console.debug("[TypingRace] emitAck(%s): reconnect failed \u2014 %s", event, detail);
           return {
             ok: false,
             error: Object.assign(new Error(NOT_CONNECTED_HELP), {
@@ -152,7 +151,6 @@ export function TypingRaceProvider({ children }) {
           };
         }
       }
-      console.debug("[TypingRace] emitAck(%s): emitting (socket.id=%s)", event, socket.id);
       return await new Promise((resolve) => {
         try {
           socket.timeout(ACK_TIMEOUT_MS).emit(event, payload, (err, res) => {
@@ -160,12 +158,10 @@ export function TypingRaceProvider({ children }) {
             if (result.ok) {
               resolve({ ok: true, data: result.data });
             } else {
-              console.debug("[TypingRace] emitAck(%s): server error \u2014 %s", event, result.error?.message);
               resolve({ ok: false, error: result.error });
             }
           });
         } catch (e) {
-          console.debug("[TypingRace] emitAck(%s): emit threw \u2014 %s", event, e);
           resolve({
             ok: false,
             error: Object.assign(
@@ -194,12 +190,10 @@ export function TypingRaceProvider({ children }) {
     let socket = null;
 
     (async () => {
-      console.debug("[TypingRace] starting handshake for userId=%s", userId);
       let token;
       try {
         const json = await apiFetch("/api/v1/auth/socket-handshake");
         token = json?.data?.token;
-        console.debug("[TypingRace] handshake token received");
       } catch (e) {
         if (cancelled) {
           return;
@@ -208,7 +202,6 @@ export function TypingRaceProvider({ children }) {
           e instanceof ApiError
             ? e.message
             : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
-        console.debug("[TypingRace] handshake failed: %s", msg);
         setSocketError(msg);
         return;
       }
@@ -219,7 +212,6 @@ export function TypingRaceProvider({ children }) {
         return;
       }
 
-      console.debug("[TypingRace] creating socket to %s/typing-race", API_BASE);
       socket = io(`${API_BASE}/typing-race`, {
         path: "/socket.io",
         withCredentials: true,
@@ -242,18 +234,15 @@ export function TypingRaceProvider({ children }) {
       };
 
       socket.on("connect", () => {
-        console.debug("[TypingRace] connected (socket.id=%s)", socket.id);
         lastConnectErrorRef.current = null;
         setConnected(socket.connected);
         setSocketError(null);
       });
-      socket.on("disconnect", (reason) => {
-        console.debug("[TypingRace] disconnected: %s", reason);
+      socket.on("disconnect", () => {
         setConnected(false);
       });
       socket.on("connect_error", (err) => {
         const detail = err?.message ?? "Could not connect";
-        console.debug("[TypingRace] connect_error: %s", detail);
         lastConnectErrorRef.current = detail;
         setSocketError(
           `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${API_BASE || "your API"}.`,
@@ -261,7 +250,6 @@ export function TypingRaceProvider({ children }) {
         setConnected(false);
       });
       socket.on("reconnect", () => {
-        console.debug("[TypingRace] reconnected (socket.id=%s)", socket.id);
         lastConnectErrorRef.current = null;
         setConnected(socket.connected);
         setSocketError(null);
@@ -271,6 +259,15 @@ export function TypingRaceProvider({ children }) {
       socket.on("typing_countdown_started", onRoom);
       socket.on("typing_race_started", onRoom);
       socket.on("typing_peer_progress", (payload) => {
+        const now = Date.now();
+        eventRateRef.current.peerProgress += 1;
+        if (now - eventRateRef.current.tickAt >= 1000) {
+          if (DEV && eventRateRef.current.peerProgress > 30) {
+            console.warn("[TypingRace] high peer progress rate:", eventRateRef.current.peerProgress, "events/s");
+          }
+          eventRateRef.current.tickAt = now;
+          eventRateRef.current.peerProgress = 0;
+        }
         const uid = payload?.userId;
         if (!uid) {
           return;
@@ -279,19 +276,34 @@ export function TypingRaceProvider({ children }) {
           if (!prev || !Array.isArray(prev.players)) {
             return prev;
           }
-          return {
+          let changed = false;
+          const next = {
             ...prev,
             players: prev.players.map((p) =>
               p.userId === uid
-                ? {
+                ? (() => {
+                    const nextCursorDisplay = payload.cursorDisplay;
+                    const nextWpm = payload.wpm;
+                    const nextProgress01 = payload.progress01;
+                    if (
+                      p.cursorDisplay === nextCursorDisplay &&
+                      p.wpm === nextWpm &&
+                      p.progress01 === nextProgress01
+                    ) {
+                      return p;
+                    }
+                    changed = true;
+                    return {
                     ...p,
-                    cursorDisplay: payload.cursorDisplay,
-                    wpm: payload.wpm,
-                    progress01: payload.progress01,
-                  }
+                    cursorDisplay: nextCursorDisplay,
+                    wpm: nextWpm,
+                    progress01: nextProgress01,
+                  };
+                  })()
                 : p,
             ),
           };
+          return changed ? next : prev;
         });
       });
       socket.on("typing_player_finished", onRoom);
@@ -299,7 +311,6 @@ export function TypingRaceProvider({ children }) {
     })();
 
     return () => {
-      console.debug("[TypingRace] cleanup: disconnecting socket");
       cancelled = true;
       if (socket) {
         socket.removeAllListeners();

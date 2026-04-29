@@ -29,6 +29,9 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   const doneRef = useRef(false);
   const [engine, dispatch] = useReducer(typingTestReducer, engineRef.current);
   const [isComposing, setIsComposing] = useState(false);
+  const lastSentRef = useRef({ cursorDisplay: -1, cursor: -1, errorLen: -1, wpm: -1, sentAt: 0 });
+  const pendingRef = useRef(/** @type {null | { cursorDisplay: number; cursor: number; errorLen: number; wpm: number; clientTs: number }} */ (null));
+  const flushTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
 
   engineRef.current = engine;
 
@@ -49,6 +52,22 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
     if (!isRacing) {
       return undefined;
     }
+    const flushPending = () => {
+      if (!pendingRef.current) {
+        return;
+      }
+      const next = pendingRef.current;
+      pendingRef.current = null;
+      lastSentRef.current = {
+        cursorDisplay: next.cursorDisplay,
+        cursor: next.cursor,
+        errorLen: next.errorLen,
+        wpm: next.wpm,
+        sentAt: Date.now(),
+      };
+      void sendProgress(next);
+    };
+
     const id = setInterval(() => {
       const eng = engineRef.current;
       if (eng.status !== "running" && eng.status !== "idle") {
@@ -59,15 +78,45 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
           ? Math.max(0.001, (performance.now() - eng.startedAtMs) / 1000)
           : 0.001;
       const m = computeTypingMetrics(eng.stats, elapsedSec);
-      void sendProgress({
+      const payload = {
         cursorDisplay: getDisplayIndex(eng),
         cursor: eng.cursor,
         errorLen: eng.errorStack.length,
-        wpm: m.wpm,
+        wpm: Math.round(m.wpm),
         clientTs: Date.now(),
-      });
+      };
+      const prev = lastSentRef.current;
+      const unchanged =
+        payload.cursorDisplay === prev.cursorDisplay &&
+        payload.cursor === prev.cursor &&
+        payload.errorLen === prev.errorLen &&
+        payload.wpm === prev.wpm;
+      if (unchanged) {
+        return;
+      }
+      const sinceLast = Date.now() - prev.sentAt;
+      // Hard-cap outbound progress updates at ~6.6 events/sec and coalesce bursts.
+      if (sinceLast >= 150) {
+        lastSentRef.current = { ...payload, sentAt: Date.now() };
+        void sendProgress(payload);
+      } else {
+        pendingRef.current = payload;
+        if (!flushTimerRef.current) {
+          flushTimerRef.current = setTimeout(() => {
+            flushTimerRef.current = null;
+            flushPending();
+          }, Math.max(1, 150 - sinceLast));
+        }
+      }
     }, 80);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      flushPending();
+    };
   }, [isRacing, sendProgress]);
 
   useEffect(() => {

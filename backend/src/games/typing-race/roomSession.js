@@ -396,10 +396,22 @@ export class TypingRaceRoom {
     const cap = passageLen + 8;
     cd = Math.min(cd, cap);
 
+    const nextCursor = Math.min(cur, passageLen + 4);
+    const nextWpm = Math.min(wpm, 400);
+    const unchanged =
+      p.cursorDisplay === cd &&
+      p.cursor === nextCursor &&
+      p.errorLen === errLen &&
+      p.wpm === nextWpm;
+    if (unchanged) {
+      p.lastProgressAt = now;
+      return null;
+    }
+
     p.cursorDisplay = cd;
-    p.cursor = Math.min(cur, passageLen + 4);
+    p.cursor = nextCursor;
     p.errorLen = errLen;
-    p.wpm = Math.min(wpm, 400);
+    p.wpm = nextWpm;
     p.lastProgressAt = now;
 
     const snap = this.toPublicSnapshot();

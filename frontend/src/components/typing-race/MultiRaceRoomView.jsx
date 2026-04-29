@@ -82,7 +82,7 @@ export function MultiRaceRoomView({ roomCode }) {
     return () => {
       cancelled = true;
     };
-  }, [connected, roomCode, room?.roomCode, joinRoom, room, typingRaceUserFacingError]);
+  }, [connected, roomCode, room?.roomCode, joinRoom, typingRaceUserFacingError]);
 
   const phase = typeof room?.phase === "string" ? room.phase : "lobby";
   const players = Array.isArray(room?.players) ? room.players : [];

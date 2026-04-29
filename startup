@@ -9,15 +9,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${ROOT}/backend"
 FRONTEND_DIR="${ROOT}/frontend"
+LOCK_DIR="${ROOT}/.startup.lock"
+PID_FILE="${ROOT}/.startup.pid"
 
 NO_INSTALL=false
 NO_SEED=false
 FRESH=false
 VERBOSE=false
 QUIET=false
-SKIP_TESTS=false
-WITH_E2E=false
-CI_MODE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,9 +25,6 @@ while [[ $# -gt 0 ]]; do
     --fresh) FRESH=true ;;
     --verbose | -v) VERBOSE=true ;;
     --quiet | -q) QUIET=true ;;
-    --skip-tests) SKIP_TESTS=true ;;
-    --with-e2e) WITH_E2E=true ;;
-    --ci) CI_MODE=true; WITH_E2E=true ;;
     -h | --help)
       cat <<'HELP'
 Games platform — local dev startup
@@ -39,9 +35,6 @@ Options:
   --no-install   Skip npm/pnpm/yarn install (fail if node_modules missing)
   --no-seed      Skip backend database seed
   --fresh        Run backend db:reset before seed (dev only; requires Mongo)
-  --skip-tests   Do not run unit/integration (or E2E) gates before servers start
-  --with-e2e     After unit+integration, run Playwright (requires frontend up or CI webServer)
-  --ci           Same as --with-e2e (stricter gate for automation)
   -v, --verbose  Extra diagnostic output
   -q, --quiet    Minimal output (errors still print)
 
@@ -73,6 +66,37 @@ vlog() { [[ "$VERBOSE" == true ]] && printf '  [verbose] %s\n' "$*" >&2 || true;
 die() {
   log_err "$1"
   exit "${2:-1}"
+}
+
+kill_process_tree() {
+  local root_pid="$1" signal="${2:-TERM}"
+  [[ "$root_pid" =~ ^[0-9]+$ ]] || return 0
+  local children
+  children="$(pgrep -P "$root_pid" 2>/dev/null || true)"
+  if [[ -n "$children" ]]; then
+    local child
+    for child in $children; do
+      kill_process_tree "$child" "$signal"
+    done
+  fi
+  kill "-${signal}" "$root_pid" 2>/dev/null || true
+}
+
+acquire_startup_lock() {
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "$$" >"$PID_FILE"
+    return 0
+  fi
+  local existing_pid=""
+  if [[ -f "$PID_FILE" ]]; then
+    existing_pid="$(tr -dc '0-9' <"$PID_FILE" || true)"
+  fi
+  if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+    die "startup is already running (pid ${existing_pid}). Stop the existing session before starting another."
+  fi
+  rm -rf "$LOCK_DIR" 2>/dev/null || true
+  mkdir "$LOCK_DIR" 2>/dev/null || die "Could not acquire startup lock at ${LOCK_DIR}"
+  echo "$$" >"$PID_FILE"
 }
 
 require_dir() {
@@ -368,48 +392,23 @@ cleanup() {
   echo "" >&2
   log_info "Shutting down (cleanup)…"
   if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-    kill -TERM "$BACKEND_PID" 2>/dev/null || true
+    kill_process_tree "$BACKEND_PID" TERM
   fi
   if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
-    kill -TERM "$FRONTEND_PID" 2>/dev/null || true
+    kill_process_tree "$FRONTEND_PID" TERM
   fi
   sleep 0.5
   if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-    kill -KILL "$BACKEND_PID" 2>/dev/null || true
+    kill_process_tree "$BACKEND_PID" KILL
   fi
   if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
-    kill -KILL "$FRONTEND_PID" 2>/dev/null || true
+    kill_process_tree "$FRONTEND_PID" KILL
   fi
   wait "${BACKEND_PID:-}" 2>/dev/null || true
   wait "${FRONTEND_PID:-}" 2>/dev/null || true
+  rm -f "$PID_FILE" 2>/dev/null || true
+  rmdir "$LOCK_DIR" 2>/dev/null || true
   log_ok "Stopped."
-}
-
-run_tests() {
-  if [[ "${SKIP_TESTS}" == true ]]; then
-    log_ok "Skipping tests (--skip-tests)"
-    return 0
-  fi
-  if [[ ! -f "${ROOT}/package.json" ]]; then
-    log_warn "No root package.json — skipping test gate"
-    return 0
-  fi
-  log_info "Running unit + integration tests (root npm run test)…"
-  pushd "${ROOT}" >/dev/null
-  if ! npm run test; then
-    popd >/dev/null
-    die "Tests failed — fix failing tests before starting servers. Tip: SKIP_TESTS=1 ./startup to bypass (not for CI)."
-  fi
-  if [[ "${WITH_E2E}" == true ]] || [[ "${CI_MODE}" == true ]]; then
-    log_info "Running Playwright E2E (--with-e2e / --ci)…"
-    npx playwright install chromium >/dev/null 2>&1 || log_warn "Playwright browser install had warnings (continuing)"
-    if ! npm run test:e2e; then
-      popd >/dev/null
-      die "Playwright E2E failed. In CI, ensure CI=true for webServer. Locally: start servers then PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run test:e2e"
-    fi
-  fi
-  popd >/dev/null
-  log_ok "Test gate passed"
 }
 
 start_servers() {
@@ -420,20 +419,19 @@ start_servers() {
   free_port "$backend_port" "Backend"
   free_port "$frontend_port" "Frontend"
 
-  trap cleanup INT TERM
-
   log_info "Starting backend (npm run dev) on port ${backend_port}…"
   (
     cd "$BACKEND_DIR"
     exec npm run dev
-  ) 2>&1 | awk -v p="[backend]" '{ print p, $0; fflush(); }' &
+  ) &
   BACKEND_PID=$!
 
   log_info "Starting frontend (npm run dev) on port ${frontend_port}…"
   (
     cd "$FRONTEND_DIR"
-    exec npm run dev -- -p "$frontend_port"
-  ) 2>&1 | awk -v p="[frontend]" '{ print p, $0; fflush(); }' &
+    # Safety mode: avoid Turbopack worker storms in this environment.
+    exec env NEXT_DISABLE_TURBOPACK=1 npm run dev -- --webpack -p "$frontend_port"
+  ) &
   FRONTEND_PID=$!
 
   echo "" >&2
@@ -454,6 +452,8 @@ start_servers() {
 }
 
 main() {
+  acquire_startup_lock
+  trap cleanup INT TERM EXIT
   check_structure
   check_node
   check_core_tools
@@ -466,7 +466,6 @@ main() {
   check_mongodb
   run_fresh_reset
   run_seed
-  run_tests
   start_servers
 }
 

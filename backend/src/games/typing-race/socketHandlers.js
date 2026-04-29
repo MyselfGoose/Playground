@@ -20,6 +20,7 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
 
   /** @type {Record<string, number>} */
   const rateState = {};
+  const progressMeter = { secStart: Date.now(), received: 0 };
   const register = makeTypingRegister({ socket, logger, userId, username, rateState });
 
   function requireRoom() {
@@ -75,8 +76,26 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
 
   register("typing_progress_update", {
     schema: typingProgressSchema,
-    rateLimit: { key: "progress", intervalMs: 45 },
+    // Hard cap on inbound progress traffic to prevent event storms.
+    rateLimit: { key: "progress", intervalMs: 110 },
     handler: async ({ data }) => {
+      const now = Date.now();
+      progressMeter.received += 1;
+      if (now - progressMeter.secStart >= 1000) {
+        if (progressMeter.received > 24) {
+          logger.warn(
+            {
+              event: "typing_progress_rate_warning",
+              userId,
+              socketId: socket.id,
+              perSecond: progressMeter.received,
+            },
+            "typing_race",
+          );
+        }
+        progressMeter.secStart = now;
+        progressMeter.received = 0;
+      }
       const room = requireRoom();
       room.applyProgress(userId, data);
       return {};
