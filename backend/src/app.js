@@ -12,6 +12,7 @@ import { apiRouter } from './routes/api.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createFeedbackRouter } from './routes/feedback.js';
 import { createLeaderboardRouter } from './routes/leaderboard.js';
+import { createUsersRouter } from './routes/users.js';
 
 /**
  * Express application factory (no listen). Reusable for tests and future HTTP upgrades.
@@ -98,6 +99,7 @@ export function createApp({ env, logger }) {
   app.use('/api/v1/auth', createAuthRouter({ env }));
   app.use('/api/v1/feedback', createFeedbackRouter({ env }));
   app.use('/api/v1/leaderboard', createLeaderboardRouter({ env }));
+  app.use('/api/v1/users', createUsersRouter());
   app.use(createHealthRouter({ env }));
 
   app.use(notFound);

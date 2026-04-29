@@ -1,16 +1,36 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
 import { useLeaderboard, useMyStats } from "../../hooks/useLeaderboard.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
 
 const BOARDS = [
-  { key: "global", label: "Global", color: "accent", subtitle: "Composite ranking across all games" },
-  { key: "typing-wpm", label: "Typing: Speed", color: "lavender", subtitle: "Ranked by best WPM" },
-  { key: "typing-accuracy", label: "Typing: Accuracy", color: "mint", subtitle: "Ranked by weighted accuracy" },
-  { key: "npat", label: "NPAT", color: "peach", subtitle: "Ranked by average score per game" },
+  {
+    key: "global",
+    label: "Global",
+    subtitle: "Composite ranking across all games",
+    explainer: "Global ranking combines typing skill, NPAT skill, activity, and consistency. A minimum of 5 total games is required.",
+  },
+  {
+    key: "typing-wpm",
+    label: "Typing: Speed",
+    subtitle: "Ranked by best WPM",
+    explainer: "Typing speed ranking is based on each player's best WPM, with at least 3 typing games required to appear.",
+  },
+  {
+    key: "typing-accuracy",
+    label: "Typing: Accuracy",
+    subtitle: "Ranked by weighted accuracy",
+    explainer: "Typing accuracy ranking uses weighted accuracy over total typed characters, with at least 3 typing games required.",
+  },
+  {
+    key: "npat",
+    label: "NPAT",
+    subtitle: "Ranked by average score per game",
+    explainer: "NPAT ranking is based on average AI-evaluated score per game, with at least 2 NPAT games required to appear.",
+  },
 ];
 
 function primaryMetric(board, entry) {
@@ -21,29 +41,44 @@ function primaryMetric(board, entry) {
   return { label: "Score", value: "—" };
 }
 
-function secondaryMetric(board, entry) {
-  if (board === "global") return null;
-  if (board === "npat") return { label: "Win rate", value: `${(entry.npat_winRate ?? 0).toFixed(0)}%` };
-  return { label: "Games", value: String(entry.typing_totalGames ?? entry.totalGames ?? 0) };
+function contributionBreakdown(entry) {
+  const breakdown = entry.breakdown ?? {
+    typing: Math.round(Math.min((entry.typing_bestWpm ?? 0) / 150, 1) * 100),
+    accuracy: Math.round(entry.typing_weightedAccuracy ?? 0),
+    npat: Math.round(Math.min((entry.npat_averageScore ?? 0) / 35, 1) * 100),
+    activity: Math.round(Math.min((entry.totalGames ?? 0) / 100, 1) * 100),
+    consistency: 0,
+  };
+  return breakdown;
 }
 
-const podiumColors = [
-  "from-amber-300/40 to-amber-100/30 ring-amber-300/50",
-  "from-gray-300/40 to-gray-100/30 ring-gray-300/40",
-  "from-orange-300/40 to-orange-100/30 ring-orange-300/40",
-];
-const podiumLabels = ["1st", "2nd", "3rd"];
+function badgeFor(entry) {
+  if ((entry.totalGames ?? 0) <= 3) return "New Player";
+  if ((entry.npat_winRate ?? 0) >= 70) return "High Win Rate";
+  if ((entry.typing_bestWpm ?? 0) >= 100) return "Speedster";
+  return null;
+}
 
-function minGamesNotice(board) {
-  if (board === "typing-wpm" || board === "typing-accuracy") return "Play at least 3 typing games to appear.";
-  if (board === "npat") return "Play at least 2 NPAT games to appear.";
-  if (board === "global") return "Play at least 5 total games to appear.";
-  return "";
+function explanationFromBreakdown(entry) {
+  const breakdown = contributionBreakdown(entry);
+  const topTwo = Object.entries(breakdown)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([key]) => key);
+  const label = {
+    typing: "typing speed",
+    accuracy: "accuracy",
+    npat: "NPAT performance",
+    activity: "overall activity",
+    consistency: "consistency",
+  };
+  return `High rank due to strong ${label[topTwo[0]] ?? "performance"} and ${label[topTwo[1]] ?? "activity"}.`;
 }
 
 export default function LeaderboardPage() {
   const [activeBoard, setActiveBoard] = useState("global");
   const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState(null);
   const { loading, error, data } = useLeaderboard(activeBoard, page);
   const { user } = useUser();
   const myStats = useMyStats();
@@ -53,10 +88,8 @@ export default function LeaderboardPage() {
     setPage(1);
   }, []);
 
-  const entries = data?.entries ?? [];
+  const entries = useMemo(() => data?.entries ?? [], [data]);
   const total = data?.total ?? 0;
-  const top3 = entries.slice(0, page === 1 ? 3 : 0);
-  const rest = entries.slice(page === 1 ? 3 : 0);
 
   const myRank = (() => {
     if (!myStats.data) return null;
@@ -70,177 +103,151 @@ export default function LeaderboardPage() {
   const boardMeta = BOARDS.find((b) => b.key === activeBoard) ?? BOARDS[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-8 sm:py-12 lg:gap-8">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-56 shrink-0 lg:block">
-        <div className="sticky top-24">
-          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-muted">Leaderboards</p>
-          <nav className="flex flex-col gap-1.5">
-            {BOARDS.map((b) => (
-              <button
-                key={b.key}
-                onClick={() => switchBoard(b.key)}
-                className={`relative rounded-2xl px-4 py-3 text-left text-sm font-bold transition-all ${
-                  activeBoard === b.key
-                    ? "bg-white text-accent shadow-[var(--shadow-card)] ring-2 ring-accent/20"
-                    : "text-ink-muted hover:bg-white/80 hover:text-ink"
-                }`}
-              >
-                {activeBoard === b.key && (
-                  <motion.span
-                    layoutId="sidebar-active"
-                    className="absolute inset-0 rounded-2xl bg-white shadow-[var(--shadow-card)] ring-2 ring-accent/20"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                    style={{ zIndex: -1 }}
-                  />
-                )}
-                <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full bg-${b.color}`} />
-                {b.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main panel */}
-      <main className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile tabs */}
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-          {BOARDS.map((b) => (
-            <button
-              key={b.key}
-              onClick={() => switchBoard(b.key)}
-              className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${
-                activeBoard === b.key
-                  ? "bg-accent text-white shadow-sm"
-                  : "bg-white/70 text-ink-muted ring-1 ring-ink/10 hover:bg-white"
-              }`}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">{boardMeta.label}</h1>
-          <p className="mt-1 text-sm font-medium text-ink-muted">{boardMeta.subtitle}</p>
-          {user && myRank != null && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold text-accent">
-              You are #{myRank}
-            </p>
-          )}
-          {user && myRank == null && !myStats.loading && (
-            <p className="mt-2 text-xs font-medium text-ink-muted">{minGamesNotice(activeBoard)}</p>
-          )}
-        </div>
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeBoard}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
+    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-8 sm:py-10">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+        {BOARDS.map((b) => (
+          <button
+            key={b.key}
+            onClick={() => switchBoard(b.key)}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${
+              activeBoard === b.key
+                ? "bg-accent text-white shadow-sm"
+                : "bg-white/70 text-ink-muted ring-1 ring-ink/10 hover:bg-white"
+            }`}
           >
-            {loading && entries.length === 0 ? (
-              <div className="flex items-center justify-center py-20 text-ink-muted">Loading...</div>
-            ) : error ? (
-              <div className="rounded-2xl bg-red-50 px-6 py-8 text-center text-sm font-bold text-red-800">{error}</div>
-            ) : entries.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-20 text-center">
-                <p className="text-lg font-extrabold text-ink">No rankings yet</p>
-                <p className="text-sm text-ink-muted">Be the first to play and claim the top spot!</p>
-              </div>
-            ) : (
-              <>
-                {/* Top 3 podium */}
-                {top3.length > 0 && (
-                  <div className="mb-8 grid gap-4 sm:grid-cols-3">
-                    {top3.map((entry, i) => {
-                      const pm = primaryMetric(activeBoard, entry);
-                      const isMe = user && String(entry.userId) === user.id;
-                      return (
-                        <motion.div
-                          key={entry.userId}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: i * 0.08, type: "spring", stiffness: 300, damping: 25 }}
-                          className={`relative flex flex-col items-center gap-3 rounded-[var(--radius-2xl)] bg-gradient-to-b p-6 ring-2 ${podiumColors[i]} ${isMe ? "ring-accent/40" : ""}`}
-                        >
-                          <span className="absolute -top-3 right-3 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-ink shadow-sm ring-1 ring-ink/10">
-                            {podiumLabels[i]}
+            {b.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">{boardMeta.label}</h1>
+        <p className="mt-1 text-sm font-medium text-ink-muted">{boardMeta.subtitle}</p>
+        {user && myRank != null ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold text-accent">
+            You are #{myRank}
+          </p>
+        ) : null}
+      </div>
+
+      <section className="mb-6 rounded-3xl border border-white/70 bg-white/80 p-4 shadow-[var(--shadow-card)]">
+        <h2 className="text-sm font-extrabold text-ink">How this ranking works</h2>
+        <p className="mt-2 text-sm text-ink-muted">{boardMeta.explainer}</p>
+      </section>
+
+      {loading && entries.length === 0 ? (
+        <div className="flex items-center justify-center py-20 text-ink-muted">Loading...</div>
+      ) : error ? (
+        <div className="rounded-2xl bg-red-50 px-6 py-8 text-center text-sm font-bold text-red-800">{error}</div>
+      ) : entries.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-20 text-center">
+          <p className="text-lg font-extrabold text-ink">No rankings yet</p>
+          <p className="text-sm text-ink-muted">Be the first to play and claim the top spot!</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {entries.map((entry) => {
+            const pm = primaryMetric(activeBoard, entry);
+            const breakdown = contributionBreakdown(entry);
+            const badge = badgeFor(entry);
+            const expanded = expandedId === entry.userId;
+            return (
+              <article
+                key={entry.userId}
+                className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-xl font-extrabold text-accent">
+                    #{entry.rank}
+                  </div>
+                  <Link href={`/profile/${entry.userId}`} className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3">
+                      <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-extrabold text-ink">{entry.username}</p>
+                        {badge ? (
+                          <span className="inline-flex rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                            {badge}
                           </span>
-                          <Avatar username={entry.username} src={entry.avatarUrl} size="md" />
-                          <p className="text-sm font-extrabold text-ink">{entry.username}</p>
-                          <p className="text-2xl font-extrabold tracking-tight text-ink">{pm.value}</p>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-ink-muted">{pm.label}</p>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Table */}
-                {rest.length > 0 && (
-                  <div className="overflow-hidden rounded-[var(--radius-xl)] bg-white/80 shadow-[var(--shadow-card)] ring-2 ring-white/80">
-                    <div className="hidden sm:grid sm:grid-cols-[3.5rem_1fr_7rem_6rem] items-center gap-2 border-b border-ink/5 px-5 py-3">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-ink-muted">Rank</span>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-ink-muted">Player</span>
-                      <span className="text-right text-[10px] font-bold uppercase tracking-widest text-ink-muted">{primaryMetric(activeBoard, rest[0]).label}</span>
-                      <span className="text-right text-[10px] font-bold uppercase tracking-widest text-ink-muted">
-                        {secondaryMetric(activeBoard, rest[0])?.label ?? ""}
-                      </span>
+                        ) : null}
+                      </div>
                     </div>
-                    {rest.map((entry) => {
-                      const pm = primaryMetric(activeBoard, entry);
-                      const sm = secondaryMetric(activeBoard, entry);
-                      const isMe = user && String(entry.userId) === user.id;
-                      return (
-                        <div
-                          key={entry.userId}
-                          className={`flex items-center gap-3 border-b border-ink/5 px-5 py-3 last:border-b-0 sm:grid sm:grid-cols-[3.5rem_1fr_7rem_6rem] sm:gap-2 ${
-                            isMe ? "bg-accent/[0.06] ring-1 ring-accent/15" : ""
-                          }`}
-                        >
-                          <span className="w-8 shrink-0 text-center text-sm font-extrabold text-ink-muted sm:w-auto sm:text-left">#{entry.rank}</span>
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
-                            <span className="truncate text-sm font-bold text-ink">{entry.username}</span>
-                          </div>
-                          <span className="ml-auto text-right text-sm font-extrabold text-ink sm:ml-0">{pm.value}</span>
-                          {sm && <span className="hidden text-right text-xs font-medium text-ink-muted sm:block">{sm.value}</span>}
-                        </div>
-                      );
-                    })}
+                  </Link>
+                  <div className="text-right">
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">{pm.label}</p>
+                    <p className="text-xl font-extrabold text-ink">{pm.value}</p>
                   </div>
-                )}
+                </div>
 
-                {/* Pagination */}
-                {total > 25 && (
-                  <div className="mt-6 flex items-center justify-center gap-3">
-                    <button
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition hover:bg-white disabled:opacity-40"
+                <p className="mt-3 text-sm text-ink-muted">{explanationFromBreakdown(entry)}</p>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <Metric label="Accuracy" value={`${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%`} />
+                  <Metric label="Games" value={String(entry.totalGames ?? 0)} />
+                  <Metric label="Win rate" value={`${(entry.npat_winRate ?? 0).toFixed(0)}%`} />
+                  <Metric label="Consistency" value={`${(breakdown.consistency ?? 0).toFixed(0)}%`} />
+                </div>
+
+                <button
+                  type="button"
+                  className="mt-3 rounded-xl px-3 py-1.5 text-xs font-bold text-accent ring-1 ring-accent/20"
+                  onClick={() => setExpandedId(expanded ? null : entry.userId)}
+                >
+                  {expanded ? "Hide details" : "More details"}
+                </button>
+
+                {expanded ? (
+                  <div className="mt-3 rounded-2xl bg-surface px-3 py-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Contribution breakdown</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                      <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
+                      <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
+                      <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
+                      <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
+                      <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
+                    </div>
+                    <Link
+                      href={`/profile/${entry.userId}`}
+                      className="mt-3 inline-flex rounded-xl bg-accent px-3 py-1.5 text-xs font-bold text-white"
                     >
-                      Previous
-                    </button>
-                    <span className="text-xs font-bold text-ink-muted">Page {page}</span>
-                    <button
-                      disabled={page * 25 >= total}
-                      onClick={() => setPage((p) => p + 1)}
-                      className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition hover:bg-white disabled:opacity-40"
-                    >
-                      Next
-                    </button>
+                      Open profile
+                    </Link>
                   </div>
-                )}
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {total > 25 ? (
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition hover:bg-white disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs font-bold text-ink-muted">Page {page}</span>
+          <button
+            disabled={page * 25 >= total}
+            onClick={() => setPage((p) => p + 1)}
+            className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition hover:bg-white disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-xl bg-white/70 px-2.5 py-2 ring-1 ring-ink/5">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className="mt-1 text-sm font-extrabold text-ink">{value}</p>
     </div>
   );
 }

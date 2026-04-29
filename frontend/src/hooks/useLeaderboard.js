@@ -78,3 +78,52 @@ export function useMyStats() {
 
   return { loading, error, data };
 }
+
+/**
+ * @param {string | null | undefined} userId
+ * @returns {{ loading: boolean, error: string | null, data: Record<string, unknown> | null }}
+ */
+export function useUserProfile(userId) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [data, setData] = useState(/** @type {Record<string, unknown> | null} */ (null));
+  const cacheRef = useRef(/** @type {Map<string, unknown>} */ (new Map()));
+
+  useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      setError("Missing user ID");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const key = `profile:${userId}`;
+      const cached = cacheRef.current.get(key);
+      if (cached) {
+        if (!cancelled) {
+          setData(cached);
+          setLoading(false);
+          setError(null);
+        }
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const json = await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/profile`);
+        const next = json?.data ?? null;
+        cacheRef.current.set(key, next);
+        if (!cancelled) setData(next);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load profile");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  return { loading, error, data };
+}
