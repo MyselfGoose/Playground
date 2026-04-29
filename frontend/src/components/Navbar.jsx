@@ -13,10 +13,7 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 
-/**
- * @param {{ onOpenFeedback?: (source?: "desktop" | "mobile") => void }} [props]
- */
-export function Navbar({ onOpenFeedback } = {}) {
+export function Navbar() {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
@@ -54,14 +51,13 @@ export function Navbar({ onOpenFeedback } = {}) {
               </Link>
             );
           })}
-          <button
+          <Link
             id="feedback-trigger-desktop"
-            type="button"
-            onClick={() => onOpenFeedback?.("desktop")}
+            href="/feedback"
             className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted transition-colors hover:bg-white/60 hover:text-ink"
           >
             Feedback
-          </button>
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -140,17 +136,14 @@ export function Navbar({ onOpenFeedback } = {}) {
                   {label}
                 </Link>
               ))}
-              <button
+              <Link
                 id="feedback-trigger-mobile"
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  onOpenFeedback?.("mobile");
-                }}
+                href="/feedback"
+                onClick={() => setOpen(false)}
                 className="rounded-2xl px-4 py-3 text-left text-base font-bold text-ink-muted hover:bg-white"
               >
                 Feedback
-              </button>
+              </Link>
               {!loading && !user ? (
                 <>
                   <Link
