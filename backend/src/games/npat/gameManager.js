@@ -754,7 +754,7 @@ export class NpatRoomEngine {
         /** @type {{ rounds: Array<{ roundIndex: number, round: string, results: unknown[] }> }} */
         let batch;
         try {
-          const out = await evaluateNpatFullGame(this.env, this, this.logger);
+          const out = await evaluateNpatFullGame(this.env, this, this.logger, { mode: 'interactive' });
           source = out.source;
           batch = out.payload;
         } catch (e) {
@@ -787,6 +787,11 @@ export class NpatRoomEngine {
 
         this.emit('room_update', { room: this.toPublicDto() });
         this.emit('game_evaluated', { room: this.toPublicDto(), source });
+        if (source === 'fallback' && this.env.GEMINI_API_KEY?.trim()) {
+          this._upgradeEvaluationInBackground().catch((err) => {
+            this.logger.warn({ err, event: 'npat_background_upgrade_failed' }, 'npat_room');
+          });
+        }
 
         this._applyFinishGameFromEvaluation();
       } catch (err) {
@@ -818,6 +823,31 @@ export class NpatRoomEngine {
         this._evaluationFlight = null;
       }
     })();
+  }
+
+  async _upgradeEvaluationInBackground() {
+    const out = await evaluateNpatFullGame(this.env, this, this.logger, { mode: 'background' });
+    if (out.source !== 'gemini') return;
+    for (const br of out.payload.rounds) {
+      const round = this.results.rounds.find((r) => r.roundIndex === br.roundIndex);
+      if (!round) continue;
+      const evaluation = { round: br.round, results: br.results };
+      round.evaluation = evaluation;
+      round.evaluationStatus = 'complete';
+      round.evaluationSource = 'gemini';
+      round.evaluatedAt = new Date().toISOString();
+      round.evaluationError = undefined;
+      await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, br.roundIndex, {
+        evaluation,
+        evaluationStatus: 'complete',
+        evaluationSource: 'gemini',
+        evaluatedAt: new Date(),
+        evaluationError: null,
+      }).catch(() => {});
+    }
+    this.logger.info({ event: 'npat_background_upgrade_applied', roomCode: this.code }, 'npat_room');
+    this.emit('room_update', { room: this.toPublicDto() });
+    this.emit('game_evaluated', { room: this.toPublicDto(), source: 'gemini' });
   }
 
   /**

@@ -125,6 +125,9 @@ export const envSchema = z
       return s === 'true' || s === '1';
     }, z.boolean().default(false)),
     GEMINI_MODEL: z.string().min(1).default('gemini-2.0-flash'),
+    NPAT_EVAL_INTERACTIVE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+    NPAT_EVAL_INTERACTIVE_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(0),
+    NPAT_EVAL_INTERACTIVE_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(16_384).default(3072),
     NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
     NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     NPAT_EVAL_MAX_ANSWER_CHARS: z.coerce.number().int().min(20).max(500).default(120),

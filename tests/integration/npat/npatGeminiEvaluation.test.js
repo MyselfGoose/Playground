@@ -89,7 +89,7 @@ describe('NPAT Gemini evaluation (mocked)', () => {
     }));
     const env = applyTestEnv({
       GEMINI_API_KEY: 'test-key-not-used',
-      NPAT_EVAL_MAX_RETRIES: '1',
+      NPAT_EVAL_INTERACTIVE_MAX_RETRIES: '1',
     });
     const out = await evaluateNpatFullGame(env, minimalEngine(), logger);
     assert.equal(out.source, 'fallback');

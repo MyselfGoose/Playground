@@ -2,19 +2,18 @@ import { buildNpatEvaluationInput, buildNpatFullGameEvaluationInput } from './np
 import { evaluateNpatRoundFallback } from './npatEvaluationFallback.js';
 import { createNpatGenerativeModel } from './npatGeminiModel.js';
 import { safeParseFullGamePayload } from './npatGameEvaluationSchema.js';
+import { evaluateNpatRound } from './npatEvaluationService.js';
 
-const BATCH_SYSTEM_PROMPT = `You are an expert judge for the game "Name, Place, Animal, Thing" (NPAT).
+const BATCH_SYSTEM_PROMPT = `Judge NPAT rounds. Return JSON only (no markdown/fences).
 
-You will receive multiple rounds at once. Each round has a roundIndex, a roundLetter, and all players' answers for that round.
-
-Rules (apply independently to EACH round):
-- A round has a single letter. Every answer must START with that letter (first letter, case-insensitive). Trim whitespace.
-- Categories: name (person's first name), place (real/well-known place), animal (real animal), thing (concrete object).
+Rules per round:
+- Answers must start with round letter (case-insensitive, trimmed).
+- Categories: name/place/animal/thing.
 - Empty answers are invalid.
-- Duplicates: same normalized text (trim, lowercase, collapse spaces) in the SAME round and SAME category across players = duplicate (5 pts if valid).
-- Scoring: unique valid = 10, duplicate valid = 5, invalid = 0. Set isValid, isDuplicate; server may recompute score from flags.
+- Duplicate means same normalized text (trim/lower/collapse spaces) in same round+category.
+- Flags: unique valid => isValid=true,isDuplicate=false; duplicate valid => isValid=true,isDuplicate=true; invalid => isValid=false.
 
-Output JSON ONLY — no markdown, no code fences. Structure:
+Output shape:
 {
   "rounds": [
     {
@@ -37,7 +36,8 @@ Output JSON ONLY — no markdown, no code fences. Structure:
   ]
 }
 
-Include EVERY round from INPUT_JSON. For each round, include EVERY player from that round's player list exactly once.`;
+Include all rounds and all players from INPUT_JSON exactly once.
+Keep each comment very short (<= 6 words).`;
 
 function stripJsonFence(text) {
   let t = String(text).trim();
@@ -110,6 +110,25 @@ async function callGeminiFullGame(env, input) {
 }
 
 /**
+ * @param {import('../../config/env.js').Env} env
+ * @param {'interactive'|'background'} mode
+ */
+function evaluationPolicy(env, mode) {
+  if (mode === 'interactive') {
+    return {
+      timeoutMs: env.NPAT_EVAL_INTERACTIVE_TIMEOUT_MS,
+      retries: env.NPAT_EVAL_INTERACTIVE_MAX_RETRIES,
+      maxOutputTokens: env.NPAT_EVAL_INTERACTIVE_MAX_OUTPUT_TOKENS,
+    };
+  }
+  return {
+    timeoutMs: env.NPAT_EVAL_TIMEOUT_MS,
+    retries: env.NPAT_EVAL_MAX_RETRIES,
+    maxOutputTokens: env.NPAT_EVAL_MAX_OUTPUT_TOKENS,
+  };
+}
+
+/**
  * @param {{
  *   results: { rounds: Array<{ roundIndex: number }> },
  *   players: Map<string, { username?: string }>,
@@ -137,13 +156,16 @@ export function evaluateNpatFullGameFallback(engine) {
  * @param {import('../../config/env.js').Env} env
  * @param {{ results: { rounds: Array<{ roundIndex: number }> }, players: Map<string, unknown> }} engine
  * @param {import('pino').Logger} logger
+ * @param {{ mode?: 'interactive'|'background' }} [options]
  * @returns {Promise<{ source: 'gemini' | 'fallback', payload: { rounds: Array<{ roundIndex: number, round: string, results: unknown[] }> } }>}
  */
-export async function evaluateNpatFullGame(env, engine, logger) {
+export async function evaluateNpatFullGame(env, engine, logger, options = {}) {
+  const mode = options.mode ?? 'interactive';
   const input = buildNpatFullGameEvaluationInput(engine);
   if (input.rounds.length === 0) {
     return { source: 'fallback', payload: { rounds: [] } };
   }
+  const startedAt = Date.now();
 
   const fallback = () => ({
     source: /** @type {const} */ ('fallback'),
@@ -156,12 +178,73 @@ export async function evaluateNpatFullGame(env, engine, logger) {
   }
 
   const expectedRoundIndices = new Set(engine.results.rounds.map((r) => r.roundIndex));
+  const policy = evaluationPolicy(env, mode);
+
+  if (mode === 'interactive' && input.rounds.length > 1) {
+    const tunedEnv = {
+      ...env,
+      NPAT_EVAL_TIMEOUT_MS: policy.timeoutMs,
+      NPAT_EVAL_MAX_RETRIES: policy.retries,
+      NPAT_EVAL_MAX_OUTPUT_TOKENS: policy.maxOutputTokens,
+    };
+    const roundResults = await Promise.all(
+      input.rounds.map(async (round) => {
+        const out = await evaluateNpatRound(
+          tunedEnv,
+          {
+            roundLetter: round.roundLetter,
+            language: input.language,
+            players: round.players,
+          },
+          logger,
+        );
+        return {
+          source: out.source,
+          payload: { roundIndex: round.roundIndex, ...out.payload },
+        };
+      }),
+    );
+    const allGemini = roundResults.every((r) => r.source === 'gemini');
+    logger.info(
+      {
+        event: 'npat_full_eval_metrics',
+        mode,
+        source: allGemini ? 'gemini' : 'fallback',
+        durationMs: Date.now() - startedAt,
+        attemptsUsed: 1,
+        rounds: input.rounds.length,
+        playersPerRound: input.rounds[0]?.players?.length ?? 0,
+        timeoutMs: policy.timeoutMs,
+        retries: policy.retries,
+        maxOutputTokens: policy.maxOutputTokens,
+        strategy: 'parallel_per_round',
+      },
+      'npat_eval',
+    );
+    return {
+      source: allGemini ? 'gemini' : 'fallback',
+      payload: {
+        rounds: roundResults.map((r) => ({
+          roundIndex: r.payload.roundIndex,
+          round: r.payload.round,
+          results: r.payload.results,
+        })),
+      },
+    };
+  }
 
   let lastErr = /** @type {Error | null} */ (null);
-  const attempts = env.NPAT_EVAL_MAX_RETRIES + 1;
+  const attempts = policy.retries + 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const rawText = await callGeminiFullGame(env, input);
+      const rawText = await callGeminiFullGame(
+        {
+          ...env,
+          NPAT_EVAL_TIMEOUT_MS: policy.timeoutMs,
+          NPAT_EVAL_MAX_OUTPUT_TOKENS: policy.maxOutputTokens,
+        },
+        input,
+      );
       const json = JSON.parse(rawText);
       const parsed = safeParseFullGamePayload(json);
       if (!parsed.ok) {
@@ -178,6 +261,21 @@ export async function evaluateNpatFullGame(env, engine, logger) {
             if (!gotIdx.has(idx)) ok = false;
           }
           if (ok) {
+            logger.info(
+              {
+                event: 'npat_full_eval_metrics',
+                mode,
+                source: 'gemini',
+                durationMs: Date.now() - startedAt,
+                attemptsUsed: attempt + 1,
+                rounds: input.rounds.length,
+                playersPerRound: input.rounds[0]?.players?.length ?? 0,
+                timeoutMs: policy.timeoutMs,
+                retries: policy.retries,
+                maxOutputTokens: policy.maxOutputTokens,
+              },
+              'npat_eval',
+            );
             return { source: 'gemini', payload: parsed.data };
           }
         }
@@ -194,5 +292,21 @@ export async function evaluateNpatFullGame(env, engine, logger) {
   if (lastErr) {
     logger.warn({ err: lastErr }, 'npat_full_eval_using_fallback');
   }
+  logger.warn(
+    {
+      event: 'npat_full_eval_metrics',
+      mode,
+      source: 'fallback',
+      durationMs: Date.now() - startedAt,
+      attemptsUsed: attempts,
+      rounds: input.rounds.length,
+      playersPerRound: input.rounds[0]?.players?.length ?? 0,
+      timeoutMs: policy.timeoutMs,
+      retries: policy.retries,
+      maxOutputTokens: policy.maxOutputTokens,
+      fallbackReason: lastErr?.message ?? 'unknown',
+    },
+    'npat_eval',
+  );
   return fallback();
 }
