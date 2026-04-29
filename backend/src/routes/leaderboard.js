@@ -105,7 +105,12 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_bestWpm', ['typing_totalGames']),
+        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_bestWpm', [
+          'typing_totalGames',
+          'typing_weightedAccuracy',
+          'typing_multiWins',
+          'typing_totalCharsTyped',
+        ]),
         total: result.total,
         page,
       };
@@ -130,7 +135,12 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_weightedAccuracy', ['typing_totalGames']),
+        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_weightedAccuracy', [
+          'typing_totalGames',
+          'typing_bestWpm',
+          'typing_totalCharsTyped',
+          'typing_multiWins',
+        ]),
         total: result.total,
         page,
       };
@@ -155,7 +165,12 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'npat_averageScore', ['npat_totalGames', 'npat_winRate']),
+        entries: mapEntries(result.entries, (page - 1) * limit, 'npat_averageScore', [
+          'npat_totalGames',
+          'npat_winRate',
+          'npat_wins',
+          'npat_totalScore',
+        ]),
         total: result.total,
         page,
       };
@@ -188,6 +203,14 @@ export function createLeaderboardRouter({ env }) {
           username: e.username,
           avatarUrl: avatarUrl(e.username),
           globalScore: e.global_score,
+          typing_bestWpm: e.typing_bestWpm ?? 0,
+          typing_weightedAccuracy: e.typing_weightedAccuracy ?? 0,
+          npat_averageScore: e.npat_averageScore ?? 0,
+          npat_winRate: e.npat_winRate ?? 0,
+          activeDaysLast30: e.activeDaysLast30 ?? 0,
+          typing_totalGames: e.typing_totalGames ?? 0,
+          npat_totalGames: e.npat_totalGames ?? 0,
+          totalGames: (e.typing_totalGames ?? 0) + (e.npat_totalGames ?? 0),
           breakdown: {
             typing: Math.round(Math.min(e.typing_bestWpm / 150, 1) * 100 * 100) / 100,
             accuracy: Math.round((e.typing_weightedAccuracy ?? 0) * 100) / 100,

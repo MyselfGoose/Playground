@@ -41,6 +41,39 @@ function primaryMetric(board, entry) {
   return { label: "Score", value: "—" };
 }
 
+function boardStats(board, entry) {
+  if (board === "typing-wpm") {
+    return [
+      { label: "Best WPM", value: (entry.typing_bestWpm ?? 0).toFixed(1) },
+      { label: "Weighted Accuracy", value: `${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%` },
+      { label: "Typing Games", value: String(entry.typing_totalGames ?? 0) },
+      { label: "Race Wins", value: String(entry.typing_multiWins ?? 0) },
+    ];
+  }
+  if (board === "typing-accuracy") {
+    return [
+      { label: "Weighted Accuracy", value: `${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%` },
+      { label: "Best WPM", value: (entry.typing_bestWpm ?? 0).toFixed(1) },
+      { label: "Typing Games", value: String(entry.typing_totalGames ?? 0) },
+      { label: "Typed Chars", value: String(entry.typing_totalCharsTyped ?? 0) },
+    ];
+  }
+  if (board === "npat") {
+    return [
+      { label: "Avg Score", value: (entry.npat_averageScore ?? 0).toFixed(1) },
+      { label: "Win Rate", value: `${(entry.npat_winRate ?? 0).toFixed(1)}%` },
+      { label: "NPAT Games", value: String(entry.npat_totalGames ?? 0) },
+      { label: "NPAT Wins", value: String(entry.npat_wins ?? 0) },
+    ];
+  }
+  return [
+    { label: "Global Score", value: (entry.globalScore ?? 0).toFixed(1) },
+    { label: "Typing Skill", value: `${(entry.breakdown?.typing ?? 0).toFixed(0)}%` },
+    { label: "NPAT Skill", value: `${(entry.breakdown?.npat ?? 0).toFixed(0)}%` },
+    { label: "Active Days", value: String(entry.activeDaysLast30 ?? 0) },
+  ];
+}
+
 function contributionBreakdown(entry) {
   const breakdown = entry.breakdown ?? {
     typing: Math.round(Math.min((entry.typing_bestWpm ?? 0) / 150, 1) * 100),
@@ -151,6 +184,7 @@ export default function LeaderboardPage() {
             const breakdown = contributionBreakdown(entry);
             const badge = badgeFor(entry);
             const expanded = expandedId === entry.userId;
+            const stats = boardStats(activeBoard, entry);
             return (
               <article
                 key={entry.userId}
@@ -182,10 +216,9 @@ export default function LeaderboardPage() {
                 <p className="mt-3 text-sm text-ink-muted">{explanationFromBreakdown(entry)}</p>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                  <Metric label="Accuracy" value={`${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%`} />
-                  <Metric label="Games" value={String(entry.totalGames ?? 0)} />
-                  <Metric label="Win rate" value={`${(entry.npat_winRate ?? 0).toFixed(0)}%`} />
-                  <Metric label="Consistency" value={`${(breakdown.consistency ?? 0).toFixed(0)}%`} />
+                  {stats.map((s) => (
+                    <Metric key={s.label} label={s.label} value={s.value} />
+                  ))}
                 </div>
 
                 <button
@@ -198,14 +231,27 @@ export default function LeaderboardPage() {
 
                 {expanded ? (
                   <div className="mt-3 rounded-2xl bg-surface px-3 py-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Contribution breakdown</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-                      <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
-                      <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
-                      <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
-                      <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
-                      <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
-                    </div>
+                    {activeBoard === "global" ? (
+                      <>
+                        <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Global contribution breakdown</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                          <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
+                          <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
+                          <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
+                          <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
+                          <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Category insight</p>
+                        <p className="mt-2 text-xs text-ink-muted">
+                          {activeBoard === "typing-wpm" && "Speed ranking favors high best WPM, with accuracy and race wins as supporting indicators."}
+                          {activeBoard === "typing-accuracy" && "Accuracy ranking favors precision over volume; speed is shown as a supporting context signal."}
+                          {activeBoard === "npat" && "NPAT ranking favors high average AI-evaluated scores, with win rate and games showing reliability."}
+                        </p>
+                      </>
+                    )}
                     <Link
                       href={`/profile/${entry.userId}`}
                       className="mt-3 inline-flex rounded-xl bg-accent px-3 py-1.5 text-xs font-bold text-white"
