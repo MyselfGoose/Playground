@@ -61,4 +61,27 @@ describe('Auth API', () => {
 
     assert.ok(res.body?.error?.message);
   });
+
+  it('refresh rotates cookie and keeps protected route available', async () => {
+    const email = `refresh_${Date.now()}@example.com`;
+    const username = `ref${Date.now()}`;
+    const register = await request(app).post('/api/v1/auth/register').send({
+      username,
+      email,
+      password: strongPassword,
+    });
+    const cookies = register.headers['set-cookie'];
+    assert.ok(Array.isArray(cookies));
+
+    const meBefore = await request(app).get('/api/v1/auth/me').set('Cookie', cookies).expect(200);
+    assert.equal(meBefore.body?.data?.user?.email, email);
+
+    const refresh = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookies).expect(200);
+    const rotatedCookies = refresh.headers['set-cookie'];
+    assert.ok(Array.isArray(rotatedCookies));
+    assert.ok(rotatedCookies.some((c) => c.startsWith('refresh_token=')));
+
+    const meAfter = await request(app).get('/api/v1/auth/me').set('Cookie', rotatedCookies).expect(200);
+    assert.equal(meAfter.body?.data?.user?.email, email);
+  });
 });

@@ -7,7 +7,7 @@ import pinoHttp from 'pino-http';
 import { requestContext } from './middleware/requestContext.js';
 import { notFound } from './middleware/notFound.js';
 import { createErrorHandler } from './middleware/errorHandler.js';
-import { healthRouter } from './routes/health.js';
+import { createHealthRouter } from './routes/health.js';
 import { apiRouter } from './routes/api.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createFeedbackRouter } from './routes/feedback.js';
@@ -98,7 +98,7 @@ export function createApp({ env, logger }) {
   app.use('/api/v1/auth', createAuthRouter({ env }));
   app.use('/api/v1/feedback', createFeedbackRouter({ env }));
   app.use('/api/v1/leaderboard', createLeaderboardRouter({ env }));
-  app.use(healthRouter);
+  app.use(createHealthRouter({ env }));
 
   app.use(notFound);
   app.use(createErrorHandler(env));

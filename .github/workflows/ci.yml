@@ -40,6 +40,11 @@ jobs:
         run: npm test
         working-directory: frontend
 
+      - name: Smoke tests (auth/db/ai/health)
+        run: npm run test:smoke
+        env:
+          GEMINI_MOCK_MODE: true
+
       - name: Integration tests
         run: npm run test:integration
 

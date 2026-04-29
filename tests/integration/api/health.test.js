@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { applyTestEnv } from '../../support/testEnv.js';
 import { createTestApp } from '../../support/appFactory.js';
+import { setAiHealth } from '../../../backend/src/observability/serviceHealth.js';
 
 describe('GET /health', () => {
   /** @type {import('express').Express} */
@@ -10,12 +11,19 @@ describe('GET /health', () => {
 
   before(() => {
     const env = applyTestEnv();
+    setAiHealth({ ok: true });
     app = createTestApp({ env });
   });
 
-  it('returns 200 with ok and version fields', async () => {
+  it('returns aggregate health payload', async () => {
     const res = await request(app).get('/health').expect(200);
-    assert.equal(res.body.ok, true);
+    assert.equal(typeof res.body.status, 'string');
+    assert.equal(typeof res.body.services, 'object');
+    assert.equal(typeof res.body.services.db, 'boolean');
+    assert.equal(typeof res.body.services.ai, 'boolean');
+    assert.equal(typeof res.body.services.auth, 'boolean');
+    assert.ok(['ok', 'degraded', 'fail'].includes(res.body.status));
+    assert.equal(res.body.ok, res.body.status !== 'fail');
     assert.ok(typeof res.body.uptime === 'number');
     assert.ok(typeof res.body.version === 'string', 'expected package version in body');
   });

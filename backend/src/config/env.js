@@ -119,6 +119,11 @@ export const envSchema = z
 
     /** Google Gemini (server-only). Optional: rounds fall back to heuristic scoring if unset. */
     GEMINI_API_KEY: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    GEMINI_MOCK_MODE: z.preprocess((v) => {
+      if (v === undefined || v === null || String(v).trim() === '') return false;
+      const s = String(v).toLowerCase().trim();
+      return s === 'true' || s === '1';
+    }, z.boolean().default(false)),
     GEMINI_MODEL: z.string().min(1).default('gemini-2.0-flash'),
     NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
     NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),

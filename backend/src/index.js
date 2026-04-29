@@ -14,6 +14,7 @@ import { registerProcessHandlers } from './processHandlers.js';
 import { attachSocketIo } from './games/npat/npatSocket.js';
 import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
 import { scheduleLeaderboardCron } from './jobs/leaderboardCron.js';
+import { runGeminiHealthCheck } from './services/npat/npatGeminiHealth.js';
 
 if (globalThis.__server_started) {
   console.error('[boot] FATAL: index.js executed more than once — aborting duplicate start');
@@ -102,6 +103,14 @@ async function main() {
     },
     'boot_config',
   );
+
+  // Gemini readiness is non-fatal: mark degraded via health state if probe fails.
+  const aiProbe = await runGeminiHealthCheck();
+  if (!aiProbe.ok) {
+    logger.warn({ aiProbe, mode: 'degraded' }, 'gemini_health_check_failed_boot_continues');
+  } else {
+    logger.info({ aiProbe }, 'gemini_health_check_ok');
+  }
 
   bootTrace('TRACE_BEFORE_DB_BACKGROUND');
   startMongoConnectionBackground({ mongoUri: env.MONGO_URI, logger });
