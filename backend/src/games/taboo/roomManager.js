@@ -73,10 +73,29 @@ export function createTabooRoomManager({ tabooNs, logger }) {
   const socketToCode = new Map();
   /** @type {Map<string, string>} */
   const userToCode = new Map();
+  /** @type {Map<string, Set<string>>} */
+  const userToSocketIds = new Map();
+
+  function trackUserSocket(userId, socketId) {
+    const set = userToSocketIds.get(userId) ?? new Set();
+    set.add(socketId);
+    userToSocketIds.set(userId, set);
+  }
+
+  function untrackUserSocket(userId, socketId) {
+    const set = userToSocketIds.get(userId);
+    if (!set) return;
+    set.delete(socketId);
+    if (!set.size) userToSocketIds.delete(userId);
+  }
 
   function getRoomForSocket(socket) {
     const code = socketToCode.get(socket.id);
     return code ? (rooms.get(code) ?? null) : null;
+  }
+
+  function bumpStateVersion(room) {
+    room.stateVersion = Number(room.stateVersion || 0) + 1;
   }
 
   function emitRoom(code, reason = "room_update") {
@@ -118,10 +137,12 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       socketIds: new Set([socket.id]),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      stateVersion: 1,
     };
     rooms.set(code, room);
     socketToCode.set(socket.id, code);
     userToCode.set(hostId, code);
+    trackUserSocket(hostId, socket.id);
     socket.join(code);
     return room;
   }
@@ -144,10 +165,12 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       const countB = room.players.filter((p) => p.team === "B").length;
       room.players.push({ userId, username, team: countA <= countB ? "A" : "B", ready: false, connected: true });
     }
+    bumpStateVersion(room);
     room.socketIds.add(socket.id);
     room.updatedAt = Date.now();
     socketToCode.set(socket.id, normalized);
     userToCode.set(userId, normalized);
+    trackUserSocket(userId, socket.id);
     socket.join(normalized);
     return room;
   }
@@ -157,6 +180,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!code) return;
     const room = rooms.get(code);
     socketToCode.delete(socket.id);
+    untrackUserSocket(socket.data.userId, socket.id);
     socket.leave(code);
     if (!room) return;
     room.socketIds.delete(socket.id);
@@ -164,11 +188,17 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const player = room.players.find((p) => p.userId === userId);
     if (player) {
       if (hardLeave) {
-        room.players = room.players.filter((p) => p.userId !== userId);
-        userToCode.delete(userId);
+        const hasOtherSockets = [...room.socketIds].some((sid) => tabooNs.sockets.get(sid)?.data?.userId === userId);
+        if (!hasOtherSockets) {
+          room.players = room.players.filter((p) => p.userId !== userId);
+          userToCode.delete(userId);
+        } else {
+          player.connected = true;
+        }
       } else {
         player.connected = false;
       }
+      bumpStateVersion(room);
       room.updatedAt = Date.now();
     }
     if (!room.players.length) rooms.delete(code);
@@ -182,8 +212,13 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, code);
     socket.join(code);
+    trackUserSocket(socket.data.userId, socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
-    if (player) player.connected = true;
+    if (player) {
+      player.connected = true;
+      bumpStateVersion(room);
+      room.updatedAt = Date.now();
+    }
     return room;
   }
 
@@ -193,17 +228,23 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const me = room.players.find((p) => p.userId === socket.data.userId);
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     me.ready = Boolean(ready);
+    const started = game.maybeStartIfReady(room);
+    bumpStateVersion(room);
     room.updatedAt = Date.now();
-    return { room, started: false };
+    return { room, started };
   }
 
   function changeTeam(socket, team) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error("Not in room"), { code: "NOT_IN_ROOM" });
+    if (room.game && room.game.status !== "finished") {
+      throw Object.assign(new Error("Cannot change team after game start"), { code: "GAME_ALREADY_STARTED" });
+    }
     const me = room.players.find((p) => p.userId === socket.data.userId);
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     me.team = team === "B" ? "B" : "A";
     me.ready = false;
+    bumpStateVersion(room);
     room.updatedAt = Date.now();
     return room;
   }
@@ -215,6 +256,8 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     if (room.hostId !== me.userId) throw Object.assign(new Error("Only host can start"), { code: "NOT_HOST" });
     if (!game.maybeStartIfReady(room)) throw Object.assign(new Error("All players must be ready and both teams non-empty"), { code: "READY_REQUIRED" });
+    bumpStateVersion(room);
+    room.updatedAt = Date.now();
     return room;
   }
 
@@ -230,6 +273,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     room.settings.categoryIds = selection.categoryIds;
     room.settings.categoryNames = selection.categoryNames;
     room.makeDeck = () => makeDeckForCategories(selection.categoryIds);
+    bumpStateVersion(room);
     room.updatedAt = Date.now();
     return room;
   }
@@ -247,6 +291,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error("Not in room"), { code: "NOT_IN_ROOM" });
     const reason = game.applyAction(room, socket.data.userId, action, payload);
+    bumpStateVersion(room);
     room.updatedAt = Date.now();
     if (reason === "turn_timeout") {
       game.advanceRoom(room);
@@ -260,6 +305,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     for (const [code, room] of rooms.entries()) {
       const reason = game.advanceRoom(room);
       if (reason) {
+        bumpStateVersion(room);
         room.updatedAt = Date.now();
         updates.push({ code, reason });
       }
@@ -277,6 +323,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();
+    userToSocketIds.clear();
   }
 
   return {

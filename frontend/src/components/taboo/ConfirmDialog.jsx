@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useId, useRef } from "react";
 import { cn } from "../../lib/taboo/cn.js";
 import { motionPresets } from "../../lib/taboo/motion.js";
 
@@ -14,6 +15,20 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const cancelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    cancelRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onCancel?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onCancel]);
+
   return (
     <AnimatePresence>
       {open ? (
@@ -25,16 +40,19 @@ export function ConfirmDialog({
           onClick={onCancel}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
         >
           <motion.div
             className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.03] p-6"
             {...motionPresets.modal}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-bold text-white">{title}</h2>
-            <p className="mb-5 text-sm text-neutral-400">{description}</p>
+            <h2 id={titleId} className="mb-1 text-lg font-bold text-white">{title}</h2>
+            <p id={descriptionId} className="mb-5 text-sm text-neutral-400">{description}</p>
             <div className="flex gap-2">
               <button
+                ref={cancelRef}
                 type="button"
                 onClick={onCancel}
                 className="flex-1 h-11 rounded-xl bg-white/[0.06] text-white text-sm font-medium hover:bg-white/[0.1] transition-all"

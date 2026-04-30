@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
@@ -177,7 +178,6 @@ export default function TabooClient({ view }) {
     setReady,
     changeTeam,
     setCategories,
-    startGame,
     startTurn,
     submitGuess,
     skipCard,
@@ -264,7 +264,7 @@ export default function TabooClient({ view }) {
       setSecondsRemaining(Math.max(0, Math.ceil(ms / 1000)));
     };
     tick();
-    const timer = setInterval(tick, 250);
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [game?.turnEndsAt, game?.phaseEndsAt, game?.roundEndsAt, game?.secondsRemaining]);
 
@@ -311,8 +311,8 @@ export default function TabooClient({ view }) {
 
         <main className="relative z-10 flex-1 flex flex-col px-4 py-6 sm:px-6 sm:py-8 max-w-md mx-auto w-full">
           <div className="mb-3 flex justify-end gap-2">
-            <a href="/leaderboard" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:bg-white/[0.08] hover:text-white">Stats</a>
-            <a href="/games" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:bg-white/[0.08] hover:text-white">How to Play</a>
+            <Link href="/leaderboard" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:bg-white/[0.08] hover:text-white">Stats</Link>
+            <Link href="/games" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:bg-white/[0.08] hover:text-white">How to Play</Link>
           </div>
           <motion.div initial={reduceMotion ? false : { opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6 sm:mb-8">
             <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2a4d7a] mb-3 shadow-lg shadow-[#1e3a5f]/20">
@@ -389,14 +389,16 @@ export default function TabooClient({ view }) {
   }
 
   if (!room) {
+    if (connectionState === "reconnecting" || connectionState === "disconnected") {
+      return <div className="mx-auto w-full max-w-lg px-4 py-8 text-white">Reconnecting to your Taboo room...</div>;
+    }
     return <div className="mx-auto w-full max-w-lg px-4 py-8 text-white">No active Taboo room. Go to `/games/taboo`.</div>;
   }
 
   if (view === "lobby") {
-    const allReady = room.allReady;
     const teamACount = room?.teams?.A?.length ?? 0;
     const teamBCount = room?.teams?.B?.length ?? 0;
-    const canStart = allReady && teamACount > 0 && teamBCount > 0;
+    const canAutoStart = room.allReady && teamACount > 0 && teamBCount > 0;
     return (
       <div className="min-h-screen bg-[#0a0f1a] text-white flex flex-col">
         <div className="fixed inset-0 bg-gradient-to-b from-[#0a0f1a] via-[#0d1220] to-[#0a0f1a] pointer-events-none" />
@@ -511,8 +513,16 @@ export default function TabooClient({ view }) {
               </div>
             </div>
           </div>
+          <div className="mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3">
+            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-2">Ready Status</p>
+            <p className="text-sm text-neutral-300">
+              {(room?.players ?? []).filter((p) => p.ready).length} / {(room?.players ?? []).length} players ready
+            </p>
+          </div>
           <button className={cn("w-full h-12 rounded-xl font-semibold text-sm transition-all mb-3", me?.ready ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400" : "bg-white/[0.04] border border-white/[0.08]")} onClick={() => act(setReady, !me?.ready)}>{me?.ready ? "Ready! Tap to unready" : "Mark as Ready"}</button>
-          <button className={cn("w-full h-12 rounded-xl font-semibold text-sm transition-all", canStart ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a4d7a]" : "bg-white/[0.02] text-neutral-500")} disabled={!canStart} onClick={async () => { const result = await startGame(); if (result.ok) router.push("/games/taboo/play"); else setError(result.error.message); }}><Play className="inline-block mr-2 h-4 w-4" />{canStart ? "Start Game" : `Waiting for ${room?.players?.filter((p) => !p.ready).length || 0} player(s)...`}</button>
+          <div className={cn("w-full h-12 rounded-xl font-semibold text-sm transition-all flex items-center justify-center", canAutoStart ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a4d7a] text-white" : "bg-white/[0.02] text-neutral-500")}>
+            {canAutoStart ? "Starting game..." : `Waiting for ${room?.players?.filter((p) => !p.ready).length || 0} player(s)...`}
+          </div>
         </main>
         <ConfirmDialog open={showLeaveConfirm} title="Leave Lobby?" description="You'll be removed from this lobby and need the code to rejoin." confirmLabel="Leave" cancelLabel="Stay" variant="danger" onConfirm={async () => { await leaveRoom(); router.push("/games/taboo"); }} onCancel={() => setShowLeaveConfirm(false)} />
       </div>
@@ -642,13 +652,20 @@ export default function TabooClient({ view }) {
         ) : null}
         {review?.status === "available" && game?.permissions?.canRequestReview ? <button className="rounded-xl border border-[#3b6ca8]/40 bg-[#1e3a5f]/30 px-4 py-2 text-sm mb-3" onClick={() => act(requestReview)} disabled={!isRealtimeConnected}>Request Review</button> : null}
         {Array.isArray(game?.history) && game.history.length > 0 ? (
-          <div className="mt-3 max-h-[140px] overflow-y-auto rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-            {game.history.slice(-8).map((entry, i) => {
+          <div className="mt-3 max-h-[220px] overflow-y-auto rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <p className="mb-2 text-[10px] uppercase tracking-wider text-neutral-400">Game Log</p>
+            {game.history.slice(-80).map((entry, i) => {
               const key = `${entry.at}-${entry.action}-${i}`;
               if (entry.action === "submit_guess" && entry.matched) return <div key={key} className="flex items-center gap-2 py-1 text-xs text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /><span>{entry.playerName} guessed correctly!</span></div>;
               if (entry.action === "submit_guess") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-neutral-400"><XCircle className="h-3.5 w-3.5" /><span>{entry.playerName}: "{entry.guess}"</span></div>;
               if (entry.action === "close_guess") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-amber-400"><MessageCircle className="h-3.5 w-3.5" /><span>{entry.playerName}: close guess "{entry.guess}"</span></div>;
+              if (entry.action === "skip_card") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-yellow-300"><SkipForward className="h-3.5 w-3.5" /><span>{entry.playerName} skipped the card</span></div>;
               if (entry.action === "taboo_called") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-red-400"><AlertTriangle className="h-3.5 w-3.5" /><span>Taboo! -1 for Team {entry.penalizedTeam === "B" ? "Beta" : "Alpha"}</span></div>;
+              if (entry.action === "review_vote") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-sky-300"><Users className="h-3.5 w-3.5" /><span>{entry.playerName} voted {entry.vote?.replace("_", " ")}</span></div>;
+              if (entry.action === "review_resolved") return <div key={key} className="flex items-center gap-2 py-1 text-xs text-sky-300"><CheckCircle2 className="h-3.5 w-3.5" /><span>Review resolved: {entry.outcome}</span></div>;
+              if (entry.action === "turn_started" || entry.action === "turn_ended" || entry.action === "round_started" || entry.action === "round_completed" || entry.action === "game_finished") {
+                return <div key={key} className="flex items-center gap-2 py-1 text-xs text-neutral-400"><Clock className="h-3.5 w-3.5" /><span>{entry.action.replaceAll("_", " ")}</span></div>;
+              }
               return null;
             })}
           </div>

@@ -75,6 +75,10 @@ function viewerRole(room, userId) {
   return player.team === room.game.activeTurn.team ? "teammate_guesser" : "opponent_observer";
 }
 
+function connectedPlayerIds(room) {
+  return room.players.filter((player) => player.connected !== false).map((player) => player.userId);
+}
+
 export function createDeckProvider() {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const datasetPath = path.resolve(moduleDir, "data", "taboo.json");
@@ -147,10 +151,11 @@ export function createGameManager() {
       history: [],
       lastTurnSummary: null,
     };
+    recordHistory(room.game, { action: "game_started", team: null, playerId: null, playerName: null });
   }
 
   function recordHistory(game, entry) {
-    game.history = [...game.history.slice(-59), { ...entry, at: nowMs() }];
+    game.history = [...game.history, { ...entry, at: nowMs() }];
   }
 
   function advancePostTurn(room, reason = "turn_ended") {
@@ -167,6 +172,7 @@ export function createGameManager() {
       taboos,
       pointsEarned: correctGuesses - taboos,
     };
+    recordHistory(game, { action: "turn_ended", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null, reason });
     game.review = null;
     drawNextCard(room);
 
@@ -178,6 +184,7 @@ export function createGameManager() {
       game.phaseEndsAt = nowMs() + TURN_READY_DELAY_MS;
       game.turnStartsAt = null;
       game.turnEndsAt = null;
+      recordHistory(game, { action: "next_turn_queued", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
       return reason;
     }
     if (game.roundNumber >= game.totalRounds) {
@@ -188,20 +195,29 @@ export function createGameManager() {
       game.phaseEndsAt = null;
       game.currentCard = null;
       game.review = null;
+      recordHistory(game, { action: "game_finished", team: null, playerId: null, playerName: null });
       return "game_finished";
     }
     game.status = "between_rounds";
     game.phaseEndsAt = nowMs() + NEXT_ROUND_DELAY_MS;
     game.turnStartsAt = null;
     game.turnEndsAt = null;
+    recordHistory(game, { action: "round_completed", team: null, playerId: null, playerName: null, roundNumber: game.roundNumber });
     return "round_completed";
   }
 
   function resolveReview(room) {
     const review = room.game?.review;
     if (!review || review.status !== "in_progress") return false;
-    const eligible = Array.isArray(review.eligiblePlayerIds) ? review.eligiblePlayerIds : [];
-    if (!eligible.length) return false;
+    const connected = new Set(connectedPlayerIds(room));
+    review.eligiblePlayerIds = (Array.isArray(review.eligiblePlayerIds) ? review.eligiblePlayerIds : []).filter((pid) => connected.has(pid));
+    const eligible = review.eligiblePlayerIds;
+    if (!eligible.length) {
+      review.status = "resolved";
+      review.outcome = "upheld";
+      review.votes = {};
+      return true;
+    }
     const votes = review.votes || {};
     const hasAllVotes = eligible.every((pid) => votes[pid] === "fair" || votes[pid] === "not_fair");
     if (!hasAllVotes) return false;
@@ -211,6 +227,7 @@ export function createGameManager() {
     if (outcome === "reverted") room.game.scores[review.penalizedTeam] += 1;
     review.status = "resolved";
     review.outcome = outcome;
+    recordHistory(room.game, { action: "review_resolved", team: review.penalizedTeam || null, playerId: null, playerName: null, outcome, fairCount: fair, notFairCount: notFair });
     return true;
   }
 
@@ -227,6 +244,7 @@ export function createGameManager() {
       game.turnStartsAt = nowMs();
       game.turnEndsAt = nowMs() + room.settings.roundDurationSeconds * 1000;
       game.phaseEndsAt = null;
+      recordHistory(game, { action: "turn_started", team: game.activeTeam, playerId: userId, playerName: player.username });
       return "turn_started";
     }
 
@@ -289,7 +307,8 @@ export function createGameManager() {
       game.review.status = "in_progress";
       game.review.pausedRemainingMs = remainingMs;
       game.review.votes = {};
-      game.review.eligiblePlayerIds = room.players.filter((p) => p.team === game.review.penalizedTeam).map((p) => p.userId);
+      game.review.eligiblePlayerIds = connectedPlayerIds(room);
+      recordHistory(game, { action: "review_requested", team: player.team, playerId: userId, playerName: player.username, eligibleCount: game.review.eligiblePlayerIds.length });
       return "review_started";
     }
 
@@ -297,6 +316,7 @@ export function createGameManager() {
       if (game.review?.status !== "available") throw new TabooError("No review available.", "REVIEW_NOT_AVAILABLE");
       if (player.team !== game.review.penalizedTeam) throw new TabooError("Only penalized team may dismiss review.", "REVIEW_NOT_ALLOWED");
       game.review = null;
+      recordHistory(game, { action: "review_dismissed", team: player.team, playerId: userId, playerName: player.username });
       return "review_dismissed";
     }
 
@@ -305,6 +325,7 @@ export function createGameManager() {
       if (payload.vote !== "fair" && payload.vote !== "not_fair") throw new TabooError("Vote must be fair or not_fair.", "INVALID_VOTE");
       if (!game.review.eligiblePlayerIds.includes(userId)) throw new TabooError("Not eligible to vote.", "REVIEW_NOT_ELIGIBLE");
       game.review.votes[userId] = payload.vote;
+      recordHistory(game, { action: "review_vote", team: player.team, playerId: userId, playerName: player.username, vote: payload.vote });
       return resolveReview(room) ? "review_resolved" : "review_vote";
     }
 
@@ -315,6 +336,7 @@ export function createGameManager() {
       drawNextCard(room);
       game.turnEndsAt = nowMs() + remainingMs;
       game.review = null;
+      recordHistory(game, { action: "review_continued", team: player.team, playerId: userId, playerName: player.username, remainingMs });
       return "review_continued";
     }
 
@@ -325,6 +347,23 @@ export function createGameManager() {
     const game = room.game;
     if (!game || game.status === "finished") return null;
     const now = nowMs();
+    if (game.review?.status === "in_progress" && resolveReview(room)) {
+      return "review_resolved";
+    }
+    if (game.status === "waiting_to_start_turn") {
+      const clueGiverConnected = room.players.some((p) => p.userId === game.activeTurn?.playerId && p.connected !== false);
+      if (!clueGiverConnected) {
+        recordHistory(game, { action: "turn_skipped_disconnected", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
+        return advancePostTurn(room, "turn_skipped_disconnected");
+      }
+    }
+    if (game.status === "turn_in_progress") {
+      const clueGiverConnected = room.players.some((p) => p.userId === game.activeTurn?.playerId && p.connected !== false);
+      if (!clueGiverConnected) {
+        recordHistory(game, { action: "turn_aborted_disconnected", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
+        return advancePostTurn(room, "turn_aborted_disconnected");
+      }
+    }
     if (game.status === "turn_in_progress" && typeof game.turnEndsAt === "number" && game.turnEndsAt <= now) {
       recordHistory(game, { action: "turn_timeout", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
       return advancePostTurn(room, "turn_timeout");
@@ -334,6 +373,7 @@ export function createGameManager() {
       game.phaseEndsAt = null;
       game.turnStartsAt = null;
       game.turnEndsAt = null;
+      recordHistory(game, { action: "next_turn_ready", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
       return "next_turn_ready";
     }
     if (game.status === "between_rounds" && typeof game.phaseEndsAt === "number" && game.phaseEndsAt <= now) {
@@ -351,10 +391,8 @@ export function createGameManager() {
       game.phaseEndsAt = null;
       game.turnStartsAt = null;
       game.turnEndsAt = null;
+      recordHistory(game, { action: "round_started", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null, roundNumber: game.roundNumber });
       return "round_started";
-    }
-    if (game.status === "turn_in_progress" && game.review?.status !== "in_progress" && game.turnEndsAt && game.turnEndsAt <= now) {
-      return advancePostTurn(room, "turn_timeout");
     }
     return null;
   }
@@ -400,9 +438,10 @@ export function createGameManager() {
 
     return {
       code: room.code,
+      stateVersion: Number(room.stateVersion || 0),
       hostId: room.hostId,
       hostName: room.hostName,
-      players: room.players.map((p) => ({ id: p.userId, name: p.username, team: p.team, ready: p.ready })),
+      players: room.players.map((p) => ({ id: p.userId, name: p.username, team: p.team, ready: p.ready, connected: p.connected !== false })),
       teams: {
         A: room.players.filter((p) => p.team === "A").map((p) => p.username),
         B: room.players.filter((p) => p.team === "B").map((p) => p.username),
@@ -439,7 +478,7 @@ export function createGameManager() {
         cardVisibleToViewer: !hideCard,
         tabooUsedForCard: !!game.currentCardMeta?.tabooUsed,
         lastTurnSummary: game.lastTurnSummary || null,
-        history: game.status === "finished" ? game.history : game.history.slice(-12),
+        history: game.history,
         review: reviewSnapshot,
       } : null,
     };

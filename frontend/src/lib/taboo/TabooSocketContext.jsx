@@ -45,6 +45,16 @@ export function TabooProvider({ children }) {
   const [connectionState, setConnectionState] = useState("disconnected");
   const [socketError, setSocketError] = useState(!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null);
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
+  const roomVersionRef = useRef(0);
+
+  const applyRoomSnapshot = useCallback((incomingRoom) => {
+    if (!incomingRoom || typeof incomingRoom !== "object") return;
+    const nextVersion = Number(incomingRoom.stateVersion || 0);
+    const prevVersion = Number(roomVersionRef.current || 0);
+    if (nextVersion < prevVersion) return;
+    roomVersionRef.current = nextVersion;
+    setRoom(incomingRoom);
+  }, []);
 
   useEffect(() => {
     if (loading || !user || !API_BASE) return undefined;
@@ -59,11 +69,14 @@ export function TabooProvider({ children }) {
     socketRef.current = socket;
 
     const onRoomPayload = (payload) => {
-      if (payload?.room) setRoom(payload.room);
+      if (payload?.room) applyRoomSnapshot(payload.room);
     };
     socket.on("connect", () => {
       setConnectionState("connected");
       setSocketError(null);
+      void emitAck(socket, "get_room_state", {}).then((result) => {
+        if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
+      });
     });
     socket.on("disconnect", () => setConnectionState("disconnected"));
     socket.on("connect_error", (err) => {
@@ -80,26 +93,30 @@ export function TabooProvider({ children }) {
       socketRef.current = null;
       setConnectionState("disconnected");
       setRoom(null);
+      roomVersionRef.current = 0;
       setCategories([]);
     };
-  }, [loading, user]);
+  }, [loading, user, applyRoomSnapshot]);
 
   const createRoom = useCallback(async (settings) => {
     const result = await emitAck(socketRef.current, "create_room", settings ?? {});
-    if (result.ok && result.data?.room) setRoom(result.data.room);
+    if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
     return result;
-  }, []);
+  }, [applyRoomSnapshot]);
 
   const joinRoom = useCallback(async (code) => {
     const normalized = String(code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
     const result = await emitAck(socketRef.current, "join_room", { code: normalized });
-    if (result.ok && result.data?.room) setRoom(result.data.room);
+    if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
     return result;
-  }, []);
+  }, [applyRoomSnapshot]);
 
   const leaveRoom = useCallback(async () => {
     const result = await emitAck(socketRef.current, "leave_room", {});
-    setRoom(null);
+    if (result.ok) {
+      setRoom(null);
+      roomVersionRef.current = 0;
+    }
     return result;
   }, []);
 

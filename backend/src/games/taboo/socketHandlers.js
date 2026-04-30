@@ -69,13 +69,17 @@ export function installTabooHandlers({ socket, registry, logger }) {
   });
 
   register(socket, logger, "set_ready", tabooSetReadySchema, async (data) => {
-    const { room } = registry.setReady(socket, data.ready);
-    registry.emitRoom(room.code, "ready_changed");
+    const { room, started } = registry.setReady(socket, data.ready);
+    registry.emitRoom(room.code, started ? "game_started" : "ready_changed");
     return { room: registry.snapshotFor(socket) };
   });
 
   register(socket, logger, "get_categories", null, async () => {
     return { categories: registry.listCategories() };
+  });
+
+  register(socket, logger, "get_room_state", null, async () => {
+    return { room: registry.snapshotFor(socket) };
   });
 
   register(socket, logger, "set_categories", tabooSetCategoriesSchema, async (data) => {

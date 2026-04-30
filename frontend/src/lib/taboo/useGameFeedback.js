@@ -36,6 +36,7 @@ export function useGameFeedback({ history, review, gameStatus, reduceMotion }) {
     if (last.action === "submit_guess" && last.matched) next = "correct";
     else if (last.action === "taboo_called") next = "taboo";
     else if (last.action === "close_guess") next = "close";
+    else if (last.action === "skip_card") next = "skip";
     if (!next) return;
     setVariant(next);
     if (timerRef.current) clearTimeout(timerRef.current);
