@@ -7,11 +7,11 @@ export const npatBatchRoundSchema = z.object({
   roundIndex: z.coerce.number().int(),
   round: roundLetterField,
   results: z.array(npatPlayerEvalSchema),
-});
+}).strict();
 
 export const npatFullGameEvaluationPayloadSchema = z.object({
   rounds: z.array(npatBatchRoundSchema),
-});
+}).strict();
 
 /**
  * Recompute scores for each round in a batch payload.

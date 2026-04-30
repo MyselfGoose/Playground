@@ -22,6 +22,11 @@ describe('GET /health', () => {
     assert.equal(typeof res.body.services.db, 'boolean');
     assert.equal(typeof res.body.services.ai, 'boolean');
     assert.equal(typeof res.body.services.auth, 'boolean');
+    assert.equal(typeof res.body.ai, 'object');
+    assert.equal(typeof res.body.ai.state, 'string');
+    assert.equal(typeof res.body.npatEvaluation, 'object');
+    assert.equal(typeof res.body.npatEvaluation.fallbackRate, 'number');
+    assert.equal(typeof res.body.npatEvaluation.alerts, 'object');
     assert.ok(['ok', 'degraded', 'fail'].includes(res.body.status));
     assert.equal(res.body.ok, res.body.status !== 'fail');
     assert.ok(typeof res.body.uptime === 'number');

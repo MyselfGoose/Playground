@@ -32,7 +32,7 @@ export const npatAnswerCellSchema = z.object({
   isDuplicate: jsonBool,
   score: z.coerce.number().int(),
   comment: jsonString,
-});
+}).strict();
 
 export const npatPlayerEvalSchema = z.object({
   playerId: z.coerce.string(),
@@ -44,12 +44,12 @@ export const npatPlayerEvalSchema = z.object({
     thing: npatAnswerCellSchema,
   }),
   totalScore: z.coerce.number().int(),
-});
+}).strict();
 
 export const npatEvaluationPayloadSchema = z.object({
   round: z.preprocess((v) => extractRoundLetter(v), z.string().min(1).max(1)),
   results: z.array(npatPlayerEvalSchema),
-});
+}).strict();
 
 /**
  * Deterministic scoring from validity flags (10 / 5 / 0).

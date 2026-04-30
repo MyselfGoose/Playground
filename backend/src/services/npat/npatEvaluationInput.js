@@ -15,8 +15,10 @@ export function buildNpatEvaluationInput(engine, roundIndex) {
   const letter = String(round.letter ?? '?').toUpperCase().slice(0, 1);
   const subs = round.submissions && typeof round.submissions === 'object' ? round.submissions : {};
   const players = [];
-  for (const [playerId, row] of Object.entries(subs)) {
+  const orderedPlayerIds = [...engine.players.keys()].sort();
+  for (const playerId of orderedPlayerIds) {
     const p = engine.players.get(playerId);
+    const row = subs[playerId] ?? {};
     players.push({
       playerId,
       playerName: p?.username ?? 'Player',
@@ -41,7 +43,8 @@ export function buildNpatEvaluationInput(engine, roundIndex) {
  */
 export function buildNpatFullGameEvaluationInput(engine) {
   const rounds = [];
-  for (const r of engine.results.rounds) {
+  const orderedRounds = [...engine.results.rounds].sort((a, b) => a.roundIndex - b.roundIndex);
+  for (const r of orderedRounds) {
     const one = buildNpatEvaluationInput(engine, r.roundIndex);
     rounds.push({
       roundIndex: r.roundIndex,

@@ -145,6 +145,22 @@ async function waitForPort(port, timeoutMs = 15000) {
   return false;
 }
 
+function waitForChildExit(child, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (payload) => {
+      if (done) return;
+      done = true;
+      resolve(payload);
+    };
+    const timer = setTimeout(() => finish({ exited: false, code: null, signal: null }), timeoutMs);
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      finish({ exited: true, code: code ?? null, signal: signal ?? null });
+    });
+  });
+}
+
 async function runStage(name, fn) {
   const t0 = performance.now();
   try {
@@ -170,6 +186,24 @@ function validateGeminiApiKey(key) {
   if (!key) return { ok: false, reason: 'missing' };
   if (key.length < 20) return { ok: false, reason: 'too_short' };
   return { ok: true };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseProbeResult(output) {
+  const text = String(output ?? '').trim();
+  if (!text) return null;
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    try {
+      return JSON.parse(lines[i]);
+    } catch {
+      // continue scanning upward for the last JSON line
+    }
+  }
+  return null;
 }
 
 async function main() {
@@ -269,14 +303,27 @@ async function main() {
       if (!keyCheck.ok) {
         return { status: 'degraded', reason: `gemini-key-${keyCheck.reason}` };
       }
-      const probe = await runCmd({
-        cmd: 'node',
-        args: ['-e', `import('${pathToFileURL(path.join(BACKEND_DIR, 'src/services/npat/npatGeminiHealth.js')).href}').then(async (m)=>{const r=await m.runGeminiHealthCheck();console.log(JSON.stringify(r));process.exit(r.ok?0:1);}).catch((e)=>{console.error(e?.message||String(e));process.exit(1);});`],
-        cwd: BACKEND_DIR,
-        verbose: opts.verbose,
-      });
-      if (probe.code !== 0) return { status: 'degraded', reason: 'gemini-probe-failed', details: probe.output };
-      return { status: 'ok' };
+      let lastProbe = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const probe = await runCmd({
+          cmd: 'node',
+          args: ['-e', `import('${pathToFileURL(path.join(BACKEND_DIR, 'src/services/npat/npatGeminiHealth.js')).href}').then(async (m)=>{const r=await m.runGeminiHealthCheck();console.log(JSON.stringify(r));process.exit(r.ok?0:1);}).catch((e)=>{console.error(e?.message||String(e));process.exit(1);});`],
+          cwd: BACKEND_DIR,
+          verbose: opts.verbose,
+        });
+        lastProbe = probe;
+        if (probe.code === 0) return { status: 'ok' };
+        if (attempt < 2) {
+          await sleep(1000);
+        }
+      }
+      const parsed = parseProbeResult(lastProbe?.output);
+      const reason = String(parsed?.reason ?? 'gemini-probe-failed');
+      // Provider-side throttling should not block local startup since NPAT has controlled fallback.
+      if (reason.includes('rate_limit') || reason.includes('quota') || reason.includes('timeout')) {
+        return { status: 'ok', reason: `${reason}-fallback-enabled` };
+      }
+      return { status: 'degraded', reason, details: lastProbe?.output };
     }),
   );
   if (!opts.quiet) stageLine(stages.at(-1));
@@ -304,9 +351,39 @@ async function main() {
 
   stages.push(
     await runStage('backend-start', async () => {
-      backendChild = spawn('npm', ['run', 'dev'], { cwd: BACKEND_DIR, stdio: opts.verbose ? 'inherit' : 'ignore' });
-      const ready = await waitForPort(backendPort, 20000);
-      if (!ready) return { status: 'fail', reason: `port-${backendPort}-not-ready` };
+      let backendOutput = '';
+      backendChild = spawn('npm', ['run', 'dev'], {
+        cwd: BACKEND_DIR,
+        stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+      });
+      if (!opts.verbose) {
+        backendChild.stdout?.on('data', (chunk) => {
+          backendOutput += String(chunk);
+          if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
+        });
+        backendChild.stderr?.on('data', (chunk) => {
+          backendOutput += String(chunk);
+          if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
+        });
+      }
+      const [ready, exitedEarly] = await Promise.all([
+        waitForPort(backendPort, 45000),
+        waitForChildExit(backendChild, 45000),
+      ]);
+      if (!ready) {
+        if (exitedEarly.exited) {
+          return {
+            status: 'fail',
+            reason: `backend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
+            details: backendOutput.trim().slice(-600),
+          };
+        }
+        return {
+          status: 'fail',
+          reason: `port-${backendPort}-not-ready`,
+          details: backendOutput.trim().slice(-600),
+        };
+      }
       return { status: 'ok' };
     }),
   );
@@ -318,13 +395,44 @@ async function main() {
 
   stages.push(
     await runStage('frontend-start', async () => {
+      let frontendOutput = '';
       frontendChild = spawn(
         'npm',
         ['run', 'dev', '--', '--webpack', '-p', String(frontendPort)],
-        { cwd: FRONTEND_DIR, env: { ...process.env, NEXT_DISABLE_TURBOPACK: '1' }, stdio: opts.verbose ? 'inherit' : 'ignore' },
+        {
+          cwd: FRONTEND_DIR,
+          env: { ...process.env, NEXT_DISABLE_TURBOPACK: '1' },
+          stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+        },
       );
-      const ready = await waitForPort(frontendPort, 30000);
-      if (!ready) return { status: 'fail', reason: `port-${frontendPort}-not-ready` };
+      if (!opts.verbose) {
+        frontendChild.stdout?.on('data', (chunk) => {
+          frontendOutput += String(chunk);
+          if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
+        });
+        frontendChild.stderr?.on('data', (chunk) => {
+          frontendOutput += String(chunk);
+          if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
+        });
+      }
+      const [ready, exitedEarly] = await Promise.all([
+        waitForPort(frontendPort, 45000),
+        waitForChildExit(frontendChild, 45000),
+      ]);
+      if (!ready) {
+        if (exitedEarly.exited) {
+          return {
+            status: 'fail',
+            reason: `frontend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
+            details: frontendOutput.trim().slice(-600),
+          };
+        }
+        return {
+          status: 'fail',
+          reason: `port-${frontendPort}-not-ready`,
+          details: frontendOutput.trim().slice(-600),
+        };
+      }
       return { status: 'ok' };
     }),
   );

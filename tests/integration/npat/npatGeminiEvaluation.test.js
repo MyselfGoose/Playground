@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { evaluateNpatFullGame } from '../../../backend/src/services/npat/npatGameEvaluationService.js';
+import { evaluateNpatFullGameWithStrictService } from '../../../backend/src/services/ai/npatEvaluationService.js';
 import {
   setNpatGenerativeModelOverrideForTests,
   clearNpatGenerativeModelOverrideForTests,
@@ -93,6 +94,44 @@ describe('NPAT Gemini evaluation (mocked)', () => {
     });
     const out = await evaluateNpatFullGame(env, minimalEngine(), logger);
     assert.equal(out.source, 'fallback');
+    assert.equal(attempts, 2);
+  });
+
+  it('uses strict offline fallback metadata on malformed schema payload', async () => {
+    setNpatGenerativeModelOverrideForTests(() => ({
+      generateContent: async () => ({
+        response: {
+          text: () => JSON.stringify({ rounds: [{ roundIndex: 0, round: 'A' }] }),
+        },
+      }),
+    }));
+    const env = applyTestEnv({
+      GEMINI_API_KEY: 'test-key-not-used',
+      NPAT_EVAL_INTERACTIVE_MAX_RETRIES: '0',
+    });
+    const out = await evaluateNpatFullGameWithStrictService(env, minimalEngine(), logger, { mode: 'interactive' });
+    assert.equal(out.source, 'offline_fallback');
+    assert.equal(out.failureClass, 'schema_error');
+    assert.equal(out.attemptsUsed, 1);
+    assert.equal(out.payload.rounds.length, 1);
+  });
+
+  it('maps provider rate errors and retries before fallback', async () => {
+    let attempts = 0;
+    setNpatGenerativeModelOverrideForTests(() => ({
+      generateContent: async () => {
+        attempts += 1;
+        throw new Error('rate limit exceeded');
+      },
+    }));
+    const env = applyTestEnv({
+      GEMINI_API_KEY: 'test-key-not-used',
+      NPAT_EVAL_INTERACTIVE_MAX_RETRIES: '1',
+    });
+    const out = await evaluateNpatFullGameWithStrictService(env, minimalEngine(), logger, { mode: 'interactive' });
+    assert.equal(out.source, 'offline_fallback');
+    assert.equal(out.failureClass, 'rate_limit');
+    assert.equal(out.attemptsUsed, 2);
     assert.equal(attempts, 2);
   });
 });

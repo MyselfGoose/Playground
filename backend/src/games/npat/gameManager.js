@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
-import { evaluateNpatFullGame, evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvaluationService.js';
+import { evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvaluationService.js';
+import { evaluateNpatFullGameWithStrictService } from '../../services/ai/npatEvaluationService.js';
 import { persistNpatResults } from '../../services/leaderboardStatsService.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
 import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
@@ -231,6 +232,8 @@ export class NpatRoomEngine {
         endedAt: r.endedAt instanceof Date ? r.endedAt.toISOString() : String(r.endedAt),
         evaluationStatus: r.evaluationStatus ?? (r.evaluation ? 'complete' : 'pending'),
         evaluationSource: r.evaluationSource,
+        evaluationFailureClass: r.evaluationFailureClass,
+        evaluationAttemptsUsed: r.evaluationAttemptsUsed,
         evaluatedAt:
           r.evaluatedAt != null
             ? r.evaluatedAt instanceof Date
@@ -751,11 +754,15 @@ export class NpatRoomEngine {
     this._evaluationFlight = (async () => {
       try {
         let source = /** @type {'gemini' | 'fallback'} */ ('fallback');
+        let failureClass = /** @type {null | string} */ (null);
+        let attemptsUsed = /** @type {number | undefined} */ (undefined);
         /** @type {{ rounds: Array<{ roundIndex: number, round: string, results: unknown[] }> }} */
         let batch;
         try {
-          const out = await evaluateNpatFullGame(this.env, this, this.logger, { mode: 'interactive' });
-          source = out.source;
+          const out = await evaluateNpatFullGameWithStrictService(this.env, this, this.logger, { mode: 'interactive' });
+          source = out.source === 'gemini' ? 'gemini' : 'fallback';
+          failureClass = out.failureClass ?? null;
+          attemptsUsed = out.attemptsUsed;
           batch = out.payload;
         } catch (e) {
           this.logger.warn({ err: e, event: 'npat_full_eval_inner' }, 'npat_room');
@@ -770,6 +777,8 @@ export class NpatRoomEngine {
           round.evaluation = evaluation;
           round.evaluationStatus = 'complete';
           round.evaluationSource = source;
+          round.evaluationFailureClass = source === 'gemini' ? null : failureClass ?? 'provider_error';
+          round.evaluationAttemptsUsed = attemptsUsed;
           round.evaluatedAt = new Date().toISOString();
           round.evaluationError = undefined;
           try {
@@ -777,6 +786,8 @@ export class NpatRoomEngine {
               evaluation,
               evaluationStatus: 'complete',
               evaluationSource: source,
+              evaluationFailureClass: source === 'gemini' ? null : failureClass ?? 'provider_error',
+              evaluationAttemptsUsed: attemptsUsed ?? null,
               evaluatedAt: new Date(),
               evaluationError: null,
             });
@@ -805,11 +816,15 @@ export class NpatRoomEngine {
             round.evaluation = evaluation;
             round.evaluationStatus = 'complete';
             round.evaluationSource = 'fallback';
+            round.evaluationFailureClass = 'provider_error';
+            round.evaluationAttemptsUsed = 0;
             round.evaluatedAt = new Date().toISOString();
             await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, br.roundIndex, {
               evaluation,
               evaluationStatus: 'complete',
               evaluationSource: 'fallback',
+              evaluationFailureClass: 'provider_error',
+              evaluationAttemptsUsed: 0,
               evaluatedAt: new Date(),
               evaluationError: null,
             }).catch(() => {});
@@ -826,7 +841,7 @@ export class NpatRoomEngine {
   }
 
   async _upgradeEvaluationInBackground() {
-    const out = await evaluateNpatFullGame(this.env, this, this.logger, { mode: 'background' });
+    const out = await evaluateNpatFullGameWithStrictService(this.env, this, this.logger, { mode: 'background' });
     if (out.source !== 'gemini') return;
     for (const br of out.payload.rounds) {
       const round = this.results.rounds.find((r) => r.roundIndex === br.roundIndex);
@@ -835,12 +850,16 @@ export class NpatRoomEngine {
       round.evaluation = evaluation;
       round.evaluationStatus = 'complete';
       round.evaluationSource = 'gemini';
+      round.evaluationFailureClass = null;
+      round.evaluationAttemptsUsed = out.attemptsUsed;
       round.evaluatedAt = new Date().toISOString();
       round.evaluationError = undefined;
       await npatRoomRepository.patchRoundHistoryByRoundIndex(this.code, br.roundIndex, {
         evaluation,
         evaluationStatus: 'complete',
         evaluationSource: 'gemini',
+        evaluationFailureClass: null,
+        evaluationAttemptsUsed: out.attemptsUsed ?? null,
         evaluatedAt: new Date(),
         evaluationError: null,
       }).catch(() => {});

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { Router } from 'express';
-import { getAggregatedHealth, getAiHealth } from '../observability/serviceHealth.js';
+import { getAggregatedHealth, getAiHealth, getNpatEvaluationStats } from '../observability/serviceHealth.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json');
@@ -17,6 +17,7 @@ export function createHealthRouter({ env }) {
       status: aggregated.status,
       services: aggregated.services,
       ai: getAiHealth(),
+      npatEvaluation: getNpatEvaluationStats(),
       uptime: process.uptime(),
       version,
     });

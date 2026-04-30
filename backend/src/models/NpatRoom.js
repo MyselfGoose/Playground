@@ -28,6 +28,12 @@ const roundSnapshotSchema = new mongoose.Schema(
     endedAt: { type: Date, default: Date.now },
     evaluationStatus: { type: String, enum: ['pending', 'complete', 'failed'], default: 'pending' },
     evaluationSource: { type: String, enum: ['gemini', 'fallback'], default: undefined },
+    evaluationFailureClass: {
+      type: String,
+      enum: ['timeout', 'rate_limit', 'auth', 'quota', 'parse_error', 'schema_error', 'integrity_error', 'provider_error'],
+      default: undefined,
+    },
+    evaluationAttemptsUsed: { type: Number, default: undefined },
     evaluatedAt: { type: Date, default: undefined },
     evaluationError: { type: String, default: undefined },
     /** Full payload: { round, results } plus deterministic scores */
