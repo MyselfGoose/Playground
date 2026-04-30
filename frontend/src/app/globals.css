@@ -224,7 +224,20 @@ body::before {
 }
 
 /* Dark Mode Background - Class based */
-html.dark body,
+html.dark body {
+  background: linear-gradient(135deg, #0f0e0d 0%, #1a1718 25%, #1a1815 75%, #0f0e0d 100%);
+  background-attachment: fixed;
+}
+
+html.dark body::before {
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(75, 65, 125, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(90, 60, 40, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 0%, rgba(40, 75, 85, 0.3) 0%, transparent 40%);
+  opacity: 0.8;
+}
+
+/* System preference fallback for dark mode */
 @media (prefers-color-scheme: dark) {
   html:not(.light) body {
     background: linear-gradient(135deg, #0f0e0d 0%, #1a1718 25%, #1a1815 75%, #0f0e0d 100%);
@@ -238,19 +251,6 @@ html.dark body,
       radial-gradient(circle at 40% 0%, rgba(40, 75, 85, 0.3) 0%, transparent 40%);
     opacity: 0.8;
   }
-}
-
-html.dark body {
-  background: linear-gradient(135deg, #0f0e0d 0%, #1a1718 25%, #1a1815 75%, #0f0e0d 100%);
-  background-attachment: fixed;
-}
-
-html.dark body::before {
-  background-image:
-    radial-gradient(circle at 20% 50%, rgba(75, 65, 125, 0.3) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(90, 60, 40, 0.3) 0%, transparent 50%),
-    radial-gradient(circle at 40% 0%, rgba(40, 75, 85, 0.3) 0%, transparent 40%);
-  opacity: 0.8;
 }
 
 ::selection {
