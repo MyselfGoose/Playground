@@ -17,6 +17,13 @@ export const GAMES = [
     accent: "mint",
   },
   {
+    id: "taboo",
+    title: "Taboo",
+    description: "Give clues fast, dodge taboo words, and win the round.",
+    emoji: "🎯",
+    accent: "peach",
+  },
+  {
     id: "trivia",
     title: "Trivia Game",
     description: "Brainy vibes, buzzer energy, and surprise categories.",

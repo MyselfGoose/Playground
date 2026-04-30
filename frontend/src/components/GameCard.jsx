@@ -28,6 +28,7 @@ export function GameCard({ game, index }) {
   const accent = accentStyles[game.accent] ?? accentStyles.lavender;
   const isNpat = game.id === "name-place-animal-thing";
   const isTypingRace = game.id === "typing-race";
+  const isTaboo = game.id === "taboo";
 
   return (
     <motion.article
@@ -58,7 +59,7 @@ export function GameCard({ game, index }) {
             isNpat ? "bg-mint/50 text-ink" : "bg-white/60 text-ink-muted"
           }`}
         >
-          {isNpat || isTypingRace ? "Live" : "Soon"}
+          {isNpat || isTypingRace || isTaboo ? "Live" : "Soon"}
         </span>
       </div>
       <div>
@@ -85,6 +86,15 @@ export function GameCard({ game, index }) {
             variant="secondary"
             className="w-full"
             onClick={() => router.push("/games/typing-race")}
+          >
+            Play
+          </Button>
+        ) : isTaboo ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() => router.push("/games/taboo")}
           >
             Play
           </Button>
