@@ -229,7 +229,7 @@ export function NpatPlayClient() {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-[var(--shadow-card)] ring-1 ring-ink/10"
+            className="inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-[var(--shadow-card)] ring-1 ring-foreground/10"
             title="Current game phase"
           >
             <span
@@ -273,13 +273,13 @@ export function NpatPlayClient() {
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-[var(--radius-2xl)] border-2 border-accent/30 bg-gradient-to-br from-accent/20 via-white/90 to-accent-2/25 px-6 py-8 text-center shadow-[var(--shadow-soft)] ring-2 ring-white/90"
+          className="rounded-[var(--radius-2xl)] border-2 border-accent/30 bg-gradient-to-br from-accent/15 via-background/90 to-accent-2/20 px-6 py-8 text-center shadow-[var(--shadow-soft)] ring-2 ring-muted-bright/70"
         >
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-ink-muted">Short break</p>
           <p className="mt-3 text-2xl font-black text-ink">Round scored — next letter soon</p>
           {typeof betweenLeft === "number" ? (
             <p
-              className="mt-4 inline-flex min-w-[8rem] justify-center rounded-2xl bg-white/80 px-4 py-2 text-3xl font-black tabular-nums text-accent shadow-inner ring-1 ring-accent/20"
+              className="mt-4 inline-flex min-w-[8rem] justify-center rounded-2xl bg-background/85 px-4 py-2 text-3xl font-black tabular-nums text-accent shadow-inner ring-1 ring-accent/20"
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {(betweenLeft / 1000).toFixed(1)}s
@@ -303,7 +303,7 @@ export function NpatPlayClient() {
           }
           transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
           className={`rounded-[var(--radius-2xl)] px-6 py-10 text-center shadow-[var(--shadow-soft)] ring-2 ${
-            urgent ? "bg-red-50 ring-red-400/80" : "bg-gradient-to-br from-accent/25 to-accent-2/30 ring-white/90"
+            urgent ? "bg-red-50 ring-red-400/80" : "bg-gradient-to-br from-accent/20 to-accent-2/20 ring-muted-bright/70"
           }`}
         >
           <p className="text-sm font-bold uppercase tracking-widest text-ink-muted">This round</p>

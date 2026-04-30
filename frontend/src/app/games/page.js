@@ -72,11 +72,11 @@ export default function GamesPage() {
                   className="group"
                 >
                   <Link href={link}>
-                    <div className={`relative h-full rounded-[var(--radius-2xl)] bg-gradient-to-br ${colorClass} p-8 sm:p-10 flex flex-col justify-between shadow-[var(--shadow-md)] ring-2 ring-white/40 hover:ring-white/60 hover:shadow-[var(--shadow-play)] transition-all duration-300 overflow-hidden cursor-pointer`}>
+                    <div className={`relative h-full rounded-[var(--radius-2xl)] bg-gradient-to-br ${colorClass} p-8 sm:p-10 flex flex-col justify-between shadow-[var(--shadow-md)] ring-2 ring-foreground/10 hover:ring-foreground/20 hover:shadow-[var(--shadow-play)] transition-all duration-300 overflow-hidden cursor-pointer`}>
                       {/* Background accent */}
                       <motion.div
                         aria-hidden
-                        className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full opacity-20 group-hover:opacity-40 transition-opacity bg-white blur-2xl"
+                        className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full opacity-20 group-hover:opacity-40 transition-opacity bg-background blur-2xl"
                       />
 
                       {/* Content */}
@@ -98,7 +98,7 @@ export default function GamesPage() {
                       </div>
 
                       {/* Action */}
-                      <div className="relative z-10 mt-6 pt-6 border-t border-white/30">
+                      <div className="relative z-10 mt-6 pt-6 border-t border-foreground/15">
                         <motion.div
                           whileHover={{ x: 4 }}
                           className="text-sm font-extrabold text-foreground group-hover:text-primary transition-colors flex items-center gap-2"

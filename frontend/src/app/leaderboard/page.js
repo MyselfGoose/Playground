@@ -211,7 +211,7 @@ export default function LeaderboardPage() {
         ) : (
           <>
             {/* TOP 3 PODIUM SPOTLIGHT */}
-            <TopThreePodium entries={entries} pm={primaryMetric} />
+            <TopThreePodium entries={entries} board={activeBoard} pm={primaryMetric} />
 
             {/* REST OF THE RANKINGS - FLOWING FEED */}
             <div className="mt-16">
@@ -348,7 +348,7 @@ export default function LeaderboardPage() {
   );
 }
 
-function TopThreePodium({ entries, pm }) {
+function TopThreePodium({ entries, board, pm }) {
   const top3 = entries.slice(0, 3);
 
   // Position: 2nd, 1st, 3rd (visual arrangement for podium effect)
@@ -371,7 +371,7 @@ function TopThreePodium({ entries, pm }) {
           if (!entry) return null;
 
           const medals = ["🥇", "🥈", "🥉"];
-          const metric = primaryMetric("global", entry);
+          const metric = pm(board, entry);
           const isFirst = index === 0;
 
           return (

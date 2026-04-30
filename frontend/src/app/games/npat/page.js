@@ -123,7 +123,7 @@ export default function NpatEntryPage() {
           <h2 className="text-2xl font-extrabold text-foreground">🎮 Create Game</h2>
           <p className="mt-2 text-sm font-semibold text-foreground/70">You will be the host.</p>
           <div className="mt-6 flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] bg-white/40 px-4 py-3 ring-2 ring-white/60 transition-all hover:bg-white/60">
+            <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] bg-background/45 px-4 py-3 ring-2 ring-foreground/10 transition-all hover:bg-background/65">
               <input
                 type="radio"
                 name="mode"
@@ -133,7 +133,7 @@ export default function NpatEntryPage() {
               />
               <span className="font-bold text-foreground">Solo (free-for-all)</span>
             </label>
-            <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] bg-white/40 px-4 py-3 ring-2 ring-white/60 transition-all hover:bg-white/60">
+            <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] bg-background/45 px-4 py-3 ring-2 ring-foreground/10 transition-all hover:bg-background/65">
               <input
                 type="radio"
                 name="mode"
@@ -191,7 +191,7 @@ export default function NpatEntryPage() {
                 setJoinCode(e.target.value.replace(/\D/g, ""));
                 setJoinError(null);
               }}
-              className="w-full rounded-[var(--radius-xl)] border-2 border-muted-bright/40 bg-white/60 px-4 py-3 text-center text-3xl font-extrabold tracking-[0.4em] text-foreground shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+              className="w-full rounded-[var(--radius-xl)] border-2 border-muted-bright/40 bg-background/65 px-4 py-3 text-center text-3xl font-extrabold tracking-[0.4em] text-foreground shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
               placeholder={"0".repeat(codeLen)}
             />
             {joinError ? (

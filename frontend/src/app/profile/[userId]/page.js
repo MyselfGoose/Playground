@@ -7,7 +7,7 @@ import { useUserProfile } from "../../../hooks/useLeaderboard.js";
 
 function StatCard({ title, children }) {
   return (
-    <section className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-card)]">
+    <section className="rounded-3xl border border-muted-bright/60 bg-background/80 p-4 shadow-[var(--shadow-card)] backdrop-blur-sm">
       <h2 className="text-sm font-extrabold uppercase tracking-wide text-ink-muted">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
@@ -16,7 +16,7 @@ function StatCard({ title, children }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-xl bg-surface px-3 py-2 ring-1 ring-ink/5">
+    <div className="rounded-xl bg-muted-bright/35 px-3 py-2 ring-1 ring-foreground/10">
       <p className="text-[10px] font-bold uppercase tracking-wide text-ink-muted">{label}</p>
       <p className="mt-1 text-sm font-extrabold text-ink">{value}</p>
     </div>
@@ -49,7 +49,7 @@ export default function PublicProfilePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8">
-      <section className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[var(--shadow-card)]">
+      <section className="rounded-3xl border border-muted-bright/60 bg-background/85 p-5 shadow-[var(--shadow-card)] backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-4">
           <Avatar username={user.username} src={user.avatarUrl} size="lg" />
           <div>
@@ -117,7 +117,7 @@ export default function PublicProfilePage() {
       </StatCard>
 
       <div className="pb-2">
-        <Link href="/leaderboard" className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white">
+        <Link href="/leaderboard" className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-foreground ring-1 ring-foreground/10">
           Back to leaderboard
         </Link>
       </div>

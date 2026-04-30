@@ -74,7 +74,7 @@ export function ProfileClient() {
   }
 
   const totalGames = stats
-    ? (stats.typing?.totalGames ?? 0) + (stats.npat?.totalGames ?? 0)
+    ? (stats.typing?.totalGames ?? 0) + (stats.npat?.totalGames ?? 0) + (stats.taboo?.gamesPlayed ?? 0)
     : 0;
   const globalScore = stats?.global?.score ?? 0;
   const globalRank = stats?.global?.rank;
@@ -168,7 +168,7 @@ export function ProfileClient() {
                   <StatRow 
                     icon="👑" 
                     label="Typing Rank" 
-                    value={stats.typing?.rank ? `#${stats.typing.rank}` : "Unranked"}
+                    value={stats.typing?.wpmRank ? `#${stats.typing.wpmRank}` : "Unranked"}
                   />
                 </div>
               </div>
@@ -197,7 +197,7 @@ export function ProfileClient() {
                   <StatRow 
                     icon="📊" 
                     label="NPAT Rank" 
-                    value={stats.npat?.rank ? `#${stats.npat.rank}` : "Unranked"}
+                    value={stats.npat?.npatRank ? `#${stats.npat.npatRank}` : "Unranked"}
                   />
                 </div>
               </div>

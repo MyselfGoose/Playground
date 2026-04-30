@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../lib/api.js";
 
-const BOARD_PATHS = {
+export const BOARD_PATHS = {
   global: "/api/v1/leaderboard/global",
   "typing-wpm": "/api/v1/leaderboard/typing/wpm",
   "typing-accuracy": "/api/v1/leaderboard/typing/accuracy",

@@ -118,7 +118,7 @@ export function ResultsCarousel({ room, rounds }) {
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-[var(--radius-2xl)] bg-white/85 p-10 text-center shadow-[var(--shadow-card)] ring-2 ring-white/80">
+      <div className="rounded-[var(--radius-2xl)] bg-background/85 p-10 text-center shadow-[var(--shadow-card)] ring-2 ring-muted-bright/60">
         <p className="font-semibold text-ink">No completed rounds in this game.</p>
         <p className="mt-2 text-sm text-ink-muted">If you ended before the first letter, there is nothing to show yet.</p>
       </div>
@@ -131,7 +131,7 @@ export function ResultsCarousel({ room, rounds }) {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-ink/10 bg-white/90 p-4 shadow-sm"
+          className="rounded-xl border border-foreground/10 bg-background/85 p-4 shadow-sm"
         >
           <p className="text-[11px] font-bold uppercase tracking-widest text-ink-muted">Total scores</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -151,11 +151,11 @@ export function ResultsCarousel({ room, rounds }) {
         </motion.div>
       ) : null}
 
-      <div className="sticky top-0 z-10 -mx-1 flex flex-col gap-3 rounded-xl border border-ink/10 bg-white/95 p-4 shadow-md backdrop-blur-sm ring-1 ring-ink/5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="sticky top-0 z-10 -mx-1 flex flex-col gap-3 rounded-xl border border-foreground/10 bg-background/95 p-4 shadow-md backdrop-blur-sm ring-1 ring-foreground/10 sm:flex-row sm:items-end sm:justify-between">
         <label className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-[11px] font-bold uppercase tracking-widest text-ink-muted">Answers for</span>
           <select
-            className="w-full max-w-md rounded-lg border border-ink/10 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-ink shadow-sm outline-none focus:border-violet-400/50 focus:ring-2 focus:ring-violet-200 sm:max-w-lg"
+            className="w-full max-w-md rounded-lg border border-foreground/10 bg-background py-2 pl-3 pr-8 text-sm font-semibold text-ink shadow-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 sm:max-w-lg"
             value={uid ?? ""}
             onChange={(e) => {
               const next = allPlayerIds.indexOf(e.target.value);
@@ -213,7 +213,7 @@ export function ResultsCarousel({ room, rounds }) {
           return (
             <section
               key={ri}
-              className="scroll-mt-28 rounded-xl border border-ink/10 bg-white/95 shadow-sm ring-1 ring-ink/5"
+              className="scroll-mt-28 rounded-xl border border-foreground/10 bg-background/95 shadow-sm ring-1 ring-foreground/10"
               aria-labelledby={`npat-round-title-${ri}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink/10 bg-ink/[0.02] px-4 py-4 sm:px-5">

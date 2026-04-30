@@ -22,6 +22,11 @@
   --accent-lemon: #ffd166;
   --accent-sky: #6eb3ff;
   --accent-pink: #ff85c0;
+  --accent: var(--primary);
+  --accent-2: var(--accent-purple);
+  --surface: var(--muted-bright);
+  --ink: var(--foreground);
+  --ink-muted: var(--muted);
   
   /* Pastels & Playful */
   --pastel-lavender: #e8deff;
@@ -50,6 +55,8 @@
   --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.15);
   --shadow-xl: 0 20px 40px -12px rgb(0 0 0 / 0.18);
   --shadow-play: 0 8px 24px -6px rgb(255 107 91 / 0.2);
+  --shadow-card: var(--shadow-md);
+  --shadow-soft: var(--shadow-sm);
 }
 
 /* DARK MODE - Class based */
@@ -172,6 +179,11 @@ html.light {
   --color-primary: var(--primary);
   --color-primary-light: var(--primary-light);
   --color-primary-dark: var(--primary-dark);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
   
   --color-accent-purple: var(--accent-purple);
   --color-accent-mint: var(--accent-mint);
@@ -302,5 +314,5 @@ textarea:focus,
 select:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px var(--primary) 20%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }

@@ -59,7 +59,7 @@ export function GameCard({ game, index }) {
           ? undefined
           : { y: -12, rotate: 0, transition: { type: "spring", stiffness: 300, damping: 20 } }
       }
-      className={`group relative flex flex-col gap-5 rounded-[var(--radius-2xl)] bg-gradient-to-br ${colors.bg} p-6 sm:p-8 shadow-[var(--shadow-md)] ring-2 ring-white/40 overflow-hidden transition-all ${tilt}`}
+      className={`group relative flex flex-col gap-5 rounded-[var(--radius-2xl)] bg-gradient-to-br ${colors.bg} p-6 sm:p-8 shadow-[var(--shadow-md)] ring-2 ring-foreground/10 overflow-hidden transition-all ${tilt}`}
     >
       {/* Background accent blob */}
       <motion.div
@@ -81,10 +81,10 @@ export function GameCard({ game, index }) {
         </span>
         <motion.span
           whileHover={reduce ? undefined : { scale: 1.1 }}
-          className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-widest ring-2 ring-white/50 ${
+          className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-widest ring-2 ring-foreground/15 ${
             isPlayable
-              ? `${colors.badge} text-white shadow-[var(--shadow-play)]`
-              : "bg-white/60 text-foreground"
+              ? `${colors.badge} text-foreground shadow-[var(--shadow-play)]`
+              : "bg-background/70 text-foreground"
           }`}
         >
           {isPlayable ? "▶ Live" : "Soon"}
@@ -109,7 +109,7 @@ export function GameCard({ game, index }) {
             <Button
               type="button"
               variant="secondary"
-              className="w-full bg-white/80 hover:bg-white font-extrabold"
+              className="w-full bg-background/80 hover:bg-background font-extrabold"
               onClick={() => {
                 if (isNpat) router.push("/games/npat");
                 else if (isTypingRace) router.push("/games/typing-race");
@@ -123,7 +123,7 @@ export function GameCard({ game, index }) {
           <Button
             type="button"
             variant="secondary"
-            className="w-full bg-white/60 opacity-60 cursor-not-allowed hover:bg-white/60"
+            className="w-full bg-background/60 opacity-60 cursor-not-allowed hover:bg-background/60"
             disabled
           >
             Coming Soon
