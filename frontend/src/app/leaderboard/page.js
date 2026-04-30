@@ -198,131 +198,132 @@ export default function LeaderboardPage() {
           </motion.div>
         ) : null}
 
-      {loading && entries.length === 0 ? (
-        <div className="flex items-center justify-center py-24 text-muted text-lg font-bold">Loading rankings…</div>
-      ) : error ? (
-        <div className="rounded-[var(--radius-2xl)] bg-error/5 px-6 py-8 text-center text-sm font-bold text-error border border-error/20">{error}</div>
-      ) : entries.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-24 text-center">
-          <p className="text-3xl">🏆</p>
-          <p className="text-2xl font-extrabold text-foreground">No rankings yet</p>
-          <p className="text-base text-foreground/70 max-w-sm">Be the first to play and claim the top spot!</p>
-        </div>
-      ) : (
-        <>
-          {/* TOP 3 PODIUM SPOTLIGHT */}
-          <TopThreePodium entries={entries} pm={primaryMetric} />
-
-          {/* REST OF THE RANKINGS - FLOWING FEED */}
-          <div className="mt-16">
-            <h2 className="text-xl font-extrabold text-foreground mb-6 text-center">The Chase</h2>
-            <div className="space-y-4 max-w-2xl mx-auto">
-              {entries.slice(3).map((entry, index) => {
-                const pm = primaryMetric(activeBoard, entry);
-                const badge = badgeFor(entry);
-                const expanded = expandedId === entry.userId;
-                const stats = boardStats(activeBoard, entry);
-                const breakdown = contributionBreakdown(entry);
-
-                return (
-                  <motion.article
-                    key={entry.userId}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="group cursor-pointer"
-                    onClick={() => setExpandedId(expanded ? null : entry.userId)}
-                  >
-                    {/* Main card */}
-                    <div className="rounded-[var(--radius-xl)] bg-gradient-to-r from-background via-muted-bright/20 to-transparent p-5 ring-2 ring-muted-bright/40 transition-all duration-300 group-hover:ring-primary/40 group-hover:bg-gradient-to-r group-hover:from-background group-hover:via-primary/10 group-hover:to-accent-pink/5">
-                      <div className="flex items-center gap-4">
-                        {/* Rank badge */}
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-muted-bright/40 font-extrabold text-foreground text-sm group-hover:bg-primary/20 group-hover:text-primary transition-all duration-300">
-                          #{entry.rank}
-                        </div>
-
-                        {/* Player info */}
-                        <Link
-                          href={`/profile/${entry.userId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="min-w-0 flex-1"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
-                            <div className="min-w-0">
-                              <p className="truncate text-base font-bold text-foreground group-hover:text-primary transition-colors">{entry.username}</p>
-                              {badge ? (
-                                <span className="inline-flex rounded-full bg-accent-lemon/20 px-2 py-0.5 text-xs font-bold text-foreground ring-1 ring-accent-lemon/40">
-                                  {badge}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </Link>
-
-                        {/* Primary metric - large and prominent */}
-                        <div className="text-right shrink-0">
-                          <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1">{pm.label}</p>
-                          <p className="text-2xl font-black text-primary">{pm.value}</p>
-                        </div>
-                      </div>
-
-                      {/* Mini stats row */}
-                      <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
-                        {stats.slice(0, 4).map((s) => (
-                          <div key={s.label} className="text-center">
-                            <p className="text-muted font-bold">{s.label}</p>
-                            <p className="font-extrabold text-foreground mt-0.5">{s.value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Expanded details */}
-                    <AnimatePresence>
-                      {expanded && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="mt-2 overflow-hidden"
-                        >
-                          <div className="rounded-[var(--radius-lg)] bg-accent-lemon/5 p-4 ring-1 ring-accent-lemon/40">
-                            <p className="text-sm text-foreground/70 leading-relaxed mb-4">{explanationFromBreakdown(entry)}</p>
-                            
-                            {activeBoard === "global" ? (
-                              <>
-                                <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Breakdown</p>
-                                <div className="grid grid-cols-3 gap-3 text-xs">
-                                  <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
-                                  <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
-                                  <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
-                                  <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
-                                  <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
-                                  <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
-                                </div>
-                              </>
-                            ) : null}
-
-                            <Link
-                              href={`/profile/${entry.userId}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-xs font-bold text-white transition-all hover:bg-primary-dark"
-                            >
-                              View full profile
-                            </Link>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </article>
-                );
-              })}
-            </div>
+        {loading && entries.length === 0 ? (
+          <div className="flex items-center justify-center py-24 text-muted text-lg font-bold">Loading rankings…</div>
+        ) : error ? (
+          <div className="rounded-[var(--radius-2xl)] bg-error/5 px-6 py-8 text-center text-sm font-bold text-error border border-error/20">{error}</div>
+        ) : entries.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 py-24 text-center">
+            <p className="text-3xl">🏆</p>
+            <p className="text-2xl font-extrabold text-foreground">No rankings yet</p>
+            <p className="text-base text-foreground/70 max-w-sm">Be the first to play and claim the top spot!</p>
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            {/* TOP 3 PODIUM SPOTLIGHT */}
+            <TopThreePodium entries={entries} pm={primaryMetric} />
+
+            {/* REST OF THE RANKINGS - FLOWING FEED */}
+            <div className="mt-16">
+              <h2 className="text-xl font-extrabold text-foreground mb-6 text-center">The Chase</h2>
+              <div className="space-y-4 max-w-2xl mx-auto">
+                {entries.slice(3).map((entry, index) => {
+                  const pm = primaryMetric(activeBoard, entry);
+                  const badge = badgeFor(entry);
+                  const expanded = expandedId === entry.userId;
+                  const stats = boardStats(activeBoard, entry);
+                  const breakdown = contributionBreakdown(entry);
+
+                  return (
+                    <motion.article
+                      key={entry.userId}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="group cursor-pointer"
+                      onClick={() => setExpandedId(expanded ? null : entry.userId)}
+                    >
+                      {/* Main card */}
+                      <div className="rounded-[var(--radius-xl)] bg-gradient-to-r from-background via-muted-bright/20 to-transparent p-5 ring-2 ring-muted-bright/40 transition-all duration-300 group-hover:ring-primary/40 group-hover:bg-gradient-to-r group-hover:from-background group-hover:via-primary/10 group-hover:to-accent-pink/5">
+                        <div className="flex items-center gap-4">
+                          {/* Rank badge */}
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-muted-bright/40 font-extrabold text-foreground text-sm group-hover:bg-primary/20 group-hover:text-primary transition-all duration-300">
+                            #{entry.rank}
+                          </div>
+
+                          {/* Player info */}
+                          <Link
+                            href={`/profile/${entry.userId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="min-w-0 flex-1"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
+                              <div className="min-w-0">
+                                <p className="truncate text-base font-bold text-foreground group-hover:text-primary transition-colors">{entry.username}</p>
+                                {badge ? (
+                                  <span className="inline-flex rounded-full bg-accent-lemon/20 px-2 py-0.5 text-xs font-bold text-foreground ring-1 ring-accent-lemon/40">
+                                    {badge}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </Link>
+
+                          {/* Primary metric - large and prominent */}
+                          <div className="text-right shrink-0">
+                            <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1">{pm.label}</p>
+                            <p className="text-2xl font-black text-primary">{pm.value}</p>
+                          </div>
+                        </div>
+
+                        {/* Mini stats row */}
+                        <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
+                          {stats.slice(0, 4).map((s) => (
+                            <div key={s.label} className="text-center">
+                              <p className="text-muted font-bold">{s.label}</p>
+                              <p className="font-extrabold text-foreground mt-0.5">{s.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      <AnimatePresence>
+                        {expanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="mt-2 overflow-hidden"
+                          >
+                            <div className="rounded-[var(--radius-lg)] bg-accent-lemon/5 p-4 ring-1 ring-accent-lemon/40">
+                              <p className="text-sm text-foreground/70 leading-relaxed mb-4">{explanationFromBreakdown(entry)}</p>
+                              
+                              {activeBoard === "global" ? (
+                                <>
+                                  <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Breakdown</p>
+                                  <div className="grid grid-cols-3 gap-3 text-xs">
+                                    <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
+                                    <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
+                                    <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
+                                    <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
+                                    <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
+                                    <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
+                                  </div>
+                                </>
+                              ) : null}
+
+                              <Link
+                                href={`/profile/${entry.userId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-xs font-bold text-white transition-all hover:bg-primary-dark"
+                              >
+                                View full profile
+                              </Link>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.article>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {total > 25 ? (
         <div className="mt-8 flex items-center justify-center gap-3">
