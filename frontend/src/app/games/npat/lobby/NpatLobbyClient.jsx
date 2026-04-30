@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../../components/Button.jsx";
+import { LobbyPanel } from "../../../../components/LobbyPanel.jsx";
+import { Avatar } from "../../../../components/Avatar.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
@@ -97,8 +99,8 @@ export function NpatLobbyClient() {
   if (!code) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <p className="text-ink-muted">Missing room code.</p>
-        <Link href="/games/npat" className="mt-4 inline-block font-bold text-accent underline">
+        <p className="text-muted">Missing room code.</p>
+        <Link href="/games/npat" className="mt-4 inline-block font-bold text-primary underline">
           Back
         </Link>
       </div>
@@ -108,9 +110,9 @@ export function NpatLobbyClient() {
   if (normalizedCode === null) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <p className="font-semibold text-ink">That room code is not valid.</p>
-        <p className="mt-2 text-sm text-ink-muted">Use a numeric code with exactly {codeLen} digits.</p>
-        <Link href="/games/npat" className="mt-6 inline-block font-bold text-accent underline">
+        <p className="font-semibold text-foreground">That room code is not valid.</p>
+        <p className="mt-2 text-sm text-muted">Use a numeric code with exactly {codeLen} digits.</p>
+        <Link href="/games/npat" className="mt-6 inline-block font-bold text-primary underline">
           Back to NPAT
         </Link>
       </div>
@@ -119,9 +121,9 @@ export function NpatLobbyClient() {
 
   if (!connected) {
     return (
-      <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-ink-muted">
+      <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-muted">
         <p className="text-sm font-bold">Connecting to game server…</p>
-        <Link href="/games/npat" className="mt-8 text-sm font-bold text-accent underline">
+        <Link href="/games/npat" className="mt-8 text-sm font-bold text-primary underline">
           ← Back
         </Link>
       </div>
@@ -131,18 +133,18 @@ export function NpatLobbyClient() {
   if (joinPhase === "failed") {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <p className="font-semibold text-ink">Could not join this room.</p>
-        {joinError ? <p className="mt-3 text-sm text-red-800">{joinError}</p> : null}
+        <p className="font-semibold text-foreground">Could not join this room.</p>
+        {joinError ? <p className="mt-3 text-sm text-error">{joinError}</p> : null}
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/games/npat"
-            className="rounded-2xl bg-accent px-6 py-3 text-sm font-extrabold text-white shadow-[var(--shadow-soft)]"
+            className="rounded-full bg-primary px-6 py-3 text-sm font-extrabold text-white shadow-[var(--shadow-play)]"
           >
             Back to NPAT
           </Link>
           <button
             type="button"
-            className="rounded-2xl px-6 py-3 text-sm font-extrabold text-ink ring-2 ring-ink/10"
+            className="rounded-full px-6 py-3 text-sm font-extrabold text-foreground ring-2 ring-muted-bright"
             onClick={() => {
               setJoinError(null);
               setJoinRetryToken((n) => n + 1);
@@ -159,14 +161,14 @@ export function NpatLobbyClient() {
     joinPhase === "idle" || joinPhase === "joining" || (joinPhase === "ready" && !roomSynced);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <Link href="/games/npat" className="text-sm font-bold text-accent underline-offset-2 hover:underline">
+        <Link href="/games/npat" className="text-sm font-bold text-primary underline-offset-2 hover:underline transition-colors">
           ← Back
         </Link>
         <button
           type="button"
-          className="text-sm font-bold text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+          className="text-sm font-bold text-muted underline-offset-2 hover:text-primary hover:underline transition-colors"
           onClick={async () => {
             await leaveRoom();
             router.push("/games/npat");
@@ -177,16 +179,24 @@ export function NpatLobbyClient() {
       </div>
 
       {socketError && joinPhase === "ready" ? (
-        <p className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800">
+        <motion.p 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-3 text-center text-sm font-semibold text-error"
+        >
           {socketError}
           <button type="button" className="ml-3 font-bold underline" onClick={() => clearSocketError()}>
             Dismiss
           </button>
-        </p>
+        </motion.p>
       ) : null}
 
       {actionError ? (
-        <p className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-2 text-center text-sm font-semibold text-red-800">
+        <motion.p 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-2 text-center text-sm font-semibold text-error"
+        >
           {actionError}
           <button
             type="button"
@@ -195,53 +205,72 @@ export function NpatLobbyClient() {
           >
             Dismiss
           </button>
-        </p>
+        </motion.p>
       ) : null}
 
       {blocking ? (
-        <p className="text-center text-sm font-bold text-ink-muted">Joining room…</p>
+        <p className="text-center text-sm font-bold text-muted">Joining room…</p>
       ) : null}
 
-      <motion.div
-        layout
-        className="rounded-[var(--radius-2xl)] bg-white/85 p-8 shadow-[var(--shadow-soft)] ring-2 ring-white/90 backdrop-blur-sm"
-      >
-        <p className="text-center text-xs font-bold uppercase tracking-widest text-ink-muted">Room code</p>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-          <span className="text-5xl font-black tracking-[0.25em] text-ink sm:text-6xl">
+      <LobbyPanel>
+        <p className="text-center text-xs font-extrabold uppercase tracking-widest text-muted mb-4">Room Code</p>
+        <div className="flex flex-col items-center gap-6">
+          <motion.span 
+            className="text-6xl sm:text-7xl font-black tracking-[0.1em] text-transparent bg-gradient-to-r from-primary via-accent-pink to-accent-purple bg-clip-text font-mono tabular-nums"
+            animate={roomSynced ? { scale: [1, 1.02, 1] } : {}}
+            transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
+          >
             {roomSynced && room?.code ? room.code : "—"}
-          </span>
-          <Button type="button" variant="secondary" className="shrink-0" onClick={copyCode} disabled={!roomSynced}>
-            {copied ? "Copied!" : "Copy"}
-          </Button>
+          </motion.span>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button 
+              type="button" 
+              variant={copied ? "secondary" : "primary"}
+              className="px-6 py-3 font-extrabold" 
+              onClick={copyCode} 
+              disabled={!roomSynced}
+            >
+              {copied ? "✓ Copied!" : "📋 Copy Code"}
+            </Button>
+          </motion.div>
         </div>
-        <p className="mt-4 text-center text-sm text-ink-muted">
-          Mode: <span className="font-bold text-ink">{roomSynced ? room?.mode ?? "…" : "…"}</span>
+        <p className="mt-6 text-center text-sm text-foreground/70">
+          Mode: <span className="font-bold text-primary">{roomSynced ? room?.mode ?? "…" : "…"}</span>
         </p>
-      </motion.div>
+      </LobbyPanel>
 
-      <section className="rounded-[var(--radius-2xl)] bg-white/80 p-6 shadow-[var(--shadow-card)] ring-2 ring-white/80">
-        <h2 className="text-xl font-extrabold text-ink">Players</h2>
+      <LobbyPanel title={`🎮 Players (${players.length})`}>
         {roomSynced ? (
-          <ul className="mt-4 flex flex-col gap-2">
+          <ul className="flex flex-col gap-3">
             {players.map((p) => (
-              <li
+              <motion.li
                 key={p.userId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white/90 px-4 py-3 ring-1 ring-ink/10"
+                layout
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-[var(--radius-xl)] bg-gradient-to-r from-muted-bright/20 to-transparent p-4 ring-1 ring-muted-bright/40"
               >
-                <span className="font-bold text-ink">
-                  {p.username}
-                  {p.userId === room?.hostUserId ? (
-                    <span className="ml-2 text-xs font-bold uppercase text-accent">Host</span>
-                  ) : null}
-                  {!p.connected ? (
-                    <span className="ml-2 text-xs font-bold text-ink-muted">Offline</span>
-                  ) : null}
-                </span>
+                <div className="flex items-center gap-3">
+                  <Avatar username={p.username} size="sm" />
+                  <div>
+                    <div className="font-bold text-foreground flex items-center gap-2">
+                      {p.username}
+                      {p.userId === room?.hostUserId ? (
+                        <span className="text-xs font-extrabold uppercase px-2 py-1 bg-accent-lemon text-foreground rounded-full">👑 Host</span>
+                      ) : null}
+                      {!p.connected ? (
+                        <span className="text-xs font-bold text-muted">📴 Offline</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
                   {room?.mode === "team" ? (
                     <select
-                      className="rounded-xl border-2 border-ink/10 bg-white px-2 py-1 text-sm font-bold text-ink"
+                      className="rounded-full border-2 border-muted-bright/40 bg-background px-3 py-2 text-sm font-bold text-foreground transition-all hover:border-primary"
                       value={p.teamId ?? ""}
                       disabled={p.userId !== localUserId || room?.state !== "WAITING"}
                       onChange={async (e) => {
@@ -261,7 +290,7 @@ export function NpatLobbyClient() {
                     <Button
                       type="button"
                       variant={p.ready ? "secondary" : "primary"}
-                      className="min-w-[10.5rem] px-5 py-2.5 text-sm"
+                      className="px-4 py-2 text-sm font-extrabold whitespace-nowrap"
                       title={
                         p.ready
                           ? "Click to mark yourself as not ready"
@@ -274,27 +303,35 @@ export function NpatLobbyClient() {
                         if (!r.ok) setActionError(r.error?.message ?? "Could not update ready state");
                       }}
                     >
-                      {p.ready ? "Ready ✓" : "I'm ready"}
+                      {p.ready ? "✓ Ready" : "Get Ready"}
                     </Button>
                   ) : (
-                    <span className="text-sm font-bold text-ink-muted">{p.ready ? "Ready" : "Not ready"}</span>
+                    <span className={`text-sm font-bold px-3 py-2 rounded-full ${p.ready ? "bg-success/20 text-success" : "bg-muted-bright/20 text-muted"}`}>
+                      {p.ready ? "✓ Ready" : "Waiting"}
+                    </span>
                   )}
                 </div>
-              </li>
+              </motion.li>
             ))}
-            {players.length === 0 ? <li className="text-ink-muted">No players yet.</li> : null}
+            {players.length === 0 ? (
+              <li className="text-center text-muted py-8">No players yet. Share the code to invite friends!</li>
+            ) : null}
           </ul>
         ) : (
-          <p className="mt-4 text-ink-muted">Waiting for server…</p>
+          <p className="mt-4 text-muted">Waiting for server…</p>
         )}
-      </section>
+      </LobbyPanel>
 
       {roomSynced && isHost ? (
-        <div className="flex justify-center">
+        <motion.div 
+          className="flex justify-center pt-4"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
           <Button
             type="button"
             variant="primary"
-            className="min-w-[12rem]"
+            className="px-8 py-4 text-lg font-extrabold"
             disabled={!connected || room?.state !== "WAITING" || starting}
             onClick={async () => {
               setActionError(null);
@@ -307,11 +344,11 @@ export function NpatLobbyClient() {
               }
             }}
           >
-            {starting ? "Starting…" : "Start game"}
+            {starting ? "🚀 Starting…" : "🎬 Start Game"}
           </Button>
-        </div>
+        </motion.div>
       ) : roomSynced ? (
-        <p className="text-center text-sm font-bold text-ink-muted">Waiting for host to start…</p>
+        <p className="text-center text-sm font-bold text-muted py-6">⏱️ Waiting for host to start…</p>
       ) : null}
     </div>
   );

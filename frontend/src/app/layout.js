@@ -16,8 +16,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${nunito.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans">
+    <html lang="en" className={`${nunito.variable} h-full antialiased bg-background`}>
+      <body className="min-h-full font-sans bg-background">
         <UserProvider>
           <Shell>{children}</Shell>
         </UserProvider>
