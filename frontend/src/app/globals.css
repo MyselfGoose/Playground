@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
+/* LIGHT MODE (DEFAULT) */
 :root {
-  /* Neutrals */
+  /* Neutrals - Light Mode */
   --background: #faf9f7;
   --foreground: #1a1818;
   --muted: #a8a5a0;
@@ -48,6 +49,49 @@
   --shadow-play: 0 8px 24px -6px rgb(255 107 91 / 0.2);
 }
 
+/* DARK MODE */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Neutrals - Dark Mode */
+    --background: #1a1818;
+    --foreground: #f5f3f0;
+    --muted: #6b6864;
+    --muted-bright: #3a3835;
+    
+    /* Primary Colors - Dark Mode (brighter for visibility) */
+    --primary: #ff8876;
+    --primary-light: #ffb0a8;
+    --primary-dark: #ff5a4a;
+    
+    /* Accent Colors - Dark Mode (enriched) */
+    --accent-purple: #9b82ff;
+    --accent-mint: #5ee0d8;
+    --accent-lemon: #ffe680;
+    --accent-sky: #7ec5ff;
+    --accent-pink: #ff99d0;
+    
+    /* Pastels - Dark Mode (adjusted) */
+    --pastel-lavender: #3d2d66;
+    --pastel-mint: #1a4a42;
+    --pastel-peach: #663a24;
+    --pastel-butter: #664a0f;
+    --pastel-sky: #1a4a66;
+    
+    /* Semantics - Dark Mode */
+    --success: #5ee0d8;
+    --warning: #ffe680;
+    --error: #ff8876;
+    
+    /* Shadows - Dark Mode */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 8px 16px -4px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+    --shadow-xl: 0 20px 40px -12px rgb(0 0 0 / 0.7);
+    --shadow-play: 0 8px 24px -6px rgb(255 136 118 / 0.3);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -83,7 +127,7 @@
   --radius-full: var(--radius-full);
 }
 
-/* Playful Background */
+/* Playful Background - Light Mode */
 body {
   background: linear-gradient(135deg, #faf9f7 0%, #f3f0ff 25%, #ffe4d6 75%, #faf9f7 100%);
   background-attachment: fixed;
@@ -106,6 +150,22 @@ body::before {
   opacity: 0.4;
   pointer-events: none;
   z-index: -1;
+}
+
+/* Dark Mode Background */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #1a1818 0%, #2d2333 25%, #3a2820 75%, #1a1818 100%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(61, 45, 102, 0.4) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(102, 58, 36, 0.4) 0%, transparent 50%),
+      radial-gradient(circle at 40% 0%, rgba(26, 74, 66, 0.4) 0%, transparent 40%);
+    opacity: 0.6;
+  }
 }
 
 ::selection {

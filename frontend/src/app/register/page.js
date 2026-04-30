@@ -3,12 +3,10 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Button } from "../../components/Button.jsx";
-
-const passwordHint =
-  "At least 12 characters with upper, lower, number, and a special character.";
 
 function safeNextPath(raw) {
   if (typeof raw !== "string" || !raw.startsWith("/")) return "/";
@@ -25,6 +23,9 @@ function RegisterForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [usernameFocused, setUsernameFocused] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -53,74 +54,171 @@ function RegisterForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-      <div className="w-full max-w-md rounded-[var(--radius-2xl)] bg-white/80 p-8 shadow-[var(--shadow-soft)] ring-2 ring-white/80 backdrop-blur-sm sm:p-10">
-        <h1 className="text-center text-3xl font-extrabold text-ink">Create an account</h1>
-        <p className="mt-2 text-center text-sm text-ink-muted">
-          You will be signed in automatically. Tokens stay in httpOnly cookies only.
-        </p>
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 flex flex-col gap-5">
-          {error ? (
-            <p
-              className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
-          <label className="block text-left">
-            <span className="mb-1.5 block text-sm font-bold text-ink-muted">Username</span>
-            <input
-              type="text"
-              name="username"
-              autoComplete="username"
-              required
-              minLength={3}
-              maxLength={32}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none ring-accent/0 transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
-              placeholder="cool_player"
-            />
-            <span className="mt-1 block text-xs text-ink-muted">Letters, numbers, underscore, or hyphen only.</span>
-          </label>
-          <label className="block text-left">
-            <span className="mb-1.5 block text-sm font-bold text-ink-muted">Email</span>
-            <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
-              placeholder="you@example.com"
-            />
-          </label>
-          <label className="block text-left">
-            <span className="mb-1.5 block text-sm font-bold text-ink-muted">Password</span>
-            <input
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-ink shadow-sm outline-none transition focus:border-accent/40 focus:ring-4 focus:ring-accent/15"
-              placeholder="••••••••••••"
-            />
-            <span className="mt-1 block text-xs text-ink-muted">{passwordHint}</span>
-          </label>
-          <Button type="submit" variant="primary" className="mt-2 w-full" disabled={pending}>
-            {pending ? "Creating account…" : "Register"}
-          </Button>
-        </form>
-        <p className="mt-6 text-center text-sm text-ink-muted">
-          Already have an account?{" "}
-          <Link href="/login" className="font-bold text-accent underline-offset-2 hover:underline">
-            Log in
-          </Link>
-        </p>
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 sm:px-6 relative overflow-hidden">
+      {/* Animated background orbs */}
+      <motion.div
+        aria-hidden
+        className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-br from-accent-mint/30 to-accent-sky/30 blur-3xl"
+        animate={{ y: [0, 30, 0], x: [0, -20, 0] }}
+        transition={{ duration: 8, repeat: Infinity }}
+      />
+      <motion.div
+        aria-hidden
+        className="absolute -bottom-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-tl from-accent-lemon/20 to-accent-pink/20 blur-3xl"
+        animate={{ y: [0, -30, 0], x: [0, 20, 0] }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
+
+      {/* Main content */}
+      <div className="relative w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
+        {/* Left: Form */}
+        <motion.div
+          initial={{ opacity: 0, x: -40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full md:order-2"
+        >
+          <div className="bg-background/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-8 sm:p-10 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40">
+            <h2 className="text-2xl font-extrabold text-foreground mb-2">Join the Playground</h2>
+            <p className="text-sm text-foreground/60 mb-8">Create your account and start playing today</p>
+
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
+              {error ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-[var(--radius-lg)] bg-error/10 border border-error/40 px-4 py-3 text-sm font-bold text-error"
+                  role="alert"
+                >
+                  {error}
+                </motion.div>
+              ) : null}
+
+              {/* Username */}
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-2">Username</label>
+                <motion.input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  required
+                  minLength={3}
+                  maxLength={32}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onFocus={() => setUsernameFocused(true)}
+                  onBlur={() => setUsernameFocused(false)}
+                  placeholder="cool_player"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  animate={usernameFocused ? { scale: 1.02 } : { scale: 1 }}
+                />
+                <p className="mt-1 text-xs text-foreground/50">Letters, numbers, underscore, or hyphen</p>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-2">Email address</label>
+                <motion.input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  animate={emailFocused ? { scale: 1.02 } : { scale: 1 }}
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-2">Password</label>
+                <motion.input
+                  type="password"
+                  name="password"
+                  autoComplete="new-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  animate={passwordFocused ? { scale: 1.02 } : { scale: 1 }}
+                />
+                <p className="mt-1 text-xs text-foreground/50">12+ characters, mixed case, number, and symbol</p>
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={pending}
+                whileHover={!pending ? { scale: 1.02 } : {}}
+                whileTap={!pending ? { scale: 0.98 } : {}}
+                className="w-full px-6 py-4 rounded-[var(--radius-lg)] bg-primary text-white font-extrabold text-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[var(--shadow-play)] hover:shadow-lg"
+              >
+                {pending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Creating account…
+                  </span>
+                ) : (
+                  "Create account"
+                )}
+              </motion.button>
+            </form>
+
+            <div className="mt-8 pt-8 border-t border-muted-bright/30">
+              <p className="text-sm text-foreground/60 text-center">
+                Already have an account?{" "}
+                <Link href="/login" className="font-bold text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Right: Branding & Message */}
+        <motion.div
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center md:text-left md:order-1"
+        >
+          <motion.div
+            animate={{ rotate: [0, -5, 5, 0] }}
+            transition={{ duration: 4, repeat: Infinity }}
+            className="inline-block text-5xl sm:text-6xl mb-6"
+          >
+            🎉
+          </motion.div>
+          
+          <h1 className="text-4xl sm:text-5xl font-black text-foreground mb-4 leading-tight">
+            Ready to <span className="text-primary">compete</span>?
+          </h1>
+          
+          <p className="text-lg text-foreground/70 mb-8 leading-relaxed">
+            Join thousands of players. Play Typing Races, NPAT, Taboo, and more. Climb the global leaderboard and prove you&apos;re the best.
+          </p>
+
+          <ul className="space-y-3 mb-8">
+            <li className="flex items-center gap-3 text-foreground/70">
+              <span className="text-2xl">⚡</span>
+              <span>Real-time multiplayer action</span>
+            </li>
+            <li className="flex items-center gap-3 text-foreground/70">
+              <span className="text-2xl">🏆</span>
+              <span>Compete on global leaderboards</span>
+            </li>
+            <li className="flex items-center gap-3 text-foreground/70">
+              <span className="text-2xl">👥</span>
+              <span>Challenge friends and strangers</span>
+            </li>
+          </ul>
+        </motion.div>
       </div>
     </div>
   );

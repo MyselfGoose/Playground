@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../lib/context/UserContext.jsx";
 import { Avatar } from "./Avatar.jsx";
@@ -17,6 +17,23 @@ export function Navbar() {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setIsDark(isDarkMode);
+  }, []);
+
+  const toggleTheme = () => {
+    const html = document.documentElement;
+    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (isDarkMode) {
+      html.style.colorScheme = "light";
+    } else {
+      html.style.colorScheme = "dark";
+    }
+    setIsDark(!isDark);
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted-bright/30 shadow-sm">
@@ -103,6 +120,17 @@ export function Navbar() {
               </Link>
             </div>
           )}
+
+          <motion.button
+            type="button"
+            onClick={toggleTheme}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-all hover:bg-muted-bright"
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <span className="text-lg">{isDark ? "☀️" : "🌙"}</span>
+          </motion.button>
 
           <button
             type="button"

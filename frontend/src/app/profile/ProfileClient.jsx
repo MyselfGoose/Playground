@@ -8,15 +8,36 @@ import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
 import { useMyStats } from "../../hooks/useLeaderboard.js";
 
-function StatTile({ label, value, icon }) {
+function StatCard({ label, value, icon, highlight = false }) {
   return (
     <motion.div 
-      whileHover={{ y: -4, scale: 1.02 }}
-      className="rounded-[var(--radius-2xl)] bg-gradient-to-br from-muted-bright/30 to-transparent px-6 py-6 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40 text-center"
+      whileHover={{ y: -6, scale: 1.02 }}
+      className={`rounded-[var(--radius-2xl)] p-6 shadow-[var(--shadow-md)] ring-2 transition-all ${
+        highlight 
+          ? "bg-gradient-to-br from-primary/20 via-accent-pink/10 to-transparent ring-primary/40" 
+          : "bg-gradient-to-br from-muted-bright/30 to-transparent ring-muted-bright/40"
+      }`}
     >
-      {icon && <span className="text-3xl mb-2 block">{icon}</span>}
-      <p className="text-3xl font-extrabold bg-gradient-to-r from-primary to-accent-pink bg-clip-text text-transparent">{value}</p>
-      <p className="mt-2 text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
+      {icon && <span className={`text-4xl mb-3 block ${highlight ? "scale-125" : ""}`}>{icon}</span>}
+      <p className={`font-extrabold mb-2 ${highlight ? "text-3xl text-primary" : "text-2xl text-foreground"}`}>
+        {value}
+      </p>
+      <p className="text-xs font-bold uppercase tracking-wide text-foreground/60">{label}</p>
+    </motion.div>
+  );
+}
+
+function StatRow({ label, value, icon }) {
+  return (
+    <motion.div 
+      whileHover={{ x: 4 }}
+      className="flex items-center justify-between rounded-[var(--radius-lg)] bg-muted-bright/20 px-4 py-3 ring-1 ring-muted-bright/30"
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{icon}</span>
+        <span className="text-sm font-bold text-foreground/70">{label}</span>
+      </div>
+      <span className="text-lg font-extrabold text-primary">{value}</span>
     </motion.div>
   );
 }
@@ -38,15 +59,15 @@ export function ProfileClient() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-20 text-muted">
-        Loading your session…
+      <div className="flex flex-1 items-center justify-center px-4 py-20 text-foreground/60">
+        Loading your profile…
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-20 text-muted">
+      <div className="flex flex-1 items-center justify-center px-4 py-20 text-foreground/60">
         Redirecting to login…
       </div>
     );
@@ -60,87 +81,156 @@ export function ProfileClient() {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-4 py-12 text-center sm:py-16"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="w-full"
     >
-      {/* Avatar and username */}
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      >
-        <Avatar username={user.username} src={user.avatarUrl} size="lg" />
-      </motion.div>
-      
-      <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
-        <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold text-foreground">{user.username}</h1>
-        <p className="mt-2 text-lg text-foreground/70">{user.email}</p>
-      </motion.div>
+      {/* Header with user info */}
+      <section className="bg-gradient-to-b from-muted-bright/20 to-transparent px-4 py-16 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-5xl">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="flex flex-col items-center gap-6 text-center"
+          >
+            <Avatar username={user.username} src={user.avatarUrl} size="lg" />
+            
+            <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
+              <h1 className="text-4xl sm:text-5xl font-black text-foreground">{user.username}</h1>
+              <p className="mt-2 text-foreground/60">{user.email}</p>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
 
-      {/* Main stats */}
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }} 
-        animate={{ y: 0, opacity: 1 }} 
-        transition={{ delay: 0.3 }}
-        className="mt-12 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3"
-      >
-        <StatTile icon="🎮" label="Games Played" value={statsLoading ? "…" : String(totalGames)} />
-        <StatTile icon="⭐" label="Global Score" value={statsLoading ? "…" : globalScore.toFixed(1)} />
-        <StatTile icon="🏆" label="Global Rank" value={statsLoading ? "…" : globalRank != null ? `#${globalRank}` : "Unranked"} />
-      </motion.div>
+      {/* Main stats showcase */}
+      <section className="px-4 py-12 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-5xl">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }} 
+            animate={{ y: 0, opacity: 1 }} 
+            transition={{ delay: 0.3 }}
+            className="grid grid-cols-1 gap-6 sm:grid-cols-3"
+          >
+            <StatCard 
+              icon="🏆" 
+              label="Global Rank" 
+              value={statsLoading ? "…" : globalRank != null ? `#${globalRank}` : "Unranked"}
+              highlight={true}
+            />
+            <StatCard 
+              icon="⭐" 
+              label="Overall Score" 
+              value={statsLoading ? "…" : globalScore.toFixed(0)}
+            />
+            <StatCard 
+              icon="🎮" 
+              label="Games Played" 
+              value={statsLoading ? "…" : String(totalGames)}
+            />
+          </motion.div>
+        </div>
+      </section>
 
-      {/* Detailed breakdown */}
+      {/* Detailed performance breakdown */}
       {stats && !statsLoading && (
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }} 
-          animate={{ y: 0, opacity: 1 }} 
-          transition={{ delay: 0.4 }}
-          className="mt-10 w-full max-w-2xl"
-        >
-          <h2 className="text-lg font-extrabold text-foreground mb-5">Your Stats</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MiniStat icon="⌨️" label="Best WPM" value={(stats.typing?.bestWpm ?? 0).toFixed(1)} />
-            <MiniStat icon="🎯" label="Accuracy" value={`${(stats.typing?.weightedAccuracy ?? 0).toFixed(1)}%`} />
-            <MiniStat icon="🌍" label="NPAT Avg" value={(stats.npat?.averageScore ?? 0).toFixed(1)} />
-            <MiniStat icon="🥇" label="NPAT Wins" value={String(stats.npat?.wins ?? 0)} />
+        <section className="px-4 py-12 sm:px-6 sm:py-16 bg-muted-bright/10">
+          <div className="mx-auto max-w-5xl">
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              transition={{ delay: 0.4 }}
+            >
+              <h2 className="text-2xl font-extrabold text-foreground mb-8">Performance Breakdown</h2>
+              
+              {/* Typing section */}
+              <div className="mb-10">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <span>⌨️</span> Typing Race
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StatRow 
+                    icon="🚀" 
+                    label="Best Speed (WPM)" 
+                    value={(stats.typing?.bestWpm ?? 0).toFixed(1)}
+                  />
+                  <StatRow 
+                    icon="🎯" 
+                    label="Average Accuracy" 
+                    value={`${(stats.typing?.weightedAccuracy ?? 0).toFixed(1)}%`}
+                  />
+                  <StatRow 
+                    icon="🏁" 
+                    label="Races Completed" 
+                    value={String(stats.typing?.totalGames ?? 0)}
+                  />
+                  <StatRow 
+                    icon="👑" 
+                    label="Typing Rank" 
+                    value={stats.typing?.rank ? `#${stats.typing.rank}` : "Unranked"}
+                  />
+                </div>
+              </div>
+
+              {/* NPAT section */}
+              <div>
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <span>🌍</span> Name Place Animal Thing
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StatRow 
+                    icon="⭐" 
+                    label="Average Score" 
+                    value={(stats.npat?.averageScore ?? 0).toFixed(1)}
+                  />
+                  <StatRow 
+                    icon="🥇" 
+                    label="Total Wins" 
+                    value={String(stats.npat?.wins ?? 0)}
+                  />
+                  <StatRow 
+                    icon="🎮" 
+                    label="Games Played" 
+                    value={String(stats.npat?.totalGames ?? 0)}
+                  />
+                  <StatRow 
+                    icon="📊" 
+                    label="NPAT Rank" 
+                    value={stats.npat?.rank ? `#${stats.npat.rank}` : "Unranked"}
+                  />
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </motion.div>
+        </section>
       )}
 
-      {/* Action buttons */}
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }} 
-        animate={{ y: 0, opacity: 1 }} 
-        transition={{ delay: 0.5 }}
-        className="mt-12 flex flex-wrap items-center justify-center gap-4"
-      >
-        <Link
-          href="/leaderboard"
-          className="rounded-full bg-primary px-6 py-3 text-sm font-extrabold text-white shadow-[var(--shadow-play)] transition-all hover:scale-105 active:scale-95"
-        >
-          📊 View Leaderboard
-        </Link>
-        <Link
-          href="/games"
-          className="rounded-full text-sm font-extrabold text-primary ring-2 ring-primary/30 px-6 py-3 transition-all hover:ring-primary/60"
-        >
-          🎮 Back to Games
-        </Link>
-      </motion.div>
+      {/* Call to action */}
+      <section className="px-4 py-12 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-5xl">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }} 
+            animate={{ y: 0, opacity: 1 }} 
+            transition={{ delay: 0.5 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center"
+          >
+            <Link
+              href="/leaderboard"
+              className="rounded-full bg-primary px-8 py-4 text-center font-extrabold text-white shadow-[var(--shadow-play)] transition-all hover:scale-105 active:scale-95"
+            >
+              View Global Leaderboard
+            </Link>
+            <Link
+              href="/games"
+              className="rounded-full bg-muted-bright/50 px-8 py-4 text-center font-extrabold text-foreground transition-all hover:bg-muted-bright/70"
+            >
+              Play More Games
+            </Link>
+          </motion.div>
+        </div>
+      </section>
     </motion.div>
   );
 }
 
-function MiniStat({ label, value, icon }) {
-  return (
-    <motion.div 
-      whileHover={{ y: -2, scale: 1.02 }}
-      className="rounded-[var(--radius-lg)] bg-gradient-to-br from-muted-bright/20 to-transparent px-3 py-4 ring-1 ring-muted-bright/40 text-center"
-    >
-      {icon && <span className="text-2xl mb-1 block">{icon}</span>}
-      <p className="text-lg font-extrabold text-foreground">{value}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted">{label}</p>
-    </div>
-  );
-}
