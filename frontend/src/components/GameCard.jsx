@@ -4,108 +4,129 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "./Button.jsx";
 
-const accentStyles = {
-  lavender: "from-lavender/90 to-lavender/40 ring-white/70",
-  mint: "from-mint/90 to-mint/40 ring-white/70",
-  peach: "from-peach/90 to-peach/40 ring-white/70",
-  sky: "from-sky/90 to-sky/40 ring-white/70",
-  butter: "from-butter/90 to-butter/40 ring-white/70",
+const accentColors = {
+  lavender: { bg: "from-pastel-lavender to-pastel-sky", accent: "accent-purple", badge: "bg-accent-purple" },
+  mint: { bg: "from-pastel-mint to-accent-mint", accent: "accent-mint", badge: "bg-accent-mint" },
+  peach: { bg: "from-pastel-peach to-primary", accent: "accent-pink", badge: "bg-primary" },
+  sky: { bg: "from-pastel-sky to-accent-sky", accent: "accent-sky", badge: "bg-accent-sky" },
+  butter: { bg: "from-pastel-butter to-accent-lemon", accent: "accent-lemon", badge: "bg-accent-lemon" },
 };
 
 const tilts = [
-  "rotate-[-0.8deg]",
-  "rotate-[0.6deg]",
-  "rotate-[0.4deg]",
-  "rotate-[-0.5deg]",
-  "rotate-[0.7deg]",
+  "rotate-[-1.2deg]",
+  "rotate-[0.8deg]",
+  "rotate-[0.5deg]",
+  "rotate-[-0.6deg]",
+  "rotate-[1deg]",
 ];
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
+};
 
 /** @param {{ game: import('../lib/games.js').Game; index: number }} props */
 export function GameCard({ game, index }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const tilt = tilts[index % tilts.length];
-  const accent = accentStyles[game.accent] ?? accentStyles.lavender;
+  const colors = accentColors[game.accent] ?? accentColors.lavender;
   const isNpat = game.id === "name-place-animal-thing";
   const isTypingRace = game.id === "typing-race";
   const isTaboo = game.id === "taboo";
+  const isPlayable = isNpat || isTypingRace || isTaboo;
 
   return (
     <motion.article
       layout
-      initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
+      initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        delay: reduce ? 0 : index * 0.06,
-        duration: 0.35,
-        ease: [0.22, 1, 0.36, 1],
+        delay: reduce ? 0 : index * 0.08,
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1],
       }}
       whileHover={
         reduce
           ? undefined
-          : { y: -8, rotate: 0, transition: { type: "spring", stiffness: 360, damping: 18 } }
+          : { y: -12, rotate: 0, transition: { type: "spring", stiffness: 300, damping: 20 } }
       }
-      className={`relative flex flex-col gap-4 rounded-[var(--radius-2xl)] bg-gradient-to-br p-6 shadow-[var(--shadow-card)] ring-2 ${accent} ${tilt}`}
+      className={`group relative flex flex-col gap-5 rounded-[var(--radius-2xl)] bg-gradient-to-br ${colors.bg} p-6 sm:p-8 shadow-[var(--shadow-md)] ring-2 ring-foreground/10 overflow-hidden transition-all ${tilt}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      {/* Background accent blob */}
+      <motion.div
+        aria-hidden
+        className="absolute -bottom-8 -right-8 h-32 w-32 rounded-full opacity-20 blur-xl"
+        initial={{ scale: 0.8 }}
+        whileHover={reduce ? undefined : { scale: 1.1 }}
+        style={{
+          background: `var(--${colors.accent})`,
+        }}
+      />
+
+      <div className="relative z-[1] flex items-start justify-between gap-3">
         <span
-          className="select-none text-4xl drop-shadow-sm sm:text-5xl"
+          className="select-none text-5xl drop-shadow-sm sm:text-6xl group-hover:scale-110 transition-transform"
           aria-hidden
         >
           {game.emoji}
         </span>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ring-1 ring-ink/5 ${
-            isNpat ? "bg-mint/50 text-ink" : "bg-white/60 text-ink-muted"
+        <motion.span
+          whileHover={reduce ? undefined : { scale: 1.1 }}
+          className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-widest ring-2 ring-foreground/15 ${
+            isPlayable
+              ? `${colors.badge} text-foreground shadow-[var(--shadow-play)]`
+              : "bg-background/70 text-foreground"
           }`}
         >
-          {isNpat || isTypingRace || isTaboo ? "Live" : "Soon"}
-        </span>
+          {isPlayable ? "▶ Live" : "Soon"}
+        </motion.span>
       </div>
-      <div>
-        <h3 className="text-xl font-extrabold tracking-tight text-ink sm:text-2xl">
+
+      <div className="relative z-[1]">
+        <h3 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl leading-tight">
           {game.title}
         </h3>
-        <p className="mt-2 text-sm leading-relaxed text-ink-muted sm:text-base">
+        <p className="mt-3 text-sm leading-relaxed text-foreground/75 sm:text-base">
           {game.description}
         </p>
       </div>
-      <div className="mt-auto pt-2">
-        {isNpat ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => router.push("/games/npat")}
+
+      <div className="relative z-[1] mt-auto pt-3">
+        {isPlayable ? (
+          <motion.div
+            whileHover={reduce ? undefined : { scale: 1.02 }}
+            whileTap={reduce ? undefined : { scale: 0.98 }}
           >
-            Play
-          </Button>
-        ) : isTypingRace ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => router.push("/games/typing-race")}
-          >
-            Play
-          </Button>
-        ) : isTaboo ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => router.push("/games/taboo")}
-          >
-            Play
-          </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full bg-background/80 hover:bg-background font-extrabold"
+              onClick={() => {
+                if (isNpat) router.push("/games/npat");
+                else if (isTypingRace) router.push("/games/typing-race");
+                else if (isTaboo) router.push("/games/taboo");
+              }}
+            >
+              Play Now
+            </Button>
+          </motion.div>
         ) : (
           <Button
             type="button"
             variant="secondary"
-            className="w-full"
-            onClick={(e) => e.preventDefault()}
+            className="w-full bg-background/60 opacity-60 cursor-not-allowed hover:bg-background/60"
+            disabled
           >
-            Play
+            Coming Soon
           </Button>
         )}
       </div>

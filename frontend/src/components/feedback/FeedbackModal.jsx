@@ -125,7 +125,7 @@ export function FeedbackModal({ open, onClose, feedbackSourceRef }) {
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="pointer-events-auto w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-3xl border border-white/60 bg-white/95 p-6 shadow-2xl shadow-ink/15 ring-2 ring-ink/5"
+              className="pointer-events-auto w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-3xl border border-muted-bright/60 bg-background/95 p-6 shadow-2xl shadow-ink/15 ring-2 ring-ink/5"
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
@@ -138,7 +138,7 @@ export function FeedbackModal({ open, onClose, feedbackSourceRef }) {
                   type="button"
                   disabled={busy}
                   onClick={() => handleClose()}
-                  className="rounded-2xl px-3 py-1.5 text-sm font-bold text-ink-muted transition-colors hover:bg-white hover:text-ink disabled:opacity-40"
+                  className="rounded-2xl px-3 py-1.5 text-sm font-bold text-ink-muted transition-colors hover:bg-background/80 hover:text-ink disabled:opacity-40"
                 >
                   Close
                 </button>
@@ -180,14 +180,14 @@ export function FeedbackModal({ open, onClose, feedbackSourceRef }) {
                       href={issueUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-2xl bg-accent px-5 py-3 text-sm font-bold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.02]"
+                      className="inline-flex items-center justify-center rounded-2xl bg-accent px-5 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.02]"
                     >
                       View on GitHub
                     </a>
                     <button
                       type="button"
                       onClick={() => handleClose()}
-                      className="rounded-2xl px-5 py-3 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition-colors hover:bg-white"
+                      className="rounded-2xl px-5 py-3 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition-colors hover:bg-background/80"
                     >
                       Done
                     </button>
@@ -219,7 +219,7 @@ export function FeedbackModal({ open, onClose, feedbackSourceRef }) {
                       type="submit"
                       form="feedback-form"
                       disabled={busy}
-                      className="inline-flex min-w-[7rem] items-center justify-center rounded-2xl bg-accent px-5 py-3 text-sm font-bold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-w-[7rem] items-center justify-center rounded-2xl bg-accent px-5 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {busy ? (
                         <span className="inline-flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../lib/context/UserContext.jsx";
 import { Avatar } from "./Avatar.jsx";
@@ -17,19 +17,69 @@ export function Navbar() {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setIsDark(isDarkMode);
+  }, []);
+
+  const toggleTheme = () => {
+    const html = document.documentElement;
+    const currentDark = html.classList.contains("dark");
+    
+    if (currentDark) {
+      // Switch to light
+      html.classList.remove("dark");
+      html.classList.add("light");
+      localStorage.setItem("theme", "light");
+      setIsDark(false);
+    } else {
+      // Switch to dark
+      html.classList.remove("light");
+      html.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+      setIsDark(true);
+    }
+  };
+
+  useEffect(() => {
+    // Initialize theme on mount
+    const html = document.documentElement;
+    const saved = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    
+    if (saved === "light") {
+      html.classList.add("light");
+      html.classList.remove("dark");
+      setIsDark(false);
+    } else if (saved === "dark") {
+      html.classList.add("dark");
+      html.classList.remove("light");
+      setIsDark(true);
+    } else if (prefersDark) {
+      html.classList.add("dark");
+      html.classList.remove("light");
+      setIsDark(true);
+    } else {
+      html.classList.add("light");
+      html.classList.remove("dark");
+      setIsDark(false);
+    }
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/40 bg-white/65 shadow-sm backdrop-blur-md">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted-bright/30 shadow-sm">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <Link
           href="/"
-          className="group flex items-center gap-2 rounded-2xl px-2 py-1 text-lg font-extrabold tracking-tight text-ink transition-transform hover:scale-[1.02]"
+          className="group flex items-center gap-2 rounded-full px-2 py-1 text-lg font-extrabold tracking-tight text-foreground transition-transform hover:scale-105"
         >
           <span
-            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 text-lg text-white shadow-md"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent-pink to-accent-purple text-lg text-white shadow-[var(--shadow-play)] group-hover:shadow-xl transition-all"
             aria-hidden
           >
-            P
+            🎮
           </span>
           <span className="hidden sm:inline">Playground</span>
         </Link>
@@ -41,10 +91,10 @@ export function Navbar() {
               <Link
                 key={href}
                 href={href}
-                className={`rounded-2xl px-4 py-2 text-sm font-bold transition-colors ${
+                className={`rounded-full px-4 py-2 text-sm font-bold transition-all ${
                   active
-                    ? "bg-white text-accent shadow-sm ring-2 ring-accent/20"
-                    : "text-ink-muted hover:bg-white/60 hover:text-ink"
+                    ? "bg-primary text-white shadow-[var(--shadow-play)]"
+                    : "text-foreground hover:bg-muted-bright/50 hover:text-primary"
                 }`}
               >
                 {label}
@@ -54,7 +104,7 @@ export function Navbar() {
           <Link
             id="feedback-trigger-desktop"
             href="/feedback"
-            className="rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted transition-colors hover:bg-white/60 hover:text-ink"
+            className="rounded-full px-4 py-2 text-sm font-bold text-foreground transition-all hover:bg-muted-bright/50 hover:text-primary"
           >
             Feedback
           </Link>
@@ -63,7 +113,7 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {loading ? (
             <span
-              className="inline-flex h-10 min-w-[5rem] items-center justify-center rounded-2xl bg-white/60 px-4 text-sm font-bold text-ink-muted"
+              className="inline-flex h-10 min-w-[5rem] items-center justify-center rounded-full bg-muted-bright/50 px-4 text-sm font-bold text-muted"
               aria-label="Loading session"
             >
               …
@@ -72,17 +122,17 @@ export function Navbar() {
             <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 href="/profile"
-                className="flex items-center gap-2 rounded-2xl py-1 pl-1 pr-3 transition-colors hover:bg-white/70"
+                className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-muted-bright/50"
               >
                 <Avatar username={user.username} src={user.avatarUrl} size="sm" />
-                <span className="hidden max-w-[8rem] truncate text-sm font-bold text-ink sm:inline">
+                <span className="hidden max-w-[8rem] truncate text-sm font-bold text-foreground sm:inline">
                   {user.username}
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="rounded-2xl px-3 py-2 text-xs font-bold text-ink-muted underline-offset-4 hover:text-ink hover:underline"
+                className="rounded-full px-3 py-2 text-xs font-bold text-muted underline-offset-4 hover:text-primary hover:underline transition-colors"
               >
                 Sign out
               </button>
@@ -91,22 +141,33 @@ export function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/register"
-                className="hidden rounded-2xl px-4 py-2 text-sm font-bold text-ink-muted ring-2 ring-ink/10 transition-colors hover:bg-white/70 sm:inline"
+                className="hidden rounded-full px-4 py-2 text-sm font-bold text-foreground ring-2 ring-muted-bright transition-all hover:bg-muted-bright/50 sm:inline"
               >
                 Register
               </Link>
               <Link
                 href="/login"
-                className="rounded-2xl bg-accent px-4 py-2 text-sm font-bold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
+                className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-white shadow-[var(--shadow-play)] transition-all hover:scale-105 active:scale-95"
               >
                 Login
               </Link>
             </div>
           )}
 
+          <motion.button
+            type="button"
+            onClick={toggleTheme}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-all hover:bg-muted-bright"
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <span className="text-lg">{isDark ? "☀️" : "🌙"}</span>
+          </motion.button>
+
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/70 text-ink shadow-sm ring-2 ring-ink/5 md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 md:hidden transition-all hover:bg-muted-bright"
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
@@ -123,7 +184,7 @@ export function Navbar() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t border-white/40 bg-white/80 md:hidden"
+            className="overflow-hidden border-t border-muted-bright/30 bg-background/80 md:hidden"
           >
             <div className="flex flex-col gap-1 px-4 py-3">
               {links.map(({ href, label }) => (
@@ -131,7 +192,7 @@ export function Navbar() {
                   key={href}
                   href={href}
                   onClick={() => setOpen(false)}
-                  className="rounded-2xl px-4 py-3 text-base font-bold text-ink hover:bg-white"
+                  className="rounded-full px-4 py-3 text-base font-bold text-foreground hover:bg-muted-bright/50 transition-all"
                 >
                   {label}
                 </Link>
@@ -140,7 +201,7 @@ export function Navbar() {
                 id="feedback-trigger-mobile"
                 href="/feedback"
                 onClick={() => setOpen(false)}
-                className="rounded-2xl px-4 py-3 text-left text-base font-bold text-ink-muted hover:bg-white"
+                className="rounded-full px-4 py-3 text-left text-base font-bold text-muted hover:bg-muted-bright/50 transition-all"
               >
                 Feedback
               </Link>
@@ -149,14 +210,14 @@ export function Navbar() {
                   <Link
                     href="/login"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink hover:bg-white"
+                    className="rounded-full px-4 py-3 text-base font-bold text-foreground hover:bg-muted-bright/50 transition-all"
                   >
                     Login
                   </Link>
                   <Link
                     href="/register"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink-muted hover:bg-white"
+                    className="rounded-full px-4 py-3 text-base font-bold text-muted hover:bg-muted-bright/50 transition-all"
                   >
                     Register
                   </Link>
@@ -167,7 +228,7 @@ export function Navbar() {
                   <Link
                     href="/profile"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl px-4 py-3 text-base font-bold text-ink hover:bg-white"
+                    className="rounded-full px-4 py-3 text-base font-bold text-foreground hover:bg-muted-bright/50 transition-all"
                   >
                     Profile
                   </Link>
@@ -177,7 +238,7 @@ export function Navbar() {
                       setOpen(false);
                       void logout();
                     }}
-                    className="rounded-2xl px-4 py-3 text-left text-base font-bold text-ink-muted hover:bg-white"
+                    className="rounded-full px-4 py-3 text-left text-base font-bold text-muted hover:bg-muted-bright/50 transition-all"
                   >
                     Sign out
                   </button>

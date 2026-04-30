@@ -115,4 +115,27 @@ describe('Leaderboard API', () => {
       })
       .expect(201);
   });
+
+  it('GET /api/v1/leaderboard/me returns rank field contract used by frontend', async () => {
+    const email = `me_${Date.now()}@example.com`;
+    const reg = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        username: `m${Date.now()}`,
+        email,
+        password: strongPassword,
+      })
+      .expect(201);
+
+    const cookies = reg.headers['set-cookie'];
+    const res = await request(app).get('/api/v1/leaderboard/me').set('Cookie', cookies).expect(200);
+    assert.ok(res.body?.data);
+    assert.ok(res.body.data.typing);
+    assert.ok('wpmRank' in res.body.data.typing);
+    assert.ok('accuracyRank' in res.body.data.typing);
+    assert.ok(res.body.data.npat);
+    assert.ok('npatRank' in res.body.data.npat);
+    assert.ok(res.body.data.taboo);
+    assert.ok('tabooRank' in res.body.data.taboo);
+  });
 });
