@@ -35,6 +35,13 @@ describe('Leaderboard API', () => {
     assert.equal(typeof res.body.data.total, 'number');
   });
 
+  it('GET /api/v1/leaderboard/taboo returns 200 with data shape', async () => {
+    const res = await request(app).get('/api/v1/leaderboard/taboo').expect(200);
+    assert.ok(res.body?.data);
+    assert.ok(Array.isArray(res.body.data.entries));
+    assert.equal(typeof res.body.data.total, 'number');
+  });
+
   it('POST /api/v1/leaderboard/typing/solo returns 401 without auth', async () => {
     await request(app)
       .post('/api/v1/leaderboard/typing/solo')

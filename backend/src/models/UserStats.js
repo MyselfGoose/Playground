@@ -20,6 +20,21 @@ const userStatsSchema = new mongoose.Schema(
     npat_wins: { type: Number, default: 0 },
     npat_winRate: { type: Number, default: 0 },
 
+    taboo_gamesPlayed: { type: Number, default: 0 },
+    taboo_gamesWon: { type: Number, default: 0 },
+    taboo_winRate: { type: Number, default: 0 },
+    taboo_speakerRounds: { type: Number, default: 0 },
+    taboo_correctGuessesAsSpeaker: { type: Number, default: 0 },
+    taboo_tabooViolations: { type: Number, default: 0 },
+    taboo_avgGuessesPerRound: { type: Number, default: 0 },
+    taboo_speakerSuccessRate: { type: Number, default: 0 },
+    taboo_guessesMade: { type: Number, default: 0 },
+    taboo_correctGuesses: { type: Number, default: 0 },
+    taboo_guessAccuracy: { type: Number, default: 0 },
+    taboo_activeDaysLast30: { type: Number, default: 0 },
+    taboo_recentPerformanceScore: { type: Number, default: 0 },
+    taboo_score: { type: Number, default: 0 },
+
     global_score: { type: Number, default: 0 },
     global_rank: { type: Number, default: null },
 
@@ -33,6 +48,8 @@ userStatsSchema.index({ userId: 1 }, { unique: true });
 userStatsSchema.index({ typing_bestWpm: -1 });
 userStatsSchema.index({ typing_weightedAccuracy: -1 });
 userStatsSchema.index({ npat_averageScore: -1 });
+userStatsSchema.index({ taboo_score: -1 });
+userStatsSchema.index({ taboo_recentPerformanceScore: -1 });
 userStatsSchema.index({ global_score: -1 });
 
 export const UserStats =

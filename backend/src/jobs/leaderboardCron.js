@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
+import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
 import { userStatsRepository } from '../repositories/userStatsRepository.js';
 
 /**
@@ -23,18 +24,15 @@ export async function runLeaderboardDailyCron(logger) {
     for (const uid of userIds) {
       try {
         const oid = uid instanceof mongoose.Types.ObjectId ? uid : new mongoose.Types.ObjectId(String(uid));
-        const [typingDays, npatDays] = await Promise.all([
+        const [typingDays, npatDays, tabooDays] = await Promise.all([
           typingAttemptRepository.activeDaysSince(oid, since),
           npatResultRepository.activeDaysSince(oid, since),
+          tabooResultRepository.activeDaysSince(oid, since),
         ]);
 
-        const daySet = new Set();
-        // The repo returns counts not actual dates, so we take the max as a conservative estimate.
-        // For a more precise count we'd union actual date strings, but this is good enough
-        // since most users play one game type predominantly.
-        const totalDays = Math.min(typingDays + npatDays, 30);
+        const totalDays = Math.min(typingDays + npatDays + tabooDays, 30);
 
-        await userStatsRepository.updateActiveDaysAndGlobalScore(oid, totalDays);
+        await userStatsRepository.updateActiveDaysAndGlobalScore(oid, totalDays, tabooDays);
         updated += 1;
       } catch (err) {
         logger.warn({ err, userId: String(uid), event: 'leaderboard_cron_user_error' }, 'leaderboard_cron');

@@ -1,5 +1,6 @@
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
+import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
 import { userStatsRepository } from '../repositories/userStatsRepository.js';
 
 const WPM_HARD_CAP = 300;
@@ -189,6 +190,153 @@ export async function persistNpatResults({ code, mode, players, results, logger 
       });
     } catch (err) {
       logger.warn({ err, userId: doc.userId, event: 'user_stats_npat_update_failed' }, 'leaderboard');
+    }
+  }
+}
+
+function buildTabooTurnWindows(history) {
+  const starts = history.filter((e) => e.action === 'turn_started');
+  const endings = new Set(['turn_ended', 'turn_timeout', 'turn_aborted_disconnected', 'turn_skipped_disconnected']);
+  return starts.map((start, i) => {
+    const startAt = Number(start.at || 0);
+    const nextStartAt = Number(starts[i + 1]?.at || Number.MAX_SAFE_INTEGER);
+    const ending = history.find((e) => Number(e.at || 0) >= startAt && Number(e.at || 0) < nextStartAt && endings.has(e.action));
+    return {
+      speakerId: start.playerId,
+      speakerName: start.playerName,
+      team: start.team,
+      startAt,
+      endAt: Number(ending?.at || nextStartAt),
+    };
+  });
+}
+
+/**
+ * @param {{
+ *   code: string,
+ *   game: { status?: string, endedAt?: number|null, scores?: {A:number,B:number}, history?: Array<Record<string, unknown>> },
+ *   players: Array<{ userId: string, username: string, team: 'A'|'B', connected?: boolean }>,
+ *   logger: import('pino').Logger,
+ * }} params
+ */
+export async function persistTabooResults({ code, game, players, logger }) {
+  if (!game || game.status !== 'finished') return;
+  if (!Array.isArray(players) || players.length < 2) return;
+  const history = Array.isArray(game.history) ? game.history : [];
+  if (!history.length) return;
+
+  const gameId = `${code}:${String(game.endedAt ?? 0)}`;
+  const turns = buildTabooTurnWindows(history);
+  if (!turns.length) return;
+  const validTeams = new Set(players.map((p) => p.team));
+  if (!validTeams.has('A') || !validTeams.has('B')) return;
+
+  const scores = game.scores || { A: 0, B: 0 };
+  const winnerTeam = scores.A === scores.B ? null : scores.A > scores.B ? 'A' : 'B';
+  const finishedAt = new Date(Number(game.endedAt || Date.now()));
+
+  const perPlayer = new Map(
+    players.map((p) => [
+      p.userId,
+      {
+        userId: p.userId,
+        username: p.username,
+        team: p.team,
+        speakerRounds: 0,
+        correctGuessesAsSpeaker: 0,
+        tabooViolations: 0,
+        guessesMade: 0,
+        correctGuesses: 0,
+      },
+    ]),
+  );
+
+  for (const entry of history) {
+    const action = String(entry.action || '');
+    const pid = String(entry.playerId || '');
+    if (action === 'submit_guess' && perPlayer.has(pid)) {
+      const row = perPlayer.get(pid);
+      row.guessesMade += 1;
+      if (entry.matched === true) row.correctGuesses += 1;
+    }
+  }
+
+  for (const turn of turns) {
+    const row = perPlayer.get(String(turn.speakerId || ''));
+    if (!row) continue;
+    row.speakerRounds += 1;
+    const inTurn = history.filter((e) => Number(e.at || 0) >= turn.startAt && Number(e.at || 0) <= turn.endAt);
+    row.correctGuessesAsSpeaker += inTurn.filter((e) => e.action === 'submit_guess' && e.matched === true).length;
+    row.tabooViolations += inTurn.filter((e) => e.action === 'taboo_called' && e.penalizedTeam === turn.team).length;
+  }
+
+  const docs = [];
+  for (const row of perPlayer.values()) {
+    const won = winnerTeam ? row.team === winnerTeam : false;
+    const speakerSuccessRate = row.speakerRounds > 0 ? (row.correctGuessesAsSpeaker / row.speakerRounds) * 100 : 0;
+    const guessAccuracy = row.guessesMade > 0 ? (row.correctGuesses / row.guessesMade) * 100 : 0;
+    const recentPerformanceScore = Math.max(
+      0,
+      Math.min(
+        100,
+        speakerSuccessRate * 0.45 + guessAccuracy * 0.35 + (won ? 20 : 0) - row.tabooViolations * 8,
+      ),
+    );
+    docs.push({
+      gameId,
+      userId: row.userId,
+      username: row.username,
+      roomCode: code,
+      mode: 'team',
+      team: row.team,
+      won,
+      speakerRounds: row.speakerRounds,
+      correctGuessesAsSpeaker: row.correctGuessesAsSpeaker,
+      tabooViolations: row.tabooViolations,
+      guessesMade: row.guessesMade,
+      correctGuesses: row.correctGuesses,
+      finishedAt,
+      recentPerformanceScore,
+    });
+  }
+
+  try {
+    await tabooResultRepository.insertMany(
+      docs.map((d) => ({
+        gameId: d.gameId,
+        userId: d.userId,
+        username: d.username,
+        roomCode: d.roomCode,
+        mode: d.mode,
+        team: d.team,
+        won: d.won,
+        speakerRounds: d.speakerRounds,
+        correctGuessesAsSpeaker: d.correctGuessesAsSpeaker,
+        tabooViolations: d.tabooViolations,
+        guessesMade: d.guessesMade,
+        correctGuesses: d.correctGuesses,
+        finishedAt: d.finishedAt,
+      })),
+    );
+  } catch (err) {
+    logger.warn({ err, code, event: 'taboo_result_persist_failed' }, 'leaderboard');
+  }
+
+  for (const d of docs) {
+    try {
+      await userStatsRepository.recordTabooResult({
+        userId: d.userId,
+        username: d.username,
+        won: d.won,
+        speakerRounds: d.speakerRounds,
+        correctGuessesAsSpeaker: d.correctGuessesAsSpeaker,
+        tabooViolations: d.tabooViolations,
+        guessesMade: d.guessesMade,
+        correctGuesses: d.correctGuesses,
+        recentPerformanceScore: d.recentPerformanceScore,
+      });
+    } catch (err) {
+      logger.warn({ err, userId: d.userId, event: 'user_stats_taboo_update_failed' }, 'leaderboard');
     }
   }
 }

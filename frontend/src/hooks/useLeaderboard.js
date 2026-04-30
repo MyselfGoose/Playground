@@ -8,6 +8,7 @@ const BOARD_PATHS = {
   "typing-wpm": "/api/v1/leaderboard/typing/wpm",
   "typing-accuracy": "/api/v1/leaderboard/typing/accuracy",
   npat: "/api/v1/leaderboard/npat",
+  taboo: "/api/v1/leaderboard/taboo",
 };
 
 /**

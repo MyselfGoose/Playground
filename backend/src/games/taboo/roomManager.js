@@ -2,6 +2,7 @@ import { createDeckProvider, createGameManager } from "./gameManager.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { persistTabooResults } from "../../services/leaderboardStatsService.js";
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -108,6 +109,18 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     }
   }
 
+  function maybePersistTabooFinished(room) {
+    if (!room?.game || room.game.status !== "finished") return;
+    if (room.tabooStatsPersisted) return;
+    room.tabooStatsPersisted = true;
+    void persistTabooResults({
+      code: room.code,
+      game: room.game,
+      players: room.players,
+      logger,
+    });
+  }
+
   function createRoom(socket, hostId, hostName, settings) {
     leaveRoom(socket, { hardLeave: true });
     let code = "";
@@ -138,6 +151,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       stateVersion: 1,
+      tabooStatsPersisted: false,
     };
     rooms.set(code, room);
     socketToCode.set(socket.id, code);
@@ -229,6 +243,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     me.ready = Boolean(ready);
     const started = game.maybeStartIfReady(room);
+    if (started) room.tabooStatsPersisted = false;
     bumpStateVersion(room);
     room.updatedAt = Date.now();
     return { room, started };
@@ -256,6 +271,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     if (room.hostId !== me.userId) throw Object.assign(new Error("Only host can start"), { code: "NOT_HOST" });
     if (!game.maybeStartIfReady(room)) throw Object.assign(new Error("All players must be ready and both teams non-empty"), { code: "READY_REQUIRED" });
+    room.tabooStatsPersisted = false;
     bumpStateVersion(room);
     room.updatedAt = Date.now();
     return room;
@@ -296,6 +312,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (reason === "turn_timeout") {
       game.advanceRoom(room);
     }
+    maybePersistTabooFinished(room);
     return { room, reason };
   }
 
@@ -308,6 +325,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
         bumpStateVersion(room);
         room.updatedAt = Date.now();
         updates.push({ code, reason });
+        maybePersistTabooFinished(room);
       }
     }
     return updates;

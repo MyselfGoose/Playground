@@ -31,6 +31,12 @@ const BOARDS = [
     subtitle: "Ranked by average score per game",
     explainer: "NPAT ranking is based on average AI-evaluated score per game, with at least 2 NPAT games required to appear.",
   },
+  {
+    key: "taboo",
+    label: "Taboo",
+    subtitle: "Ranked by individual contribution score",
+    explainer: "Taboo ranking is based on speaking skill, guessing accuracy, win consistency, and fair-play penalties (taboo violations). Minimum 3 completed Taboo games required.",
+  },
 ];
 
 function primaryMetric(board, entry) {
@@ -38,6 +44,7 @@ function primaryMetric(board, entry) {
   if (board === "typing-wpm") return { label: "WPM", value: (entry.typing_bestWpm ?? 0).toFixed(1) };
   if (board === "typing-accuracy") return { label: "Accuracy", value: `${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%` };
   if (board === "npat") return { label: "Avg Score", value: (entry.npat_averageScore ?? 0).toFixed(1) };
+  if (board === "taboo") return { label: "Score", value: (entry.taboo_score ?? 0).toFixed(1) };
   return { label: "Score", value: "—" };
 }
 
@@ -66,6 +73,14 @@ function boardStats(board, entry) {
       { label: "NPAT Wins", value: String(entry.npat_wins ?? 0) },
     ];
   }
+  if (board === "taboo") {
+    return [
+      { label: "Score", value: (entry.taboo_score ?? 0).toFixed(1) },
+      { label: "Win Rate", value: `${(entry.taboo_winRate ?? 0).toFixed(1)}%` },
+      { label: "Guess Accuracy", value: `${(entry.taboo_guessAccuracy ?? 0).toFixed(1)}%` },
+      { label: "Speaker Success", value: `${(entry.taboo_speakerSuccessRate ?? 0).toFixed(1)}%` },
+    ];
+  }
   return [
     { label: "Global Score", value: (entry.globalScore ?? 0).toFixed(1) },
     { label: "Typing Skill", value: `${(entry.breakdown?.typing ?? 0).toFixed(0)}%` },
@@ -79,6 +94,7 @@ function contributionBreakdown(entry) {
     typing: Math.round(Math.min((entry.typing_bestWpm ?? 0) / 150, 1) * 100),
     accuracy: Math.round(entry.typing_weightedAccuracy ?? 0),
     npat: Math.round(Math.min((entry.npat_averageScore ?? 0) / 35, 1) * 100),
+    taboo: Math.round(entry.taboo_score ?? 0),
     activity: Math.round(Math.min((entry.totalGames ?? 0) / 100, 1) * 100),
     consistency: 0,
   };
@@ -88,6 +104,7 @@ function contributionBreakdown(entry) {
 function badgeFor(entry) {
   if ((entry.totalGames ?? 0) <= 3) return "New Player";
   if ((entry.npat_winRate ?? 0) >= 70) return "High Win Rate";
+  if ((entry.taboo_score ?? 0) >= 80) return "Elite Taboo";
   if ((entry.typing_bestWpm ?? 0) >= 100) return "Speedster";
   return null;
 }
@@ -102,6 +119,7 @@ function explanationFromBreakdown(entry) {
     typing: "typing speed",
     accuracy: "accuracy",
     npat: "NPAT performance",
+    taboo: "Taboo contribution",
     activity: "overall activity",
     consistency: "consistency",
   };
@@ -130,6 +148,7 @@ export default function LeaderboardPage() {
     if (activeBoard === "typing-wpm") return myStats.data.typing?.wpmRank;
     if (activeBoard === "typing-accuracy") return myStats.data.typing?.accuracyRank;
     if (activeBoard === "npat") return myStats.data.npat?.npatRank;
+    if (activeBoard === "taboo") return myStats.data.taboo?.tabooRank;
     return null;
   })();
 
@@ -234,10 +253,11 @@ export default function LeaderboardPage() {
                     {activeBoard === "global" ? (
                       <>
                         <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Global contribution breakdown</p>
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-6">
                           <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
                           <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
                           <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
+                          <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
                           <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
                           <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
                         </div>
@@ -249,6 +269,7 @@ export default function LeaderboardPage() {
                           {activeBoard === "typing-wpm" && "Speed ranking favors high best WPM, with accuracy and race wins as supporting indicators."}
                           {activeBoard === "typing-accuracy" && "Accuracy ranking favors precision over volume; speed is shown as a supporting context signal."}
                           {activeBoard === "npat" && "NPAT ranking favors high average AI-evaluated scores, with win rate and games showing reliability."}
+                          {activeBoard === "taboo" && "Taboo ranking favors speaking success, guessing accuracy, and win consistency, with penalties for taboo violations."}
                         </p>
                       </>
                     )}
