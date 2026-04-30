@@ -134,7 +134,7 @@ function LoginForm() {
                   onFocus={() => setEmailFocused(true)}
                   onBlur={() => setEmailFocused(false)}
                   placeholder="you@example.com"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
                   animate={emailFocused ? { scale: 1.02 } : { scale: 1 }}
                 />
               </div>
@@ -152,7 +152,7 @@ function LoginForm() {
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => setPasswordFocused(false)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
                   animate={passwordFocused ? { scale: 1.02 } : { scale: 1 }}
                 />
               </div>

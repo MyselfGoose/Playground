@@ -26,14 +26,47 @@ export function Navbar() {
 
   const toggleTheme = () => {
     const html = document.documentElement;
-    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (isDarkMode) {
-      html.style.colorScheme = "light";
+    const currentDark = html.classList.contains("dark");
+    
+    if (currentDark) {
+      // Switch to light
+      html.classList.remove("dark");
+      html.classList.add("light");
+      localStorage.setItem("theme", "light");
+      setIsDark(false);
     } else {
-      html.style.colorScheme = "dark";
+      // Switch to dark
+      html.classList.remove("light");
+      html.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+      setIsDark(true);
     }
-    setIsDark(!isDark);
   };
+
+  useEffect(() => {
+    // Initialize theme on mount
+    const html = document.documentElement;
+    const saved = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    
+    if (saved === "light") {
+      html.classList.add("light");
+      html.classList.remove("dark");
+      setIsDark(false);
+    } else if (saved === "dark") {
+      html.classList.add("dark");
+      html.classList.remove("light");
+      setIsDark(true);
+    } else if (prefersDark) {
+      html.classList.add("dark");
+      html.classList.remove("light");
+      setIsDark(true);
+    } else {
+      html.classList.add("light");
+      html.classList.remove("dark");
+      setIsDark(false);
+    }
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted-bright/30 shadow-sm">

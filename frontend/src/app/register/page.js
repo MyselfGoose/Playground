@@ -109,7 +109,7 @@ function RegisterForm() {
                   onFocus={() => setUsernameFocused(true)}
                   onBlur={() => setUsernameFocused(false)}
                   placeholder="cool_player"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
                   animate={usernameFocused ? { scale: 1.02 } : { scale: 1 }}
                 />
                 <p className="mt-1 text-xs text-foreground/50">Letters, numbers, underscore, or hyphen</p>
@@ -128,7 +128,7 @@ function RegisterForm() {
                   onFocus={() => setEmailFocused(true)}
                   onBlur={() => setEmailFocused(false)}
                   placeholder="you@example.com"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
                   animate={emailFocused ? { scale: 1.02 } : { scale: 1 }}
                 />
               </div>
@@ -146,7 +146,7 @@ function RegisterForm() {
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => setPasswordFocused(false)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-muted-bright/20 border-2 border-muted-bright/40 text-foreground placeholder-foreground/40 outline-none transition-all focus:border-primary focus:bg-background focus:shadow-[0_0_0_4px_rgba(255,107,91,0.1)]"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
                   animate={passwordFocused ? { scale: 1.02 } : { scale: 1 }}
                 />
                 <p className="mt-1 text-xs text-foreground/50">12+ characters, mixed case, number, and symbol</p>

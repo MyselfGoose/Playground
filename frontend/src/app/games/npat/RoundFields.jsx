@@ -86,16 +86,16 @@ export function RoundFields({
     <section className="space-y-3">
       {showPresence && presence.length > 0 ? (
         <p
-          className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold leading-snug text-ink sm:text-sm"
+          className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold leading-snug text-foreground sm:text-sm"
           aria-label="Who has submitted all four answers"
         >
           {presence.map((p, i) => (
             <span key={p.userId}>
-              {i > 0 ? <span className="text-ink-muted"> · </span> : null}
-              <span className={p.done ? "text-emerald-700" : "text-ink"}>
+              {i > 0 ? <span className="text-foreground/50"> · </span> : null}
+              <span className={p.done ? "text-success" : "text-foreground"}>
                 {p.username}
-                {p.isSelf ? <span className="font-normal text-ink-muted"> (you)</span> : null}
-                <span className={p.done ? " text-emerald-700" : " text-amber-700"}>
+                {p.isSelf ? <span className="font-normal text-foreground/60"> (you)</span> : null}
+                <span className={p.done ? " text-success" : " text-warning"}>
                   {" "}
                   — {p.done ? "Done" : "Writing"}
                 </span>
@@ -114,9 +114,9 @@ export function RoundFields({
         return (
           <div
             key={key}
-            className="flex flex-col gap-2 rounded-[var(--radius-xl)] bg-white/85 p-4 shadow-[var(--shadow-card)] ring-2 ring-white/80"
+            className="flex flex-col gap-2 rounded-[var(--radius-xl)] bg-muted-bright/30 p-4 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40"
           >
-            <span className="text-sm font-extrabold uppercase tracking-wide text-ink-muted">{label}</span>
+            <span className="text-sm font-extrabold uppercase tracking-wide text-foreground/60">{label}</span>
             <input
               value={filled ? mine[key] : drafts[key]}
               disabled={disabled}
@@ -129,7 +129,7 @@ export function RoundFields({
                   void handleSubmit(key);
                 }
               }}
-              className="w-full rounded-2xl border-2 border-ink/10 bg-white px-3 py-2 text-ink outline-none focus:border-accent/40 disabled:bg-ink/5"
+              className="w-full rounded-[var(--radius-lg)] border-2 border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)] disabled:opacity-60"
               placeholder="Your answer…"
             />
             <Button
@@ -142,7 +142,7 @@ export function RoundFields({
               {filled ? "Saved" : isPending ? "Submitting…" : "Submit"}
             </Button>
             {err ? (
-              <span className="text-sm font-semibold text-red-700">{err}</span>
+              <span className="text-sm font-semibold text-error">{err}</span>
             ) : null}
           </div>
         );

@@ -168,7 +168,7 @@ export function FeedbackForm({
       </div>
 
       <div>
-        <label htmlFor="feedback-type" className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-muted">
+        <label htmlFor="feedback-type" className="mb-1 block text-xs font-bold uppercase tracking-wide text-foreground/60">
           Type
         </label>
         <select
@@ -176,7 +176,7 @@ export function FeedbackForm({
           value={type}
           disabled={disabled}
           onChange={(e) => setType(e.target.value)}
-          className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink shadow-sm outline-none ring-accent/0 transition-shadow focus:ring-2 focus:ring-accent/30"
+          className="w-full rounded-[var(--radius-lg)] border-2 border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-sm font-bold text-foreground shadow-sm outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)] disabled:opacity-60"
         >
           {TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -187,7 +187,7 @@ export function FeedbackForm({
       </div>
 
       <div>
-        <label htmlFor="feedback-title" className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-muted">
+        <label htmlFor="feedback-title" className="mb-1 block text-xs font-bold uppercase tracking-wide text-foreground/60">
           Title
         </label>
         <input
@@ -197,16 +197,16 @@ export function FeedbackForm({
           disabled={disabled}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink shadow-sm outline-none ring-accent/0 transition-shadow focus:ring-2 focus:ring-accent/30"
+          className="w-full rounded-[var(--radius-lg)] border-2 border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-sm font-bold text-foreground placeholder-[var(--input-placeholder)] shadow-sm outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)] disabled:opacity-60"
           placeholder="Short summary"
         />
-        {localErrors.title ? <p className="mt-1 text-xs font-bold text-red-600">{localErrors.title}</p> : null}
+        {localErrors.title ? <p className="mt-1 text-xs font-bold text-error">{localErrors.title}</p> : null}
       </div>
 
       <div>
         <label
           htmlFor="feedback-description"
-          className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-muted"
+          className="mb-1 block text-xs font-bold uppercase tracking-wide text-foreground/60"
         >
           Description
         </label>
@@ -217,27 +217,27 @@ export function FeedbackForm({
           disabled={disabled}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full resize-y rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-medium text-ink shadow-sm outline-none ring-accent/0 transition-shadow focus:ring-2 focus:ring-accent/30"
+          className="w-full resize-y rounded-[var(--radius-lg)] border-2 border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-sm font-medium text-foreground placeholder-[var(--input-placeholder)] shadow-sm outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)] disabled:opacity-60"
           placeholder="What happened? What did you expect?"
         />
         {localErrors.description ? (
-          <p className="mt-1 text-xs font-bold text-red-600">{localErrors.description}</p>
+          <p className="mt-1 text-xs font-bold text-error">{localErrors.description}</p>
         ) : null}
       </div>
 
       <div>
         <label
           htmlFor="feedback-screenshot"
-          className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-muted"
+          className="mb-1 block text-xs font-bold uppercase tracking-wide text-foreground/60"
         >
-          Screenshot <span className="font-medium normal-case text-ink-muted">(optional, max 1 MB)</span>
+          Screenshot <span className="font-medium normal-case text-foreground/60">(optional, max 1 MB)</span>
         </label>
         <input
           id="feedback-screenshot"
           type="file"
           accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
           disabled={disabled}
-          className="w-full text-sm font-medium text-ink file:mr-3 file:rounded-xl file:border-0 file:bg-accent/15 file:px-4 file:py-2 file:text-sm file:font-bold file:text-accent"
+          className="w-full text-sm font-medium text-foreground file:mr-3 file:rounded-[var(--radius-lg)] file:border-0 file:bg-primary/15 file:px-4 file:py-2 file:text-sm file:font-bold file:text-primary disabled:opacity-60"
           onChange={(e) => {
             const f = e.target.files?.[0];
             setScreenshotFromInput(f ?? null);
@@ -246,28 +246,28 @@ export function FeedbackForm({
         />
         {screenshotFile ? (
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <p className="text-xs font-medium text-ink-muted">
-              Selected: <span className="font-mono text-ink/80">{screenshotFile.name}</span>
+            <p className="text-xs font-medium text-foreground/60">
+              Selected: <span className="font-mono text-foreground/70">{screenshotFile.name}</span>
             </p>
             <button
               type="button"
               disabled={disabled}
               onClick={() => setScreenshotFromInput(null)}
-              className="text-xs font-bold text-accent underline-offset-2 hover:underline disabled:opacity-50"
+              className="text-xs font-bold text-primary underline-offset-2 hover:underline disabled:opacity-50"
             >
               Remove
             </button>
           </div>
         ) : null}
-        {localErrors.screenshot ? <p className="mt-1 text-xs font-bold text-red-600">{localErrors.screenshot}</p> : null}
+        {localErrors.screenshot ? <p className="mt-1 text-xs font-bold text-error">{localErrors.screenshot}</p> : null}
       </div>
 
       <div>
         <label
           htmlFor="feedback-email"
-          className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-muted"
+          className="mb-1 block text-xs font-bold uppercase tracking-wide text-foreground/60"
         >
-          Contact email <span className="font-medium normal-case text-ink-muted">(optional)</span>
+          Contact email <span className="font-medium normal-case text-foreground/60">(optional)</span>
         </label>
         <input
           id="feedback-email"
@@ -276,11 +276,11 @@ export function FeedbackForm({
           disabled={disabled}
           value={contactEmail}
           onChange={(e) => setContactEmail(e.target.value)}
-          className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink shadow-sm outline-none ring-accent/0 transition-shadow focus:ring-2 focus:ring-accent/30"
+          className="w-full rounded-[var(--radius-lg)] border-2 border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-sm font-bold text-foreground placeholder-[var(--input-placeholder)] shadow-sm outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)] disabled:opacity-60"
           placeholder="you@example.com"
         />
         {localErrors.contactEmail ? (
-          <p className="mt-1 text-xs font-bold text-red-600">{localErrors.contactEmail}</p>
+          <p className="mt-1 text-xs font-bold text-error">{localErrors.contactEmail}</p>
         ) : null}
       </div>
     </form>
