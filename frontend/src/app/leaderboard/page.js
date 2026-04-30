@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLeaderboard, useMyStats } from "../../hooks/useLeaderboard.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
@@ -155,148 +156,172 @@ export default function LeaderboardPage() {
   const boardMeta = BOARDS.find((b) => b.key === activeBoard) ?? BOARDS[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:py-16">
-      {/* Board selector */}
-      <div className="mb-8 flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-        {BOARDS.map((b) => (
-          <button
-            key={b.key}
-            onClick={() => switchBoard(b.key)}
-            className={`shrink-0 rounded-full px-4 py-2 text-xs font-extrabold whitespace-nowrap transition-all ${
-              activeBoard === b.key
-                ? "bg-primary text-white shadow-[var(--shadow-play)]"
-                : "bg-muted-bright/50 text-foreground ring-1 ring-muted-bright/40 hover:bg-muted-bright"
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground">{boardMeta.label}</h1>
-        <p className="mt-2 text-lg text-foreground/70">{boardMeta.subtitle}</p>
-        {user && myRank != null ? (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary/10 to-accent-pink/10 px-4 py-2 ring-1 ring-primary/30">
-            <span className="text-2xl">📍</span>
-            <span className="text-sm font-extrabold text-primary">You are ranked #{myRank}</span>
+    <div className="w-full min-h-screen flex flex-col">
+      {/* Fixed Header with Board Selector */}
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-muted-bright/30 py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* Board tabs - horizontal scroll */}
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 mb-6">
+            {BOARDS.map((b) => (
+              <button
+                key={b.key}
+                onClick={() => switchBoard(b.key)}
+                className={`shrink-0 px-5 py-2.5 rounded-full text-sm font-extrabold whitespace-nowrap transition-all duration-300 ${
+                  activeBoard === b.key
+                    ? "bg-primary text-white shadow-[var(--shadow-play)] scale-105"
+                    : "bg-muted-bright/40 text-foreground ring-1 ring-muted-bright/50 hover:ring-primary/50 hover:bg-muted-bright/60"
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
           </div>
-        ) : null}
+
+          {/* Page title */}
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">{boardMeta.label}</h1>
+          <p className="mt-1 text-base text-foreground/70">{boardMeta.subtitle}</p>
+        </div>
       </div>
 
-      {/* Explainer section */}
-      <section className="mb-8 rounded-[var(--radius-2xl)] bg-gradient-to-br from-muted-bright/30 to-transparent p-6 ring-2 ring-muted-bright/40">
-        <h2 className="text-base font-extrabold text-foreground">📖 How this ranking works</h2>
-        <p className="mt-3 text-sm text-foreground/70 leading-relaxed">{boardMeta.explainer}</p>
-      </section>
+      {/* Main Content */}
+      <div className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+        {/* User's Rank Position */}
+        {user && myRank != null ? (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-12 p-4 rounded-[var(--radius-xl)] bg-gradient-to-r from-accent-lemon/20 via-accent-pink/20 to-primary/20 ring-2 ring-accent-lemon/40 border border-accent-lemon/30"
+          >
+            <p className="text-center font-extrabold text-foreground">
+              <span className="text-2xl">📍</span> You&apos;re ranked <span className="text-primary">#{myRank}</span> on this board
+            </p>
+          </motion.div>
+        ) : null}
 
       {loading && entries.length === 0 ? (
-        <div className="flex items-center justify-center py-20 text-muted text-lg font-bold">Loading rankings…</div>
+        <div className="flex items-center justify-center py-24 text-muted text-lg font-bold">Loading rankings…</div>
       ) : error ? (
         <div className="rounded-[var(--radius-2xl)] bg-error/5 px-6 py-8 text-center text-sm font-bold text-error border border-error/20">{error}</div>
       ) : entries.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <div className="flex flex-col items-center gap-4 py-24 text-center">
+          <p className="text-3xl">🏆</p>
           <p className="text-2xl font-extrabold text-foreground">No rankings yet</p>
-          <p className="text-base text-foreground/70">Be the first to play and claim the top spot!</p>
+          <p className="text-base text-foreground/70 max-w-sm">Be the first to play and claim the top spot!</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {entries.map((entry, index) => {
-            const pm = primaryMetric(activeBoard, entry);
-            const breakdown = contributionBreakdown(entry);
-            const badge = badgeFor(entry);
-            const expanded = expandedId === entry.userId;
-            const stats = boardStats(activeBoard, entry);
-            const getMedal = () => {
-              if (entry.rank === 1) return "🥇";
-              if (entry.rank === 2) return "🥈";
-              if (entry.rank === 3) return "🥉";
-              return null;
-            };
-            return (
-              <article
-                key={entry.userId}
-                className="rounded-[var(--radius-2xl)] bg-gradient-to-r from-muted-bright/20 to-transparent p-5 ring-2 ring-muted-bright/40 transition-all hover:ring-primary/40 hover:scale-102"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-gradient-to-br from-primary/20 to-accent-pink/20 text-2xl font-extrabold">
-                    {getMedal() || `#${entry.rank}`}
-                  </div>
-                  <Link href={`/profile/${entry.userId}`} className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3">
-                      <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-extrabold text-foreground">{entry.username}</p>
-                        {badge ? (
-                          <span className="inline-flex rounded-full bg-accent-lemon/30 px-2 py-0.5 text-[10px] font-bold text-foreground ring-1 ring-accent-lemon/40">
-                            {badge}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </Link>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-bold uppercase tracking-wide text-muted">{pm.label}</p>
-                    <p className="text-2xl font-extrabold bg-gradient-to-r from-primary to-accent-pink bg-clip-text text-transparent">{pm.value}</p>
-                  </div>
-                </div>
+        <>
+          {/* TOP 3 PODIUM SPOTLIGHT */}
+          <TopThreePodium entries={entries} pm={primaryMetric} />
 
-                <p className="mt-4 text-sm text-foreground/70 leading-relaxed">{explanationFromBreakdown(entry)}</p>
+          {/* REST OF THE RANKINGS - FLOWING FEED */}
+          <div className="mt-16">
+            <h2 className="text-xl font-extrabold text-foreground mb-6 text-center">The Chase</h2>
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {entries.slice(3).map((entry, index) => {
+                const pm = primaryMetric(activeBoard, entry);
+                const badge = badgeFor(entry);
+                const expanded = expandedId === entry.userId;
+                const stats = boardStats(activeBoard, entry);
+                const breakdown = contributionBreakdown(entry);
 
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                  {stats.map((s) => (
-                    <Metric key={s.label} label={s.label} value={s.value} />
-                  ))}
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-full px-4 py-2 text-xs font-bold text-primary ring-2 ring-primary/30 transition-all hover:ring-primary/60"
+                return (
+                  <motion.article
+                    key={entry.userId}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group cursor-pointer"
                     onClick={() => setExpandedId(expanded ? null : entry.userId)}
                   >
-                    {expanded ? "Hide details" : "Show more"}
-                  </button>
-                  <Link
-                    href={`/profile/${entry.userId}`}
-                    className="rounded-full px-4 py-2 text-xs font-bold bg-primary text-white transition-all hover:bg-primary-dark"
-                  >
-                    View profile
-                  </Link>
-                </div>
-
-                {expanded ? (
-                  <div className="mt-4 rounded-[var(--radius-xl)] bg-muted-bright/20 p-4 ring-1 ring-muted-bright/40">
-                    {activeBoard === "global" ? (
-                      <>
-                        <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Global contribution breakdown</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-6">
-                          <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
-                          <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
-                          <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
-                          <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
-                          <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
-                          <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
+                    {/* Main card */}
+                    <div className="rounded-[var(--radius-xl)] bg-gradient-to-r from-background via-muted-bright/20 to-transparent p-5 ring-2 ring-muted-bright/40 transition-all duration-300 group-hover:ring-primary/40 group-hover:bg-gradient-to-r group-hover:from-background group-hover:via-primary/10 group-hover:to-accent-pink/5">
+                      <div className="flex items-center gap-4">
+                        {/* Rank badge */}
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-muted-bright/40 font-extrabold text-foreground text-sm group-hover:bg-primary/20 group-hover:text-primary transition-all duration-300">
+                          #{entry.rank}
                         </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Category insight</p>
-                        <p className="text-xs text-foreground/70 leading-relaxed">
-                          {activeBoard === "typing-wpm" && "Speed ranking favors high best WPM, with accuracy and race wins as supporting indicators."}
-                          {activeBoard === "typing-accuracy" && "Accuracy ranking favors precision over volume; speed is shown as a supporting context signal."}
-                          {activeBoard === "npat" && "NPAT ranking favors high average AI-evaluated scores, with win rate and games showing reliability."}
-                          {activeBoard === "taboo" && "Taboo ranking favors speaking success, guessing accuracy, and win consistency, with penalties for taboo violations."}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
+
+                        {/* Player info */}
+                        <Link
+                          href={`/profile/${entry.userId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="min-w-0 flex-1"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
+                            <div className="min-w-0">
+                              <p className="truncate text-base font-bold text-foreground group-hover:text-primary transition-colors">{entry.username}</p>
+                              {badge ? (
+                                <span className="inline-flex rounded-full bg-accent-lemon/20 px-2 py-0.5 text-xs font-bold text-foreground ring-1 ring-accent-lemon/40">
+                                  {badge}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </Link>
+
+                        {/* Primary metric - large and prominent */}
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1">{pm.label}</p>
+                          <p className="text-2xl font-black text-primary">{pm.value}</p>
+                        </div>
+                      </div>
+
+                      {/* Mini stats row */}
+                      <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
+                        {stats.slice(0, 4).map((s) => (
+                          <div key={s.label} className="text-center">
+                            <p className="text-muted font-bold">{s.label}</p>
+                            <p className="font-extrabold text-foreground mt-0.5">{s.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Expanded details */}
+                    <AnimatePresence>
+                      {expanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="mt-2 overflow-hidden"
+                        >
+                          <div className="rounded-[var(--radius-lg)] bg-accent-lemon/5 p-4 ring-1 ring-accent-lemon/40">
+                            <p className="text-sm text-foreground/70 leading-relaxed mb-4">{explanationFromBreakdown(entry)}</p>
+                            
+                            {activeBoard === "global" ? (
+                              <>
+                                <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Breakdown</p>
+                                <div className="grid grid-cols-3 gap-3 text-xs">
+                                  <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
+                                  <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
+                                  <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
+                                  <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
+                                  <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
+                                  <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
+                                </div>
+                              </>
+                            ) : null}
+
+                            <Link
+                              href={`/profile/${entry.userId}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-xs font-bold text-white transition-all hover:bg-primary-dark"
+                            >
+                              View full profile
+                            </Link>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
 
       {total > 25 ? (
@@ -322,10 +347,98 @@ export default function LeaderboardPage() {
   );
 }
 
+function TopThreePodium({ entries, pm }) {
+  const top3 = entries.slice(0, 3);
+
+  // Position: 2nd, 1st, 3rd (visual arrangement for podium effect)
+  const podiumOrder = [
+    { index: 1, position: "left", height: "h-32" },
+    { index: 0, position: "center", height: "h-48" },
+    { index: 2, position: "right", height: "h-24" },
+  ];
+
+  return (
+    <div className="relative mx-auto max-w-2xl mb-16">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-black text-foreground">Elite Leaders</h2>
+        <p className="text-sm text-foreground/60 mt-1">The champions above all</p>
+      </div>
+
+      <div className="relative flex items-end justify-center gap-4 h-56 perspective">
+        {podiumOrder.map(({ index, position, height }) => {
+          const entry = top3[index];
+          if (!entry) return null;
+
+          const medals = ["🥇", "🥈", "🥉"];
+          const metric = primaryMetric("global", entry);
+          const isFirst = index === 0;
+
+          return (
+            <motion.div
+              key={entry.userId}
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 200,
+                damping: 25,
+                delay: index * 0.15,
+              }}
+              whileHover={{ y: -8 }}
+              className={`relative flex-1 max-w-xs ${position === "center" ? "order-2" : position === "left" ? "order-1" : "order-3"}`}
+            >
+              {/* Podium base */}
+              <div
+                className={`${height} rounded-t-[var(--radius-xl)] transition-all duration-300 ${
+                  isFirst
+                    ? "bg-gradient-to-b from-primary/40 via-primary/20 to-primary/10 ring-2 ring-primary/60 shadow-[0_-4px_16px_rgba(255,107,91,0.3)]"
+                    : "bg-gradient-to-b from-muted-bright/40 to-muted-bright/10 ring-2 ring-muted-bright/50"
+                }`}
+              />
+
+              {/* Card floating above podium */}
+              <Link
+                href={`/profile/${entry.userId}`}
+                className="absolute -top-24 left-1/2 -translate-x-1/2 w-full max-w-xs"
+              >
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  className={`rounded-[var(--radius-2xl)] p-4 ring-2 ${
+                    isFirst
+                      ? "bg-gradient-to-br from-primary/30 to-accent-pink/20 ring-primary/60 shadow-[var(--shadow-play)]"
+                      : "bg-background ring-muted-bright/60 shadow-[var(--shadow-md)]"
+                  } text-center`}
+                >
+                  <div className="text-3xl mb-2">{medals[index]}</div>
+                  <Avatar
+                    username={entry.username}
+                    src={entry.avatarUrl}
+                    size="md"
+                    className="mx-auto mb-2"
+                  />
+                  <p className="font-extrabold text-foreground text-sm truncate">
+                    {entry.username}
+                  </p>
+                  <p className={`text-2xl font-black mt-2 ${isFirst ? "text-primary" : "text-foreground"}`}>
+                    {metric.value}
+                  </p>
+                  <p className="text-xs text-foreground/60 uppercase tracking-wide font-bold mt-1">
+                    {metric.label}
+                  </p>
+                </motion.div>
+              </Link>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Metric({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-md)] bg-muted-bright/30 px-3 py-2.5 ring-1 ring-muted-bright/40">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-muted">{label}</p>
+    <div className="rounded-[var(--radius-lg)] bg-muted-bright/30 px-3 py-2.5 ring-1 ring-muted-bright/40 text-center">
+      <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1.5 text-sm font-extrabold text-foreground">{value}</p>
     </div>
   );
