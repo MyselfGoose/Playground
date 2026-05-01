@@ -1,13 +1,13 @@
 import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
-  CAH_HAND_SIZE_LIMIT,
   CAH_MAX_ROUNDS_LIMIT,
 } from './constants.js';
 import {
   createCahRoom,
   judgePickWinner,
   nextRound,
+  reconcileRoomAfterMembershipChange,
   snapshotFor,
   startGame,
   submitCards,
@@ -29,11 +29,10 @@ function normalizeCode(code) {
 
 function normalizeSettings(input = {}) {
   const maxRounds = Number(input.maxRounds ?? CAH_DEFAULT_MAX_ROUNDS);
-  const handSize = Number(input.handSize ?? CAH_DEFAULT_HAND_SIZE);
   const packs = Array.isArray(input.packs) ? [...new Set(input.packs.map((p) => String(p).trim()).filter(Boolean))] : [];
   return {
     maxRounds: Math.max(1, Math.min(CAH_MAX_ROUNDS_LIMIT, Number.isFinite(maxRounds) ? maxRounds : CAH_DEFAULT_MAX_ROUNDS)),
-    handSize: Math.max(3, Math.min(CAH_HAND_SIZE_LIMIT, Number.isFinite(handSize) ? handSize : CAH_DEFAULT_HAND_SIZE)),
+    handSize: CAH_DEFAULT_HAND_SIZE,
     packs,
   };
 }
@@ -77,8 +76,8 @@ export function createCahRoomManager({ cahNs }) {
     }
   }
 
-  function createRoom(socket, settings) {
-    leaveRoom(socket, { hardLeave: true });
+  async function createRoom(socket, settings) {
+    await leaveRoom(socket, { hardLeave: true });
     let code = '';
     for (let i = 0; i < 40; i += 1) {
       const candidate = randomCode();
@@ -100,7 +99,7 @@ export function createCahRoomManager({ cahNs }) {
     return room;
   }
 
-  function joinRoom(socket, code) {
+  async function joinRoom(socket, code) {
     const normalized = normalizeCode(code);
     if (normalized.length !== 4) throw Object.assign(new Error('Invalid room code'), { code: 'VALIDATION_ERROR' });
     const room = rooms.get(normalized);
@@ -109,7 +108,7 @@ export function createCahRoomManager({ cahNs }) {
     if (!existing && room.game && room.game.status !== 'finished' && room.game.status !== 'lobby') {
       throw Object.assign(new Error('Game already in progress'), { code: 'ROOM_LOCKED' });
     }
-    leaveRoom(socket, { hardLeave: false });
+    await leaveRoom(socket, { hardLeave: false });
     if (existing) {
       existing.connected = true;
       existing.username = socket.data.username;
@@ -131,7 +130,7 @@ export function createCahRoomManager({ cahNs }) {
     return room;
   }
 
-  function leaveRoom(socket, { hardLeave }) {
+  async function leaveRoom(socket, { hardLeave }) {
     const code = socketToCode.get(socket.id);
     if (!code) return;
     const room = rooms.get(code);
@@ -156,40 +155,16 @@ export function createCahRoomManager({ cahNs }) {
         player.connected = false;
       }
       if (room.hostId === socket.data.userId && room.players.length) {
-        room.hostId = room.players[0].userId;
+        const connectedHost = room.players.find((p) => p.connected !== false);
+        room.hostId = connectedHost?.userId ?? room.players[0].userId;
       }
-      if (!hardLeave && room.game?.status === 'judging' && room.game.judgeUserId === socket.data.userId) {
-        const connected = room.players.find((p) => p.connected !== false && p.userId !== socket.data.userId);
-        if (connected) room.game.judgeUserId = connected.userId;
-      }
-      if (!hardLeave && room.game?.status === 'submitting') {
-        const nonJudgeConnected = room.players.filter(
-          (p) => p.userId !== room.game.judgeUserId && p.connected !== false,
-        );
-        if (room.game.submissions.length >= nonJudgeConnected.length) {
-          if (room.players.length === 2 && !room.game.submissions.some((s) => s.cpu)) {
-            const judgeHand = room.players.find((p) => p.userId === room.game.judgeUserId)?.hand ?? [];
-            const pick = room.game.blackCard?.pick ?? 1;
-            const cpuCards = judgeHand.slice(0, pick);
-            if (cpuCards.length === pick) {
-              room.game.submissions.push({
-                submissionId: `cpu_${Date.now()}`,
-                userId: 'cpu_submission',
-                cards: cpuCards,
-                cpu: true,
-              });
-            }
-          }
-          room.game.submissions = room.game.submissions.sort(() => Math.random() - 0.5);
-          room.game.status = 'judging';
-        }
-      }
+      await reconcileRoomAfterMembershipChange(room);
       bumpStateVersion(room);
     }
     if (!room.players.length) rooms.delete(code);
   }
 
-  function attachActiveRoomForUser(socket) {
+  async function attachActiveRoomForUser(socket) {
     const code = userToCode.get(socket.data.userId);
     if (!code) return null;
     const room = rooms.get(code);
@@ -200,9 +175,14 @@ export function createCahRoomManager({ cahNs }) {
     trackUserSocket(socket.data.userId, socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) player.connected = true;
+    await reconcileRoomAfterMembershipChange(room);
     bumpStateVersion(room);
     return room;
   }
+  function reconcileRoomAfterMembership(room) {
+    return reconcileRoomAfterMembershipChange(room);
+  }
+
 
   function setReady(socket, ready) {
     const room = getRoomForSocket(socket);
@@ -287,6 +267,7 @@ export function createCahRoomManager({ cahNs }) {
     snapshotForSocket,
     getRoomForSocket,
     attachActiveRoomForUser,
+    reconcileRoomAfterMembership,
     emitRoom,
     shutdown,
   };

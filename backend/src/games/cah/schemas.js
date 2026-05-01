@@ -3,7 +3,6 @@ import { z } from 'zod';
 export const cahCreateRoomSchema = z
   .object({
     maxRounds: z.number().int().min(1).max(20).optional(),
-    handSize: z.number().int().min(3).max(10).optional(),
     packs: z.array(z.string().trim().min(1)).max(20).optional(),
   })
   .strict();
@@ -23,14 +22,13 @@ export const cahSetReadySchema = z
 export const cahUpdateSettingsSchema = z
   .object({
     maxRounds: z.number().int().min(1).max(20).optional(),
-    handSize: z.number().int().min(3).max(10).optional(),
     packs: z.array(z.string().trim().min(1)).max(20).optional(),
   })
   .strict();
 
 export const cahSubmitCardsSchema = z
   .object({
-    cardIds: z.array(z.number().int().positive()).min(1).max(3),
+    cardIds: z.array(z.number().int().positive()).min(1),
   })
   .strict();
 

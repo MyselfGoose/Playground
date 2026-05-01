@@ -84,15 +84,105 @@ function mapPublicPlayers(room) {
   }));
 }
 
+function activePlayers(room) {
+  return room.players.filter((p) => p.connected !== false);
+}
+
 function isJudge(room, userId) {
-  return room.game && room.game.judgeUserId === userId;
+  return room.game?.judgeUserId === userId;
+}
+
+function expectedSubmitterIds(room) {
+  if (!room.game) return [];
+  return activePlayers(room)
+    .map((p) => p.userId)
+    .filter((id) => id !== room.game.judgeUserId);
+}
+
+function ensureJudgeConnected(room) {
+  const game = room.game;
+  if (!game) return;
+  const judge = room.players.find((p) => p.userId === game.judgeUserId);
+  if (judge && judge.connected !== false) return;
+  const candidate = nextJudge(room.players, game.judgeUserId);
+  game.judgeUserId = candidate;
+}
+
+async function finalizeSubmissionsIfReady(room) {
+  const game = room.game;
+  if (!game || game.status !== 'submitting') return;
+  const expectedIds = expectedSubmitterIds(room);
+  if (expectedIds.length === 0) {
+    game.status = 'waiting_players';
+    return;
+  }
+  game.submissions = game.submissions.filter((s) => expectedIds.includes(s.userId));
+  if (game.submissions.length < expectedIds.length) return;
+  game.submissions = game.submissions.sort(() => Math.random() - 0.5);
+  game.status = 'judging';
+}
+
+async function refillHandsForRound(room) {
+  const game = room.game;
+  if (!game) return;
+  const expectedIds = expectedSubmitterIds(room);
+  for (const userId of expectedIds) {
+    const player = room.players.find((p) => p.userId === userId);
+    if (!player || player.connected === false) continue;
+    const hand = Array.isArray(player.hand) ? player.hand : [];
+    const missing = Math.max(0, room.settings.handSize - hand.length);
+    if (missing <= 0) continue;
+    const draw = await drawRandomWhiteCards(room, userId, missing);
+    room.usedWhiteSourceIdsByUser.set(
+      userId,
+      new Set([...(room.usedWhiteSourceIdsByUser.get(userId) ?? new Set()), ...draw.map((c) => c.sourceId)]),
+    );
+    player.hand = [...hand, ...draw.map((c) => ({ sourceId: c.sourceId, text: c.text, pack: c.pack }))];
+  }
+}
+
+export async function reconcileRoomAfterMembershipChange(room) {
+  const game = room.game;
+  if (!game || game.status === 'finished') return;
+  const active = activePlayers(room);
+  if (active.length < CAH_MIN_PLAYERS) {
+    game.status = 'waiting_players';
+    return;
+  }
+
+  ensureJudgeConnected(room);
+
+  const eligible = new Set(expectedSubmitterIds(room));
+  game.submissions = game.submissions.filter((s) => eligible.has(s.userId));
+
+  if (game.status === 'waiting_players') {
+    if (!game.blackCard) {
+      await setupRound(room);
+      return;
+    }
+    await refillHandsForRound(room);
+    game.status = 'submitting';
+    await finalizeSubmissionsIfReady(room);
+    return;
+  }
+
+  if (game.status === 'submitting') {
+    await finalizeSubmissionsIfReady(room);
+    return;
+  }
+
+  if (game.status === 'judging') {
+    if (!game.submissions.length) {
+      game.status = 'submitting';
+    }
+  }
 }
 
 function viewerPermissions(room, userId) {
   const inRoom = room.players.some((p) => p.userId === userId);
   const me = room.players.find((p) => p.userId === userId);
   const status = room.game?.status ?? 'lobby';
-  const submitted = room.game?.submissions.some((s) => s.userId === userId);
+  const submitted = room.game?.submissions.some((s) => s.userId === userId) ?? false;
   return {
     canStart: inRoom && room.hostId === userId && status === 'lobby',
     canUpdateSettings: inRoom && room.hostId === userId && status === 'lobby',
@@ -132,9 +222,9 @@ export function createCahRoom(hostId, hostName, settings = {}) {
 }
 
 export async function startGame(room) {
-  const activePlayers = room.players.filter((p) => p.connected !== false);
-  if (activePlayers.length < CAH_MIN_PLAYERS) {
-    throw Object.assign(new Error('Need at least 2 connected players'), { code: 'NOT_ENOUGH_PLAYERS' });
+  const active = activePlayers(room);
+  if (active.length < CAH_MIN_PLAYERS) {
+    throw Object.assign(new Error('Minimum 3 players required to start'), { code: 'MIN_PLAYERS_REQUIRED' });
   }
   if (!room.players.every((p) => p.ready)) {
     throw Object.assign(new Error('All players must be ready'), { code: 'READY_REQUIRED' });
@@ -147,7 +237,7 @@ export async function startGame(room) {
   room.game = {
     status: 'dealing',
     roundIndex: 0,
-    judgeUserId: room.players[0]?.userId ?? null,
+    judgeUserId: nextJudge(room.players, null),
     blackCard: null,
     submissions: [],
     winnerUserId: null,
@@ -162,6 +252,12 @@ export async function startGame(room) {
 export async function setupRound(room) {
   if (!room.game) throw Object.assign(new Error('Game not started'), { code: 'GAME_NOT_STARTED' });
   const game = room.game;
+  const active = activePlayers(room);
+  if (active.length < CAH_MIN_PLAYERS) {
+    game.status = 'waiting_players';
+    return;
+  }
+  game.judgeUserId = nextJudge(room.players, game.judgeUserId);
   game.roundIndex += 1;
   game.status = 'dealing';
   game.submissions = [];
@@ -176,6 +272,7 @@ export async function setupRound(room) {
   game.blackCard = { sourceId: black.sourceId, text: black.text, pick: black.pick, pack: black.pack };
 
   for (const p of room.players) {
+    if (p.connected === false) continue;
     if (p.userId === game.judgeUserId) continue;
     const draw = await drawRandomWhiteCards(room, p.userId, room.settings.handSize);
     room.usedWhiteSourceIdsByUser.set(
@@ -185,7 +282,8 @@ export async function setupRound(room) {
     p.hand = draw.map((c) => ({ sourceId: c.sourceId, text: c.text, pack: c.pack }));
   }
 
-  game.status = 'submitting';
+  const expectedIds = expectedSubmitterIds(room);
+  game.status = expectedIds.length ? 'submitting' : 'waiting_players';
 }
 
 export async function submitCards(room, userId, cardIds) {
@@ -219,26 +317,10 @@ export async function submitCards(room, userId, cardIds) {
     submissionId: crypto.randomUUID(),
     userId,
     cards: selectedCards,
-    cpu: false,
   };
   room.game.submissions.push(submission);
 
-  const nonJudgeConnected = room.players.filter((p) => p.userId !== room.game.judgeUserId && p.connected !== false);
-  if (room.game.submissions.length >= nonJudgeConnected.length) {
-    if (room.players.length === 2) {
-      const cpuCards = await drawRandomWhiteCards(room, '__cpu__', pick);
-      if (cpuCards.length === pick) {
-        room.game.submissions.push({
-          submissionId: `cpu_${crypto.randomUUID()}`,
-          userId: 'cpu_submission',
-          cards: cpuCards.map((c) => ({ sourceId: c.sourceId, text: c.text, pack: c.pack })),
-          cpu: true,
-        });
-      }
-    }
-    room.game.submissions = room.game.submissions.sort(() => Math.random() - 0.5);
-    room.game.status = 'judging';
-  }
+  await finalizeSubmissionsIfReady(room);
 }
 
 export function judgePickWinner(room, judgeUserId, submissionId) {
@@ -250,11 +332,6 @@ export function judgePickWinner(room, judgeUserId, submissionId) {
   }
   const selected = room.game.submissions.find((s) => s.submissionId === submissionId);
   if (!selected) throw Object.assign(new Error('Submission not found'), { code: 'SUBMISSION_NOT_FOUND' });
-  if (selected.cpu) {
-    throw Object.assign(new Error('CPU submission cannot win, pick a player submission'), {
-      code: 'CPU_CANNOT_WIN',
-    });
-  }
   const winner = room.players.find((p) => p.userId === selected.userId);
   if (!winner) throw Object.assign(new Error('Winner player not found'), { code: 'PLAYER_NOT_FOUND' });
   winner.score += 1;
@@ -272,7 +349,6 @@ export function judgePickWinner(room, judgeUserId, submissionId) {
       submissionId: s.submissionId,
       userId: s.userId,
       cards: s.cards,
-      cpu: s.cpu,
     })),
   });
 }
@@ -286,7 +362,6 @@ export async function nextRound(room) {
     room.game.status = 'finished';
     return;
   }
-  room.game.judgeUserId = nextJudge(room.players, room.game.judgeUserId);
   await setupRound(room);
 }
 
@@ -313,7 +388,9 @@ export function snapshotFor(room, viewerUserId) {
     ? game.submissions.map((s) => ({
         submissionId: s.submissionId,
         cards: s.cards,
-        ...(shouldRevealAll ? { userId: s.userId, username: room.players.find((p) => p.userId === s.userId)?.username ?? (s.cpu ? 'House Hand' : 'Unknown'), cpu: s.cpu } : {}),
+        ...(shouldRevealAll
+          ? { userId: s.userId, username: room.players.find((p) => p.userId === s.userId)?.username ?? 'Unknown' }
+          : {}),
       }))
     : [];
 
@@ -321,15 +398,16 @@ export function snapshotFor(room, viewerUserId) {
     ...base,
     game: {
       status: game.status,
+      phase: game.status,
       roundIndex: game.roundIndex,
       maxRounds: room.settings.maxRounds,
       judgeUserId: game.judgeUserId,
       blackCard: game.blackCard,
       hand: Array.isArray(me?.hand) ? me.hand : [],
       submissions: publicSubmissions,
-      submittedCount: game.submissions.filter((s) => !s.cpu).length,
-      totalExpectedSubmissions: room.players.filter((p) => p.userId !== game.judgeUserId && p.connected !== false)
-        .length,
+      submittedCount: game.submissions.length,
+      expectedSubmitters: expectedSubmitterIds(room),
+      totalExpectedSubmissions: expectedSubmitterIds(room).length,
       winnerUserId: shouldRevealAll ? game.winnerUserId : null,
       winnerSubmissionId: shouldRevealAll ? game.winnerSubmissionId : null,
       roundHistory: game.roundHistory,

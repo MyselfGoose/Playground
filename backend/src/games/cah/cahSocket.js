@@ -32,15 +32,15 @@ export function installCahSocketServer({ cahNs, registry, logger, tokenService }
     }
   });
 
-  cahNs.on('connection', (socket) => {
-    const room = registry.attachActiveRoomForUser(socket);
+  cahNs.on('connection', async (socket) => {
+    const room = await registry.attachActiveRoomForUser(socket);
     if (room) {
       socket.emit('session_resumed', { room: registry.snapshotForSocket(socket) });
       registry.emitRoom(room.code, 'session_resumed');
     }
     installCahHandlers({ socket, registry, logger });
-    socket.on('disconnect', () => {
-      registry.leaveRoom(socket, { hardLeave: false });
+    socket.on('disconnect', async () => {
+      await registry.leaveRoom(socket, { hardLeave: false });
     });
   });
 }

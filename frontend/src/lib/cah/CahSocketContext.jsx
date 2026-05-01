@@ -47,6 +47,7 @@ export function CahProvider({ children }) {
   const { user, loading } = useUser();
   const [room, setRoom] = useState(null);
   const [connectionState, setConnectionState] = useState("disconnected");
+  const [syncState, setSyncState] = useState("joining");
   const [socketError, setSocketError] = useState(!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null);
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
@@ -79,16 +80,25 @@ export function CahProvider({ children }) {
     socket.on("connect", () => {
       setConnectionState("connected");
       setSocketError(null);
+      setSyncState("syncing");
       void emitAck(socket, "get_room_state", {}).then((result) => {
         if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
+        setSyncState("ready");
       });
     });
-    socket.on("disconnect", () => setConnectionState("disconnected"));
+    socket.on("disconnect", () => {
+      setConnectionState("disconnected");
+      setSyncState("syncing");
+    });
     socket.on("connect_error", (err) => {
       setConnectionState("reconnecting");
       setSocketError(err?.message ?? "Could not connect");
+      setSyncState("syncing");
     });
-    socket.on("reconnect", () => setConnectionState("connected"));
+    socket.on("reconnect", () => {
+      setConnectionState("connected");
+      setSyncState("syncing");
+    });
     socket.on("room_update", onRoomPayload);
     socket.on("session_resumed", onRoomPayload);
 
@@ -97,6 +107,7 @@ export function CahProvider({ children }) {
       socket.disconnect();
       socketRef.current = null;
       setConnectionState("disconnected");
+      setSyncState("joining");
       setRoom(null);
       roomVersionRef.current = 0;
     };
@@ -131,6 +142,7 @@ export function CahProvider({ children }) {
       room,
       connected: connectionState === "connected",
       connectionState,
+      syncState,
       socketError,
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
@@ -145,7 +157,7 @@ export function CahProvider({ children }) {
       nextRound: () => send("next_round", {}),
       getRoomState: () => send("get_room_state", {}),
     }),
-    [room, connectionState, socketError, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send],
+    [room, connectionState, syncState, socketError, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send],
   );
 
   return <CahContext.Provider value={value}>{children}</CahContext.Provider>;
