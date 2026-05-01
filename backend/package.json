@@ -9,6 +9,8 @@
     "start": "node src/index.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/dbReset.js",
+    "db:import:cah": "node scripts/importCah.js",
+    "db:validate:cah": "node scripts/validateCahImport.js",
     "test": "node --test src/games/typing-race/*.test.js src/services/*.test.js"
   },
   "keywords": [],
