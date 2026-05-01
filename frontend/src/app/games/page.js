@@ -6,13 +6,14 @@ import { motion } from "framer-motion";
 import { Button } from "../../components/Button.jsx";
 
 export default function GamesPage() {
-  const playableGames = GAMES.filter(g => ["name-place-animal-thing", "typing-race", "taboo"].includes(g.id));
-  const comingSoonGames = GAMES.filter(g => !["name-place-animal-thing", "typing-race", "taboo"].includes(g.id));
+  const playableGames = GAMES.filter(g => ["name-place-animal-thing", "typing-race", "taboo", "cards-against-humanity"].includes(g.id));
+  const comingSoonGames = GAMES.filter(g => !["name-place-animal-thing", "typing-race", "taboo", "cards-against-humanity"].includes(g.id));
 
   const getGameLink = (gameId) => {
     if (gameId === "name-place-animal-thing") return "/games/npat";
     if (gameId === "typing-race") return "/games/typing-race";
     if (gameId === "taboo") return "/games/taboo";
+    if (gameId === "cards-against-humanity") return "/games/cah";
     return "/games";
   };
 

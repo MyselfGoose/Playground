@@ -24,6 +24,13 @@ export const GAMES = [
     accent: "peach",
   },
   {
+    id: "cards-against-humanity",
+    title: "Cards Against Humanity",
+    description: "Fill the blank, judge the chaos, and laugh your way to victory.",
+    emoji: "🃏",
+    accent: "lavender",
+  },
+  {
     id: "trivia",
     title: "Trivia Game",
     description: "Brainy vibes, buzzer energy, and surprise categories.",

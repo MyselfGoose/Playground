@@ -42,7 +42,8 @@ export function GameCard({ game, index }) {
   const isNpat = game.id === "name-place-animal-thing";
   const isTypingRace = game.id === "typing-race";
   const isTaboo = game.id === "taboo";
-  const isPlayable = isNpat || isTypingRace || isTaboo;
+  const isCah = game.id === "cards-against-humanity";
+  const isPlayable = isNpat || isTypingRace || isTaboo || isCah;
 
   return (
     <motion.article
@@ -114,6 +115,7 @@ export function GameCard({ game, index }) {
                 if (isNpat) router.push("/games/npat");
                 else if (isTypingRace) router.push("/games/typing-race");
                 else if (isTaboo) router.push("/games/taboo");
+                else if (isCah) router.push("/games/cah");
               }}
             >
               Play Now

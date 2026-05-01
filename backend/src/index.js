@@ -126,7 +126,7 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime } = attachSocketIo({ server, env, logger });
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime } = attachSocketIo({ server, env, logger });
   bootTrace('TRACE_AFTER_SOCKET_IO');
 
   scheduleNpatBootHydrateWhenMongoReady(registry, logger);
@@ -155,6 +155,11 @@ async function main() {
         tabooRuntime.close();
       } catch (err) {
         logger.warn({ err, event: 'taboo_shutdown_error' }, 'taboo');
+      }
+      try {
+        cahRuntime.close();
+      } catch (err) {
+        logger.warn({ err, event: 'cah_shutdown_error' }, 'cah');
       }
       try {
         await registry.flushAll();
