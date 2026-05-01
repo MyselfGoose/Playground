@@ -2,25 +2,44 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { Avatar } from "../../../components/Avatar.jsx";
 import { useUserProfile } from "../../../hooks/useLeaderboard.js";
 
-function StatCard({ title, children }) {
+function SurfaceCard({ title, subtitle, children, className = "" }) {
   return (
-    <section className="rounded-3xl border border-muted-bright/60 bg-background/80 p-4 shadow-[var(--shadow-card)] backdrop-blur-sm">
-      <h2 className="text-sm font-extrabold uppercase tracking-wide text-ink-muted">{title}</h2>
-      <div className="mt-3">{children}</div>
+    <section className={`rounded-[var(--radius-2xl)] border border-muted-bright/50 bg-background/90 p-6 shadow-[var(--shadow-card)] backdrop-blur-sm sm:p-7 ${className}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black tracking-tight text-foreground">{title}</h2>
+          {subtitle ? <p className="mt-1.5 text-sm font-semibold text-foreground/65">{subtitle}</p> : null}
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function Metric({ label, value }) {
+function TinyMetric({ label, value, accent = false }) {
   return (
-    <div className="rounded-xl bg-muted-bright/35 px-3 py-2 ring-1 ring-foreground/10">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-1 text-sm font-extrabold text-ink">{value}</p>
+    <div
+      className={`rounded-[var(--radius-lg)] px-4 py-3 ring-1 transition-all ${
+        accent
+          ? "bg-gradient-to-br from-primary/20 to-accent-pink/15 ring-primary/30 shadow-[var(--shadow-play)]"
+          : "bg-gradient-to-br from-muted-bright/45 to-background/70 ring-foreground/10"
+      }`}
+    >
+      <p className="text-[11px] font-black uppercase tracking-wide text-foreground/55">{label}</p>
+      <p className={`mt-1.5 text-lg font-black ${accent ? "text-primary" : "text-foreground"}`}>{value}</p>
     </div>
   );
+}
+
+function prettyDate(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function PublicProfilePage() {
@@ -29,12 +48,25 @@ export default function PublicProfilePage() {
   const { data, loading, error } = useUserProfile(userId);
 
   if (loading) {
-    return <div className="flex min-h-[50vh] items-center justify-center text-ink-muted">Loading profile...</div>;
+    return (
+      <div className="mx-auto flex min-h-[55vh] w-full max-w-7xl items-center justify-center px-4">
+        <div className="rounded-[var(--radius-2xl)] border border-muted-bright/50 bg-background/85 px-6 py-5 text-sm font-bold text-foreground/70 shadow-[var(--shadow-card)]">
+          Loading player profile...
+        </div>
+      </div>
+    );
   }
+
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-2xl rounded-2xl bg-red-50 px-6 py-8 text-center text-sm font-bold text-red-800">
-        {error ?? "Profile not found"}
+      <div className="mx-auto flex min-h-[55vh] w-full max-w-3xl items-center justify-center px-4">
+        <div className="w-full rounded-[var(--radius-2xl)] border border-error/25 bg-error/10 px-6 py-8 text-center shadow-[var(--shadow-card)]">
+          <p className="text-sm font-black uppercase tracking-wider text-error/80">Player profile unavailable</p>
+          <p className="mt-2 text-sm font-semibold text-error">{error ?? "Profile not found"}</p>
+          <Link href="/leaderboard" className="mt-5 inline-flex rounded-full bg-primary px-5 py-2 text-sm font-black text-foreground ring-1 ring-foreground/15">
+            Back to leaderboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -46,66 +78,112 @@ export default function PublicProfilePage() {
   const global = stats.global ?? {};
   const breakdown = global.breakdown ?? {};
   const recentActivity = data.recentActivity ?? [];
+  const totalGames = (typing.totalGames ?? 0) + (npat.totalGames ?? 0);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8">
-      <section className="rounded-3xl border border-muted-bright/60 bg-background/85 p-5 shadow-[var(--shadow-card)] backdrop-blur-sm">
-        <div className="flex flex-wrap items-center gap-4">
-          <Avatar username={user.username} src={user.avatarUrl} size="lg" />
-          <div>
-            <h1 className="text-2xl font-extrabold text-ink">{user.username}</h1>
-            <p className="text-sm text-ink-muted">Global rank {global.rank != null ? `#${global.rank}` : "Unranked"}</p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-7 px-4 py-10 sm:gap-9 sm:py-12">
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-[var(--radius-2xl)] border border-primary/20 bg-gradient-to-br from-background/95 via-pastel-lavender/30 to-pastel-sky/25 p-6 shadow-[var(--shadow-card)] sm:p-8"
+      >
+        <div className="pointer-events-none absolute -right-20 -top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-accent-purple/15 blur-3xl" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative z-[1] flex items-center gap-4 sm:gap-5">
+            <Avatar username={user.username} src={user.avatarUrl} size="lg" />
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-foreground/55">Player profile</p>
+              <h1 className="mt-1 text-4xl font-black tracking-tight text-foreground sm:text-5xl">{user.username}</h1>
+              <p className="mt-1.5 text-base font-semibold text-foreground/65">Joined {prettyDate(user.createdAt)}</p>
+            </div>
           </div>
-          <div className="ml-auto grid grid-cols-3 gap-2">
-            <Metric label="WPM Rank" value={typing.wpmRank != null ? `#${typing.wpmRank}` : "Unranked"} />
-            <Metric label="Accuracy Rank" value={typing.accuracyRank != null ? `#${typing.accuracyRank}` : "Unranked"} />
-            <Metric label="NPAT Rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
+
+          <div className="relative z-[1] grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <TinyMetric label="Global rank" value={global.rank != null ? `#${global.rank}` : "Unranked"} accent />
+            <TinyMetric label="Global score" value={(global.score ?? 0).toFixed(1)} />
+            <TinyMetric label="Games played" value={String(totalGames)} />
+            <TinyMetric label="WPM rank" value={typing.wpmRank != null ? `#${typing.wpmRank}` : "Unranked"} />
+            <TinyMetric label="Accuracy rank" value={typing.accuracyRank != null ? `#${typing.accuracyRank}` : "Unranked"} />
+            <TinyMetric label="NPAT rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
           </div>
         </div>
-      </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <StatCard title="Typing Stats">
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Best WPM" value={(typing.bestWpm ?? 0).toFixed(1)} />
-            <Metric label="Accuracy" value={`${(typing.weightedAccuracy ?? 0).toFixed(1)}%`} />
-            <Metric label="Games" value={String(typing.totalGames ?? 0)} />
-            <Metric label="Total Chars" value={String(typing.totalChars ?? 0)} />
+        <div className="relative z-[1] mt-6 grid gap-2.5 sm:grid-cols-4">
+          {[
+            { label: "Typing contribution", value: `${(breakdown.typing ?? 0).toFixed(0)}%` },
+            { label: "Accuracy contribution", value: `${(breakdown.accuracy ?? 0).toFixed(0)}%` },
+            { label: "NPAT contribution", value: `${(breakdown.npat ?? 0).toFixed(0)}%` },
+            { label: "Activity contribution", value: `${(breakdown.activity ?? 0).toFixed(0)}%` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-[var(--radius-lg)] bg-background/85 px-4 py-3 ring-1 ring-foreground/10">
+              <p className="text-[11px] font-black uppercase tracking-wide text-foreground/55">{item.label}</p>
+              <p className="mt-1.5 text-lg font-black text-foreground">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </motion.section>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <SurfaceCard title="Typing Performance" subtitle="Speed, consistency, and race outcomes">
+          <div className="grid grid-cols-2 gap-3">
+            <TinyMetric label="Best WPM" value={(typing.bestWpm ?? 0).toFixed(1)} accent />
+            <TinyMetric label="Weighted accuracy" value={`${(typing.weightedAccuracy ?? 0).toFixed(1)}%`} />
+            <TinyMetric label="Races played" value={String(typing.totalGames ?? 0)} />
+            <TinyMetric label="Race wins" value={String(typing.multiWins ?? 0)} />
+            <TinyMetric label="Total chars" value={String(typing.totalChars ?? 0)} />
+            <TinyMetric label="WPM rank" value={typing.wpmRank != null ? `#${typing.wpmRank}` : "Unranked"} />
           </div>
-        </StatCard>
-        <StatCard title="NPAT Stats">
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Total Score" value={(npat.totalScore ?? 0).toFixed(0)} />
-            <Metric label="Average Score" value={(npat.averageScore ?? 0).toFixed(1)} />
-            <Metric label="Win Rate" value={`${(npat.winRate ?? 0).toFixed(1)}%`} />
-            <Metric label="Games" value={String(npat.totalGames ?? 0)} />
+        </SurfaceCard>
+
+        <SurfaceCard title="NPAT Performance" subtitle="Average scoring and win efficiency">
+          <div className="grid grid-cols-2 gap-3">
+            <TinyMetric label="Average score" value={(npat.averageScore ?? 0).toFixed(1)} accent />
+            <TinyMetric label="Total score" value={(npat.totalScore ?? 0).toFixed(0)} />
+            <TinyMetric label="Win rate" value={`${(npat.winRate ?? 0).toFixed(1)}%`} />
+            <TinyMetric label="Wins" value={String(npat.wins ?? 0)} />
+            <TinyMetric label="Games played" value={String(npat.totalGames ?? 0)} />
+            <TinyMetric label="NPAT rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
           </div>
-        </StatCard>
-        <StatCard title="Global Stats">
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Global Score" value={(global.score ?? 0).toFixed(2)} />
-            <Metric label="Consistency Days" value={String(global.consistencyDays ?? 0)} />
-            <Metric label="Typing Contribution" value={`${(breakdown.typing ?? 0).toFixed(0)}%`} />
-            <Metric label="Activity Contribution" value={`${(breakdown.activity ?? 0).toFixed(0)}%`} />
+        </SurfaceCard>
+
+        <SurfaceCard title="Global Standing" subtitle="Cross-game placement and consistency">
+          <div className="grid grid-cols-2 gap-3">
+            <TinyMetric label="Global score" value={(global.score ?? 0).toFixed(2)} accent />
+            <TinyMetric label="Global rank" value={global.rank != null ? `#${global.rank}` : "Unranked"} />
+            <TinyMetric label="Consistency days" value={String(global.consistencyDays ?? 0)} />
+            <TinyMetric label="Total games" value={String(totalGames)} />
+            <TinyMetric label="Consistency contribution" value={`${(breakdown.consistency ?? 0).toFixed(0)}%`} />
+            <TinyMetric label="Activity contribution" value={`${(breakdown.activity ?? 0).toFixed(0)}%`} />
           </div>
-        </StatCard>
+        </SurfaceCard>
       </div>
 
-      <StatCard title="Ranking Explanation">
-        <p className="text-sm text-ink-muted">{data.rankingExplanation ?? "No explanation available."}</p>
-      </StatCard>
+      <SurfaceCard
+        title="How this rank is calculated"
+        subtitle="Transparent explanation generated from weighted profile contributions"
+      >
+        <p className="text-base leading-relaxed text-foreground/75">
+          {data.rankingExplanation ?? "No explanation available."}
+        </p>
+      </SurfaceCard>
 
-      <StatCard title="Recent Activity">
-        <div className="space-y-2">
+      <SurfaceCard title="Recent Activity" subtitle="Latest completed games and outcomes">
+        <div className="space-y-3.5">
           {recentActivity.length === 0 ? (
-            <p className="text-sm text-ink-muted">No recent activity.</p>
+            <div className="rounded-[var(--radius-xl)] bg-muted-bright/30 px-4 py-4 text-sm font-semibold text-foreground/60 ring-1 ring-foreground/10">
+              No recent activity yet.
+            </div>
           ) : (
             recentActivity.map((entry, idx) => (
-              <div key={`${entry.type}-${entry.finishedAt}-${idx}`} className="rounded-xl bg-surface px-3 py-2 ring-1 ring-ink/5">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">
-                  {entry.type === "typing" ? "Typing" : "NPAT"} · {new Date(entry.finishedAt).toLocaleString()}
+              <div
+                key={`${entry.type}-${entry.finishedAt}-${idx}`}
+                className="rounded-[var(--radius-xl)] border border-muted-bright/50 bg-gradient-to-r from-background/90 via-muted-bright/20 to-transparent px-5 py-4 shadow-[var(--shadow-soft)]"
+              >
+                <p className="text-xs font-black uppercase tracking-wide text-foreground/55">
+                  {entry.type === "typing" ? "Typing race" : "NPAT"} · {new Date(entry.finishedAt).toLocaleString()}
                 </p>
-                <p className="mt-1 text-sm text-ink">
+                <p className="mt-2 text-base font-semibold text-foreground/80">
                   {entry.type === "typing"
                     ? `WPM ${(entry.summary?.wpm ?? 0).toFixed(1)}, accuracy ${(entry.summary?.accuracy ?? 0).toFixed(1)}%`
                     : `Score ${(entry.summary?.totalScore ?? 0).toFixed(0)}, outcome ${entry.summary?.outcome ?? "solo"}`}
@@ -114,10 +192,13 @@ export default function PublicProfilePage() {
             ))
           )}
         </div>
-      </StatCard>
+      </SurfaceCard>
 
-      <div className="pb-2">
-        <Link href="/leaderboard" className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-foreground ring-1 ring-foreground/10">
+      <div className="pb-2 pt-1">
+        <Link
+          href="/leaderboard"
+          className="inline-flex rounded-full bg-primary px-5 py-2.5 text-sm font-black text-foreground shadow-[var(--shadow-play)] ring-1 ring-foreground/15 transition-transform hover:scale-[1.02]"
+        >
           Back to leaderboard
         </Link>
       </div>
