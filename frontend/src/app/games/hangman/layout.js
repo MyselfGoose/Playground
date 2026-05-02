@@ -12,13 +12,13 @@ export default function HangmanLayout({ children }) {
   const solo = pathname?.includes("/hangman/solo");
 
   useEffect(() => {
-    if (solo || loading) return;
-    if (!user) router.replace(`/login?next=${encodeURIComponent(pathname || "/games/hangman")}`);
+    if (solo || loading || user) return;
+    router.replace(`/login?next=${encodeURIComponent(pathname || "/games/hangman")}`);
   }, [solo, loading, user, router, pathname]);
 
   if (solo) return children;
 
-  if (loading || !user) {
+  if (!user) {
     return <div className="flex min-h-[60vh] items-center justify-center text-foreground/60">Loading…</div>;
   }
 

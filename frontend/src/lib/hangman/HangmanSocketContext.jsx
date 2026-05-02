@@ -44,7 +44,7 @@ function emitAck(socket, event, payload) {
 }
 
 export function HangmanProvider({ children }) {
-  const { user, loading } = useUser();
+  const { user } = useUser();
   const [room, setRoom] = useState(null);
   const [connectionState, setConnectionState] = useState("disconnected");
   const [syncState, setSyncState] = useState("joining");
@@ -71,7 +71,7 @@ export function HangmanProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !user || !API_BASE) return undefined;
+    if (!user?.id || !API_BASE) return undefined;
     const socket = io(`${API_BASE}/hangman`, {
       path: "/socket.io",
       withCredentials: true,
@@ -121,7 +121,7 @@ export function HangmanProvider({ children }) {
       roomVersionRef.current = 0;
       roomCodeRef.current = null;
     };
-  }, [loading, user, applyRoomSnapshot]);
+  }, [user?.id, applyRoomSnapshot]);
 
   const createRoom = useCallback(
     async (settings) => {

@@ -85,6 +85,8 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   const socketToCode = new Map();
   const userToCode = new Map();
   const userToSocketIds = new Map();
+  const softDisconnectTimers = new Map();
+  const SOFT_DISCONNECT_GRACE_MS = 7000;
 
   function bumpStateVersion(room) {
     room.stateVersion = Number(room.stateVersion || 0) + 1;
@@ -92,6 +94,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   }
 
   function trackUserSocket(userId, socketId) {
+    clearSoftDisconnect(userId);
     const set = userToSocketIds.get(userId) ?? new Set();
     set.add(socketId);
     userToSocketIds.set(userId, set);
@@ -102,6 +105,17 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!set) return;
     set.delete(socketId);
     if (!set.size) userToSocketIds.delete(userId);
+  }
+
+  function clearSoftDisconnect(userId) {
+    const timer = softDisconnectTimers.get(userId);
+    if (!timer) return;
+    clearTimeout(timer);
+    softDisconnectTimers.delete(userId);
+  }
+
+  function hasAnyConnectedSocketInRoom(room, userId) {
+    return [...room.socketIds].some((sid) => hangmanNs.sockets.get(sid)?.data?.userId === userId);
   }
 
   function getRoomForSocket(socket) {
@@ -180,27 +194,53 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     const code = socketToCode.get(socket.id);
     if (!code) return;
     const room = rooms.get(code);
+    const userId = socket.data.userId;
     socketToCode.delete(socket.id);
-    untrackUserSocket(socket.data.userId, socket.id);
+    untrackUserSocket(userId, socket.id);
     socket.leave(code);
     if (!room) return;
     room.socketIds.delete(socket.id);
-    const player = room.players.find((p) => p.userId === socket.data.userId);
+    const player = room.players.find((p) => p.userId === userId);
     if (player) {
       if (hardLeave) {
-        const otherSockets = [...room.socketIds].some(
-          (sid) => hangmanNs.sockets.get(sid)?.data?.userId === socket.data.userId,
-        );
+        clearSoftDisconnect(userId);
+        const otherSockets = hasAnyConnectedSocketInRoom(room, userId);
         if (!otherSockets) {
-          room.players = room.players.filter((p) => p.userId !== socket.data.userId);
-          userToCode.delete(socket.data.userId);
+          room.players = room.players.filter((p) => p.userId !== userId);
+          userToCode.delete(userId);
         } else {
           player.connected = true;
         }
       } else {
-        player.connected = false;
+        clearSoftDisconnect(userId);
+        if (hasAnyConnectedSocketInRoom(room, userId)) {
+          player.connected = true;
+        } else {
+          const timer = setTimeout(() => {
+            softDisconnectTimers.delete(userId);
+            const expectedCode = userToCode.get(userId);
+            if (!expectedCode || expectedCode !== code) return;
+            const pendingRoom = rooms.get(code);
+            if (!pendingRoom) return;
+            if (hasAnyConnectedSocketInRoom(pendingRoom, userId)) return;
+            const pendingPlayer = pendingRoom.players.find((p) => p.userId === userId);
+            if (!pendingPlayer) return;
+            pendingPlayer.connected = false;
+            if (pendingRoom.hostId === userId && pendingRoom.players.length) {
+              const connectedHost = pendingRoom.players.find((p) => p.connected !== false);
+              pendingRoom.hostId = connectedHost?.userId ?? pendingRoom.players[0].userId;
+            }
+            reconcileRoomAfterMembershipChange(pendingRoom);
+            bumpStateVersion(pendingRoom);
+            emitRoom(code, 'member_disconnected');
+            if (!pendingRoom.players.length) rooms.delete(code);
+          }, SOFT_DISCONNECT_GRACE_MS);
+          timer.unref?.();
+          softDisconnectTimers.set(userId, timer);
+          return;
+        }
       }
-      if (room.hostId === socket.data.userId && room.players.length) {
+      if (room.hostId === userId && room.players.length) {
         const connectedHost = room.players.find((p) => p.connected !== false);
         room.hostId = connectedHost?.userId ?? room.players[0].userId;
       }
@@ -313,6 +353,8 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   }
 
   function shutdown() {
+    for (const timer of softDisconnectTimers.values()) clearTimeout(timer);
+    softDisconnectTimers.clear();
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();
