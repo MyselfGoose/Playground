@@ -9,6 +9,7 @@ import { createTypingRaceRegistry } from '../typing-race/roomRegistry.js';
 import { installTypingRaceSocketServer } from '../typing-race/typingRaceSocket.js';
 import { attachTabooNamespace } from '../taboo/tabooSocket.js';
 import { attachCahNamespace } from '../cah/cahSocket.js';
+import { attachHangmanNamespace } from '../hangman/hangmanSocket.js';
 
 /**
  * Read the access token off a Socket.IO handshake. Priority:
@@ -107,6 +108,7 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
  *   typingRaceRegistry: ReturnType<import('../typing-race/roomRegistry.js').createTypingRaceRegistry>,
  *   tabooRuntime: { close: () => void },
  *   cahRuntime: { close: () => void },
+ *   hangmanRuntime: { close: () => void },
  * }}
  */
 export function attachSocketIo({ server, env, logger }) {
@@ -136,7 +138,8 @@ export function attachSocketIo({ server, env, logger }) {
   });
   const tabooRuntime = attachTabooNamespace({ io, logger, tokenService });
   const cahRuntime = attachCahNamespace({ io, logger, tokenService });
+  const hangmanRuntime = attachHangmanNamespace({ io, logger, tokenService });
 
   logger.info("socket_io_attached");
-  return { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime };
+  return { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime };
 }

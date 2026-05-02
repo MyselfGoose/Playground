@@ -126,7 +126,11 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime } = attachSocketIo({ server, env, logger });
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime } = attachSocketIo({
+    server,
+    env,
+    logger,
+  });
   bootTrace('TRACE_AFTER_SOCKET_IO');
 
   scheduleNpatBootHydrateWhenMongoReady(registry, logger);
@@ -160,6 +164,11 @@ async function main() {
         cahRuntime.close();
       } catch (err) {
         logger.warn({ err, event: 'cah_shutdown_error' }, 'cah');
+      }
+      try {
+        hangmanRuntime.close();
+      } catch (err) {
+        logger.warn({ err, event: 'hangman_shutdown_error' }, 'hangman');
       }
       try {
         await registry.flushAll();
