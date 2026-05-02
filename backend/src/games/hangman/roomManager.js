@@ -1,6 +1,6 @@
 import { DEFAULT_HANGMAN_DATASET_VERSION } from '../../config/hangmanDefaults.js';
 import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
-import { persistHangmanGameResult } from '../../services/hangmanStatsService.js';
+import { persistHangmanGameResult, persistHangmanRoundResult } from '../../services/hangmanStatsService.js';
 import {
   abortRoundSetterLeft,
   activePlayers,
@@ -60,23 +60,64 @@ function persistMultiGameEnd(room, log) {
   const game = room.game;
   if (!game || game.phase !== 'game_end') return;
   const winId = winnerUserId(game);
+  const now = new Date();
   for (const p of activePlayers(room)) {
+    const metrics = game.playerMetrics?.[p.userId] ?? { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+    const totalGuesses = (metrics.correctLetters ?? 0) + (metrics.wrongGuesses ?? 0);
     void persistHangmanGameResult(
       {
         userId: p.userId,
         username: p.username,
         mode: 'multi',
+        source: 'multiplayer_server',
         won: p.userId === winId,
-        wrongGuesses: 0,
-        correctGuesses: 0,
-        lettersFirst: 0,
+        wrongGuesses: metrics.wrongGuesses ?? 0,
+        correctGuesses: metrics.correctLetters ?? 0,
+        lettersFirst: metrics.lettersFirst ?? 0,
+        totalGuesses,
+        roundsPlayed: Number(game.roundNumber ?? 0),
+        fastFinish: game.lastOutcome === 'won' && (game.wrongGuessCount ?? 0) <= Math.floor((game.maxWrongGuesses ?? 1) * 0.3),
         durationMs: null,
-        finishedAt: new Date(),
+        gameSessionId: String(game.sessionId ?? ''),
+        playerCount: activePlayers(room).length,
+        placement: p.userId === winId ? 1 : null,
+        score: Number(game.scores?.[p.userId] ?? 0),
+        modeWeight: 1,
+        finishedAt: now,
         roomCode: room.code,
       },
       log,
     );
   }
+}
+
+function persistCurrentRound(room, log) {
+  const game = room.game;
+  if (!game || game.phase !== 'round_end') return;
+  const setterId = game.setterOrder?.[game.setterCursor];
+  if (!setterId) return;
+  const winner = Object.entries(game.lettersFirstThisRound ?? {}).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0] ?? null;
+  const setter = room.players.find((p) => p.userId === setterId) ?? null;
+  const winnerPlayer = winner ? room.players.find((p) => p.userId === winner[0]) ?? null : null;
+  void persistHangmanRoundResult(
+    {
+      gameSessionId: String(game.sessionId ?? ''),
+      roundNumber: Number(game.roundNumber ?? 0),
+      roomCode: room.code,
+      setterUserId: setterId,
+      setterUsername: setter?.username ?? '',
+      winnerUserId: winnerPlayer?.userId ?? null,
+      winnerUsername: winnerPlayer?.username ?? '',
+      outcome: game.lastOutcome ?? 'aborted',
+      wrongGuesses: Number(game.wrongGuessCount ?? 0),
+      maxWrongGuesses: Number(game.maxWrongGuesses ?? 0),
+      distinctCorrectLetters: Number(game.guessedLetters?.length ?? 0),
+      participantCount: activePlayers(room).length,
+      lettersFirstByUser: game.lettersFirstThisRound ?? {},
+      finishedAt: new Date(),
+    },
+    log,
+  );
 }
 
 export function createHangmanRoomManager({ hangmanNs, logger }) {
@@ -340,6 +381,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   async function advanceRound(socket) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    persistCurrentRound(room, log);
     nextRound(room, socket.data.userId);
     bumpStateVersion(room);
     persistMultiGameEnd(room, log);

@@ -9,4 +9,8 @@ describe("useLeaderboard board mapping", () => {
   it("includes CAH board endpoint mapping", () => {
     expect(BOARD_PATHS.cah).toBe("/api/v1/leaderboard/cah");
   });
+
+  it("includes Hangman board endpoint mapping", () => {
+    expect(BOARD_PATHS.hangman).toBe("/api/v1/leaderboard/hangman");
+  });
 });

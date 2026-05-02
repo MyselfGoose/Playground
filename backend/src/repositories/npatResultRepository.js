@@ -24,12 +24,17 @@ export const npatResultRepository = {
    * @param {import('mongoose').Types.ObjectId} userOid
    * @param {Date} since
    */
-  async activeDaysSince(userOid, since) {
+  async activeDayKeysSince(userOid, since) {
     const results = await NpatResult.aggregate([
       { $match: { userId: userOid, finishedAt: { $gte: since } } },
       { $project: { day: { $dateToString: { format: '%Y-%m-%d', date: '$finishedAt' } } } },
       { $group: { _id: '$day' } },
     ]);
-    return results.length;
+    return results.map((r) => String(r._id));
+  },
+
+  async activeDaysSince(userOid, since) {
+    const days = await this.activeDayKeysSince(userOid, since);
+    return days.length;
   },
 };

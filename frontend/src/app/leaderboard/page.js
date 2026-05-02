@@ -46,6 +46,13 @@ const BOARDS = [
     explainer:
       "Rankings emphasize composite score from round win rate, average round wins per completed game, and experience. Judge rounds count toward activity but not submitter win rate. Minimum 4 completed CAH games required.",
   },
+  {
+    key: "hangman",
+    label: "Hangman",
+    subtitle: "Ranked by skill, win rate, and guessing efficiency",
+    explainer:
+      "Ranking is based on win rate, accuracy, and efficiency with anti-abuse normalization and minimum 5 completed Hangman games.",
+  },
 ];
 
 function primaryMetric(board, entry, { cahSort } = {}) {
@@ -59,6 +66,7 @@ function primaryMetric(board, entry, { cahSort } = {}) {
     if (cahSort === "winRate") return { label: "Win rate", value: `${(entry.cah_winRate ?? 0).toFixed(1)}%` };
     return { label: "Score", value: (entry.cah_score ?? 0).toFixed(1) };
   }
+  if (board === "hangman") return { label: "Skill", value: (entry.hangman_skill ?? 0).toFixed(1) };
   return { label: "Score", value: "—" };
 }
 
@@ -103,6 +111,14 @@ function boardStats(board, entry) {
       { label: "Games finished", value: String(entry.cah_gamesPlayed ?? 0) },
     ];
   }
+  if (board === "hangman") {
+    return [
+      { label: "Skill", value: (entry.hangman_skill ?? 0).toFixed(1) },
+      { label: "Win Rate", value: `${(entry.hangman_winRate ?? 0).toFixed(1)}%` },
+      { label: "Accuracy", value: `${(entry.hangman_accuracy ?? 0).toFixed(1)}%` },
+      { label: "Games", value: String(Math.round(entry.hangman_totalGames ?? 0)) },
+    ];
+  }
   return [
     { label: "Global Score", value: (entry.globalScore ?? 0).toFixed(1) },
     { label: "Typing Skill", value: `${(entry.breakdown?.typing ?? 0).toFixed(0)}%` },
@@ -118,6 +134,7 @@ function contributionBreakdown(entry) {
     npat: Math.round(Math.min((entry.npat_averageScore ?? 0) / 35, 1) * 100),
     taboo: Math.round(entry.taboo_score ?? 0),
     cah: Math.round(entry.cah_score ?? 0),
+    hangman: Math.round(entry.hangman_skill ?? 0),
     activity: Math.round(Math.min((entry.totalGames ?? 0) / 100, 1) * 100),
     consistency: 0,
   };
@@ -129,6 +146,7 @@ function badgeFor(entry) {
   if ((entry.npat_winRate ?? 0) >= 70) return "High Win Rate";
   if ((entry.taboo_score ?? 0) >= 80) return "Elite Taboo";
   if ((entry.cah_score ?? 0) >= 75 && (entry.cah_gamesPlayed ?? 0) >= 4) return "CAH Sharp";
+  if ((entry.hangman_skill ?? 0) >= 75 && (entry.hangman_totalGames ?? 0) >= 5) return "Hangman Ace";
   if ((entry.typing_bestWpm ?? 0) >= 100) return "Speedster";
   return null;
 }
@@ -145,6 +163,7 @@ function explanationFromBreakdown(entry) {
     npat: "NPAT performance",
     taboo: "Taboo contribution",
     cah: "Cards Against Humanity skill",
+    hangman: "Hangman skill",
     activity: "overall activity",
     consistency: "consistency",
   };
@@ -178,6 +197,7 @@ export default function LeaderboardPage() {
     if (activeBoard === "npat") return myStats.data.npat?.npatRank;
     if (activeBoard === "taboo") return myStats.data.taboo?.tabooRank;
     if (activeBoard === "cah") return myStats.data.cah?.cahRank;
+    if (activeBoard === "hangman") return myStats.data.hangman?.hangmanRank;
     return null;
   })();
 
@@ -350,6 +370,7 @@ export default function LeaderboardPage() {
                                     <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
                                     <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
                                     <Metric label="CAH" value={`${(breakdown.cah ?? 0).toFixed(0)}%`} />
+                                    <Metric label="Hangman" value={`${(breakdown.hangman ?? 0).toFixed(0)}%`} />
                                     <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
                                     <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
                                   </div>

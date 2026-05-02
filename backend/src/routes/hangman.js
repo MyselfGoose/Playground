@@ -3,8 +3,11 @@ import mongoose from 'mongoose';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { DEFAULT_HANGMAN_DATASET_VERSION } from '../config/hangmanDefaults.js';
+import { createTokenService } from '../services/tokenService.js';
+import { readAccessToken, resolveAccessContext } from '../middleware/authMiddleware.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { hangmanWordRepository } from '../repositories/hangmanWordRepository.js';
+import { persistHangmanGameResult } from '../services/hangmanStatsService.js';
 import { HANGMAN_WORD_MAX, HANGMAN_WORD_MIN } from '../games/hangman/constants.js';
 
 const randomWordQuerySchema = z.object({
@@ -14,11 +17,21 @@ const randomWordQuerySchema = z.object({
   difficulty: z.coerce.number().int().min(1).max(5).optional(),
 });
 
+const soloResultSchema = z.object({
+  won: z.boolean(),
+  wrongGuesses: z.number().int().min(0).max(24),
+  correctGuesses: z.number().int().min(0).max(26),
+  totalGuesses: z.number().int().min(1).max(64).optional(),
+  durationMs: z.number().int().min(100).max(3_600_000).optional(),
+  wordLength: z.number().int().min(HANGMAN_WORD_MIN).max(HANGMAN_WORD_MAX).optional(),
+});
+
 /**
  * @param {{ env: import('../config/env.js').Env }} params
  */
 export function createHangmanRouter({ env }) {
   const router = Router();
+  const tokenService = createTokenService(env);
 
   const randomLimiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -65,6 +78,48 @@ export function createHangmanRouter({ env }) {
           word: picked.word,
         },
       });
+    }),
+  );
+
+  router.post(
+    '/result/solo',
+    asyncHandler(async (req, res) => {
+      const token = readAccessToken(req);
+      if (!token) return res.status(202).json({ data: { tracked: false } });
+      const user = await resolveAccessContext(token, { tokenService });
+      const data = soloResultSchema.parse(req.body ?? {});
+      const totalGuesses = data.totalGuesses ?? data.correctGuesses + data.wrongGuesses;
+      const suspicious =
+        totalGuesses < data.correctGuesses ||
+        data.wrongGuesses > totalGuesses ||
+        (data.durationMs != null && data.durationMs < 1000 && totalGuesses > 10);
+      await persistHangmanGameResult(
+        {
+          userId: user.id,
+          username: user.username,
+          mode: 'solo',
+          source: 'solo_client',
+          won: data.won,
+          wrongGuesses: data.wrongGuesses,
+          correctGuesses: data.correctGuesses,
+          totalGuesses,
+          durationMs: data.durationMs ?? null,
+          fastFinish: data.won && data.wrongGuesses <= 1,
+          roundsPlayed: 1,
+          playerCount: 1,
+          placement: data.won ? 1 : null,
+          score: data.correctGuesses,
+          modeWeight: 0.6,
+          suspicious,
+          metadata: {
+            wordLength: data.wordLength ?? null,
+          },
+          finishedAt: new Date(),
+          roomCode: null,
+        },
+        req.log,
+      );
+      res.status(201).json({ data: { tracked: !suspicious } });
     }),
   );
 

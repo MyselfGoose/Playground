@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../../../lib/api.js";
 import { Button } from "../../../../components/Button.jsx";
 import { HangmanSvg } from "../components/HangmanSvg.jsx";
@@ -26,6 +26,7 @@ export default function HangmanSoloPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("playing");
+  const submittedResultRef = useRef(false);
 
   const maxWrong = 7;
   const guessedSet = useMemo(() => new Set(guessed), [guessed]);
@@ -44,6 +45,7 @@ export default function HangmanSoloPage() {
       setGuessed([]);
       setWrong([]);
       setStatus("playing");
+      submittedResultRef.current = false;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
       setSecret("");
@@ -72,6 +74,25 @@ export default function HangmanSoloPage() {
   useEffect(() => {
     if (wrong.length >= maxWrong) setStatus("lost");
   }, [wrong.length, maxWrong]);
+
+  useEffect(() => {
+    if (!secret || submittedResultRef.current) return;
+    if (status !== "won" && status !== "lost") return;
+    submittedResultRef.current = true;
+    const totalGuesses = guessed.length + wrong.length;
+    void fetch(`${API_BASE}/api/v1/hangman/result/solo`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        won: status === "won",
+        wrongGuesses: wrong.length,
+        correctGuesses: guessed.length,
+        totalGuesses,
+        wordLength: secret.length,
+      }),
+    }).catch(() => {});
+  }, [status, guessed.length, wrong.length, secret]);
 
   function onLetter(letter) {
     if (status !== "playing" || !secret) return;
@@ -126,6 +147,7 @@ export default function HangmanSoloPage() {
             setGuessed([]);
             setWrong([]);
             setStatus("playing");
+            submittedResultRef.current = false;
           }}
         >
           Restart same word

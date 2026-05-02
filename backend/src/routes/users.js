@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { userStatsRepository } from '../repositories/userStatsRepository.js';
+import { HANGMAN_LEADERBOARD_MIN_GAMES, userStatsRepository } from '../repositories/userStatsRepository.js';
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 
@@ -28,11 +28,18 @@ function avatarUrl(username) {
 }
 
 function computeBreakdown(stats) {
-  const totalGames = (stats?.typing_totalGames ?? 0) + (stats?.npat_totalGames ?? 0);
+  const totalGames =
+    (stats?.typing_totalGames ?? 0) +
+    (stats?.npat_totalGames ?? 0) +
+    (stats?.taboo_gamesPlayed ?? 0) +
+    (stats?.cah_gamesPlayed ?? 0);
   return {
     typing: Math.round(Math.min((stats?.typing_bestWpm ?? 0) / 150, 1) * 100 * 100) / 100,
     accuracy: Math.round((stats?.typing_weightedAccuracy ?? 0) * 100) / 100,
     npat: Math.round(Math.min((stats?.npat_averageScore ?? 0) / 35, 1) * 100 * 100) / 100,
+    taboo: Math.round(stats?.taboo_score ?? 0),
+    cah: Math.round(stats?.cah_score ?? 0),
+    hangman: Math.round(stats?.hangman_skill ?? 0),
     activity: Math.round(Math.min(totalGames / 100, 1) * 100 * 100) / 100,
     consistency: Math.round(Math.min((stats?.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
   };
@@ -47,6 +54,7 @@ function rankingExplanation(breakdown) {
     typing: 'typing speed',
     accuracy: 'typing accuracy',
     npat: 'NPAT performance',
+    hangman: 'Hangman performance',
     activity: 'overall activity',
     consistency: 'daily consistency',
   };
@@ -114,7 +122,7 @@ export function createUsersRouter() {
         });
       }
 
-      const [wpmRank, accuracyRank, npatRank] = await Promise.all([
+      const [wpmRank, accuracyRank, npatRank, hangmanRank] = await Promise.all([
         userStatsRepository.rankFor({
           userId,
           sortField: 'typing_bestWpm',
@@ -133,9 +141,20 @@ export function createUsersRouter() {
           minGamesField: 'npat_totalGames',
           minGames: 2,
         }),
+        userStatsRepository.rankFor({
+          userId,
+          sortField: 'hangman_skill',
+          minGamesField: 'hangman_totalGames',
+          minGames: HANGMAN_LEADERBOARD_MIN_GAMES,
+        }),
       ]);
 
-      const totalGames = (stats?.typing_totalGames ?? 0) + (stats?.npat_totalGames ?? 0);
+  const totalGames =
+    (stats?.typing_totalGames ?? 0) +
+    (stats?.npat_totalGames ?? 0) +
+    (stats?.taboo_gamesPlayed ?? 0) +
+    (stats?.cah_gamesPlayed ?? 0) +
+    (stats?.hangman_totalGames ?? 0);
       const breakdown = computeBreakdown(stats);
       const recentActivity = [...typingActivity.map(mapTypingActivity), ...npatActivity.map(mapNpatActivity)]
         .sort((a, b) => new Date(b.finishedAt).getTime() - new Date(a.finishedAt).getTime())
@@ -165,6 +184,14 @@ export function createUsersRouter() {
             winRate: stats?.npat_winRate ?? 0,
             wins: stats?.npat_wins ?? 0,
             npatRank,
+          },
+          hangman: {
+            skill: stats?.hangman_skill ?? 0,
+            totalGames: stats?.hangman_totalGames ?? 0,
+            totalWins: stats?.hangman_totalWins ?? 0,
+            winRate: stats?.hangman_winRate ?? 0,
+            accuracy: stats?.hangman_accuracy ?? 0,
+            hangmanRank,
           },
           global: {
             score: stats?.global_score ?? 0,

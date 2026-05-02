@@ -77,7 +77,8 @@ export function ProfileClient() {
     ? (stats.typing?.totalGames ?? 0) +
       (stats.npat?.totalGames ?? 0) +
       (stats.taboo?.gamesPlayed ?? 0) +
-      (stats.cah?.gamesPlayed ?? 0)
+      (stats.cah?.gamesPlayed ?? 0) +
+      (stats.hangman?.totalGames ?? 0)
     : 0;
   const globalScore = stats?.global?.score ?? 0;
   const globalRank = stats?.global?.rank;
@@ -249,6 +250,29 @@ export function ProfileClient() {
                     icon="📊"
                     label="CAH rank"
                     value={stats.cah?.cahRank ? `#${stats.cah.cahRank}` : "Unranked"}
+                  />
+                </div>
+              </div>
+
+              {/* Hangman */}
+              <div className="mt-10">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <span>🎯</span> Hangman
+                </h3>
+                <p className="text-xs text-foreground/55 mb-4 max-w-xl">
+                  Ranking is based on win rate, guessing accuracy, efficiency, and recent consistency.
+                  Minimum five completed games are required to appear on the Hangman leaderboard.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StatRow icon="🧠" label="Hangman skill" value={(stats.hangman?.skill ?? 0).toFixed(1)} />
+                  <StatRow icon="🏆" label="Wins" value={String(stats.hangman?.totalWins ?? 0)} />
+                  <StatRow icon="📈" label="Win rate" value={`${(stats.hangman?.winRate ?? 0).toFixed(1)}%`} />
+                  <StatRow icon="🎯" label="Guess accuracy" value={`${(stats.hangman?.accuracy ?? 0).toFixed(1)}%`} />
+                  <StatRow icon="🎮" label="Games played" value={String(Math.round(stats.hangman?.totalGames ?? 0))} />
+                  <StatRow
+                    icon="📊"
+                    label="Hangman rank"
+                    value={stats.hangman?.hangmanRank ? `#${stats.hangman.hangmanRank}` : "Unranked"}
                   />
                 </div>
               </div>

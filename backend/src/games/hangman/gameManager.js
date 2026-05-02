@@ -37,6 +37,15 @@ function emptyScores(setterOrder) {
   return o;
 }
 
+function emptyPlayerMetrics(setterOrder) {
+  /** @type {Record<string, { correctLetters: number, wrongGuesses: number, lettersFirst: number }>} */
+  const metrics = {};
+  for (const id of setterOrder) {
+    metrics[id] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+  }
+  return metrics;
+}
+
 export function normalizeHangmanWord(raw) {
   const w = String(raw ?? '')
     .trim()
@@ -106,6 +115,7 @@ export function startGame(room) {
     wrongLetters: [],
     wrongGuessCount: 0,
     scores,
+    playerMetrics: emptyPlayerMetrics(setterOrder),
     lettersFirstThisRound: {},
     lastOutcome: null,
     revealedWord: null,
@@ -187,6 +197,9 @@ export function guessLetter(room, userId, rawLetter) {
     guessed.add(ch);
     if (!game.lettersFirstThisRound[userId]) game.lettersFirstThisRound[userId] = 0;
     game.lettersFirstThisRound[userId] += 1;
+    if (!game.playerMetrics[userId]) game.playerMetrics[userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+    game.playerMetrics[userId].correctLetters += 1;
+    game.playerMetrics[userId].lettersFirst += 1;
     game.scores[userId] = (game.scores[userId] ?? 0) + HANGMAN_POINTS_LETTER_FIRST;
 
     if (allLettersRevealed(secret, guessed)) {
@@ -196,6 +209,8 @@ export function guessLetter(room, userId, rawLetter) {
   } else {
     game.wrongLetters = [...game.wrongLetters, ch].sort();
     game.wrongGuessCount += 1;
+    if (!game.playerMetrics[userId]) game.playerMetrics[userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+    game.playerMetrics[userId].wrongGuesses += 1;
     if (game.wrongGuessCount >= game.maxWrongGuesses) {
       finishRound(room, 'lost');
     }
@@ -302,8 +317,14 @@ export function reconcileRoomAfterMembershipChange(room) {
   for (const uid of Object.keys(game.scores)) {
     if (!activeIds.has(uid)) delete game.scores[uid];
   }
+  for (const uid of Object.keys(game.playerMetrics ?? {})) {
+    if (!activeIds.has(uid)) delete game.playerMetrics[uid];
+  }
   for (const p of active) {
     if (game.scores[p.userId] == null) game.scores[p.userId] = 0;
+    if (!game.playerMetrics[p.userId]) {
+      game.playerMetrics[p.userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+    }
   }
 }
 
@@ -367,6 +388,7 @@ export function snapshotFor(room, viewerUserId) {
     wrongLetters: [...game.wrongLetters],
     maskedWord: masked,
     scores: { ...game.scores },
+    playerMetrics: { ...(game.playerMetrics ?? {}) },
     lastOutcome: game.lastOutcome,
     revealedWord: ['round_end', 'game_end'].includes(game.phase) ? game.revealedWord : null,
     abortedReason: game.abortedReason,

@@ -75,10 +75,11 @@ export default function PublicProfilePage() {
   const stats = data.stats ?? {};
   const typing = stats.typing ?? {};
   const npat = stats.npat ?? {};
+  const hangman = stats.hangman ?? {};
   const global = stats.global ?? {};
   const breakdown = global.breakdown ?? {};
   const recentActivity = data.recentActivity ?? [];
-  const totalGames = (typing.totalGames ?? 0) + (npat.totalGames ?? 0);
+  const totalGames = (typing.totalGames ?? 0) + (npat.totalGames ?? 0) + (hangman.totalGames ?? 0);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7 px-4 py-10 sm:gap-9 sm:py-12">
@@ -106,6 +107,7 @@ export default function PublicProfilePage() {
             <TinyMetric label="WPM rank" value={typing.wpmRank != null ? `#${typing.wpmRank}` : "Unranked"} />
             <TinyMetric label="Accuracy rank" value={typing.accuracyRank != null ? `#${typing.accuracyRank}` : "Unranked"} />
             <TinyMetric label="NPAT rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
+            <TinyMetric label="Hangman rank" value={hangman.hangmanRank != null ? `#${hangman.hangmanRank}` : "Unranked"} />
           </div>
         </div>
 
@@ -115,6 +117,7 @@ export default function PublicProfilePage() {
             { label: "Accuracy contribution", value: `${(breakdown.accuracy ?? 0).toFixed(0)}%` },
             { label: "NPAT contribution", value: `${(breakdown.npat ?? 0).toFixed(0)}%` },
             { label: "Activity contribution", value: `${(breakdown.activity ?? 0).toFixed(0)}%` },
+            { label: "Hangman contribution", value: `${(breakdown.hangman ?? 0).toFixed(0)}%` },
           ].map((item) => (
             <div key={item.label} className="rounded-[var(--radius-lg)] bg-background/85 px-4 py-3 ring-1 ring-foreground/10">
               <p className="text-[11px] font-black uppercase tracking-wide text-foreground/55">{item.label}</p>
@@ -144,6 +147,17 @@ export default function PublicProfilePage() {
             <TinyMetric label="Wins" value={String(npat.wins ?? 0)} />
             <TinyMetric label="Games played" value={String(npat.totalGames ?? 0)} />
             <TinyMetric label="NPAT rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
+          </div>
+        </SurfaceCard>
+
+        <SurfaceCard title="Hangman Performance" subtitle="Win rate, accuracy, and efficiency">
+          <div className="grid grid-cols-2 gap-3">
+            <TinyMetric label="Skill" value={(hangman.skill ?? 0).toFixed(1)} accent />
+            <TinyMetric label="Win rate" value={`${(hangman.winRate ?? 0).toFixed(1)}%`} />
+            <TinyMetric label="Accuracy" value={`${(hangman.accuracy ?? 0).toFixed(1)}%`} />
+            <TinyMetric label="Wins" value={String(hangman.totalWins ?? 0)} />
+            <TinyMetric label="Games played" value={String(Math.round(hangman.totalGames ?? 0))} />
+            <TinyMetric label="Hangman rank" value={hangman.hangmanRank != null ? `#${hangman.hangmanRank}` : "Unranked"} />
           </div>
         </SurfaceCard>
 

@@ -43,6 +43,22 @@ const userStatsSchema = new mongoose.Schema(
     cah_avgRoundWinsPerGame: { type: Number, default: 0 },
     cah_score: { type: Number, default: 0 },
 
+    hangman_totalGames: { type: Number, default: 0 },
+    hangman_totalWins: { type: Number, default: 0 },
+    hangman_winRate: { type: Number, default: 0 },
+    hangman_correctGuesses: { type: Number, default: 0 },
+    hangman_wrongGuesses: { type: Number, default: 0 },
+    hangman_totalGuesses: { type: Number, default: 0 },
+    hangman_accuracy: { type: Number, default: 0 },
+    hangman_avgGuessesPerGame: { type: Number, default: 0 },
+    hangman_avgMistakesPerGame: { type: Number, default: 0 },
+    hangman_fastFinishes: { type: Number, default: 0 },
+    hangman_fastFinishRate: { type: Number, default: 0 },
+    hangman_gamesPlayedLast30: { type: Number, default: 0 },
+    hangman_activeDaysLast30: { type: Number, default: 0 },
+    hangman_skill: { type: Number, default: 0 },
+    hangman_rank: { type: Number, default: null },
+
     global_score: { type: Number, default: 0 },
     global_rank: { type: Number, default: null },
 
@@ -60,6 +76,9 @@ userStatsSchema.index({ taboo_score: -1 });
 userStatsSchema.index({ taboo_recentPerformanceScore: -1 });
 userStatsSchema.index({ cah_score: -1 });
 userStatsSchema.index({ cah_roundWins: -1 });
+userStatsSchema.index({ hangman_skill: -1 });
+userStatsSchema.index({ hangman_rank: 1, hangman_skill: -1 });
+userStatsSchema.index({ hangman_winRate: -1 });
 userStatsSchema.index({ global_score: -1 });
 
 export const UserStats =

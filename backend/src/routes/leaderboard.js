@@ -4,7 +4,12 @@ import { createTokenService } from '../services/tokenService.js';
 import { readAccessToken, resolveAccessContext } from '../middleware/authMiddleware.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { CAH_LEADERBOARD_MIN_GAMES, userStatsRepository } from '../repositories/userStatsRepository.js';
+import {
+  CAH_LEADERBOARD_MIN_GAMES,
+  GLOBAL_LEADERBOARD_MIN_GAMES,
+  HANGMAN_LEADERBOARD_MIN_GAMES,
+  userStatsRepository,
+} from '../repositories/userStatsRepository.js';
 import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
 
 const pageQuerySchema = z.object({
@@ -65,7 +70,8 @@ function mapEntries(entries, skip, primaryField, extraFields = []) {
         (e.typing_totalGames ?? 0) +
         (e.npat_totalGames ?? 0) +
         (e.taboo_gamesPlayed ?? 0) +
-        (e.cah_gamesPlayed ?? 0),
+        (e.cah_gamesPlayed ?? 0) +
+        (e.hangman_totalGames ?? 0),
     };
     base[primaryField] = e[primaryField];
     for (const f of extraFields) {
@@ -201,24 +207,9 @@ export function createLeaderboardRouter({ env }) {
       const cached = cacheGet(cacheKey);
       if (cached) return res.json({ data: cached });
 
-      const result = await userStatsRepository.leaderboard({
-        sortField: 'global_score',
-        minGamesField: 'typing_totalGames',
-        minGames: 0,
-        page,
-        limit,
-      });
+      const result = await userStatsRepository.leaderboardGlobal({ page, limit });
       const skip = (page - 1) * limit;
-      const entries = result.entries
-        .filter(
-          (e) =>
-            (e.typing_totalGames ?? 0) +
-              (e.npat_totalGames ?? 0) +
-              (e.taboo_gamesPlayed ?? 0) +
-              (e.cah_gamesPlayed ?? 0) >=
-            5,
-        )
-        .map((e, i) => ({
+      const entries = result.entries.map((e, i) => ({
           rank: e.global_rank ?? skip + i + 1,
           userId: String(e.userId),
           username: e.username,
@@ -238,24 +229,31 @@ export function createLeaderboardRouter({ env }) {
           activeDaysLast30: e.activeDaysLast30 ?? 0,
           typing_totalGames: e.typing_totalGames ?? 0,
           npat_totalGames: e.npat_totalGames ?? 0,
+          hangman_totalGames: e.hangman_totalGames ?? 0,
+          hangman_skill: e.hangman_skill ?? 0,
+          hangman_accuracy: e.hangman_accuracy ?? 0,
+          hangman_winRate: e.hangman_winRate ?? 0,
           totalGames:
             (e.typing_totalGames ?? 0) +
             (e.npat_totalGames ?? 0) +
             (e.taboo_gamesPlayed ?? 0) +
-            (e.cah_gamesPlayed ?? 0),
+            (e.cah_gamesPlayed ?? 0) +
+            (e.hangman_totalGames ?? 0),
           breakdown: {
             typing: Math.round(Math.min(e.typing_bestWpm / 150, 1) * 100 * 100) / 100,
             accuracy: Math.round((e.typing_weightedAccuracy ?? 0) * 100) / 100,
             npat: Math.round(Math.min((e.npat_averageScore ?? 0) / 35, 1) * 100 * 100) / 100,
             taboo: Math.round(e.taboo_score ?? 0),
             cah: Math.round(e.cah_score ?? 0),
+            hangman: Math.round(e.hangman_skill ?? 0),
             activity:
               Math.round(
                 Math.min(
                   ((e.typing_totalGames ?? 0) +
                     (e.npat_totalGames ?? 0) +
                     (e.taboo_gamesPlayed ?? 0) +
-                    (e.cah_gamesPlayed ?? 0)) /
+                    (e.cah_gamesPlayed ?? 0) +
+                    (e.hangman_totalGames ?? 0)) /
                     100,
                   1,
                 ) *
@@ -265,7 +263,46 @@ export function createLeaderboardRouter({ env }) {
             consistency: Math.round(Math.min((e.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
           },
         }));
-      const data = { entries, total: entries.length, page };
+      const data = { entries, total: result.total, page, minGames: GLOBAL_LEADERBOARD_MIN_GAMES };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/hangman',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `hangman:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'hangman_skill',
+        minGamesField: 'hangman_totalGames',
+        minGames: HANGMAN_LEADERBOARD_MIN_GAMES,
+        page,
+        limit,
+        sort: {
+          hangman_skill: -1,
+          hangman_accuracy: -1,
+          hangman_totalWins: -1,
+          lastPlayedAt: -1,
+        },
+      });
+      const data = {
+        entries: mapEntries(result.entries, (page - 1) * limit, 'hangman_skill', [
+          'hangman_totalGames',
+          'hangman_totalWins',
+          'hangman_winRate',
+          'hangman_accuracy',
+          'hangman_correctGuesses',
+          'hangman_wrongGuesses',
+          'hangman_avgGuessesPerGame',
+          'hangman_avgMistakesPerGame',
+        ]),
+        total: result.total,
+        page,
+      };
       cacheSet(cacheKey, data);
       res.json({ data });
     }),
@@ -376,16 +413,29 @@ export function createLeaderboardRouter({ env }) {
               score: 0,
               cahRank: null,
             },
+            hangman: {
+              skill: 0,
+              totalGames: 0,
+              totalWins: 0,
+              winRate: 0,
+              accuracy: 0,
+              correctGuesses: 0,
+              wrongGuesses: 0,
+              avgGuessesPerGame: 0,
+              avgMistakesPerGame: 0,
+              fastFinishRate: 0,
+              hangmanRank: null,
+            },
             global: {
               score: 0,
               rank: null,
-              breakdown: { typing: 0, accuracy: 0, npat: 0, taboo: 0, cah: 0, activity: 0, consistency: 0 },
+              breakdown: { typing: 0, accuracy: 0, npat: 0, taboo: 0, cah: 0, hangman: 0, activity: 0, consistency: 0 },
             },
           },
         });
       }
 
-      const [wpmRank, accRank, npatRank, tabooRank, cahRank] = await Promise.all([
+      const [wpmRank, accRank, npatRank, tabooRank, cahRank, hangmanRank] = await Promise.all([
         userStatsRepository.rankFor({ userId, sortField: 'typing_bestWpm', minGamesField: 'typing_totalGames', minGames: 3 }),
         userStatsRepository.rankFor({ userId, sortField: 'typing_weightedAccuracy', minGamesField: 'typing_totalGames', minGames: 3 }),
         userStatsRepository.rankFor({ userId, sortField: 'npat_averageScore', minGamesField: 'npat_totalGames', minGames: 2 }),
@@ -396,13 +446,20 @@ export function createLeaderboardRouter({ env }) {
           minGamesField: 'cah_gamesPlayed',
           minGames: CAH_LEADERBOARD_MIN_GAMES,
         }),
+        userStatsRepository.rankFor({
+          userId,
+          sortField: 'hangman_skill',
+          minGamesField: 'hangman_totalGames',
+          minGames: HANGMAN_LEADERBOARD_MIN_GAMES,
+        }),
       ]);
 
       const totalGames =
         (stats.typing_totalGames ?? 0) +
         (stats.npat_totalGames ?? 0) +
         (stats.taboo_gamesPlayed ?? 0) +
-        (stats.cah_gamesPlayed ?? 0);
+        (stats.cah_gamesPlayed ?? 0) +
+        (stats.hangman_totalGames ?? 0);
       res.json({
         data: {
           typing: {
@@ -448,6 +505,19 @@ export function createLeaderboardRouter({ env }) {
             score: stats.cah_score ?? 0,
             cahRank,
           },
+          hangman: {
+            skill: stats.hangman_skill ?? 0,
+            totalGames: stats.hangman_totalGames ?? 0,
+            totalWins: stats.hangman_totalWins ?? 0,
+            winRate: stats.hangman_winRate ?? 0,
+            accuracy: stats.hangman_accuracy ?? 0,
+            correctGuesses: stats.hangman_correctGuesses ?? 0,
+            wrongGuesses: stats.hangman_wrongGuesses ?? 0,
+            avgGuessesPerGame: stats.hangman_avgGuessesPerGame ?? 0,
+            avgMistakesPerGame: stats.hangman_avgMistakesPerGame ?? 0,
+            fastFinishRate: stats.hangman_fastFinishRate ?? 0,
+            hangmanRank,
+          },
           global: {
             score: stats.global_score ?? 0,
             rank: stats.global_rank ?? null,
@@ -458,6 +528,7 @@ export function createLeaderboardRouter({ env }) {
               npat: Math.round(Math.min((stats.npat_averageScore ?? 0) / 35, 1) * 100 * 100) / 100,
               taboo: Math.round(stats.taboo_score ?? 0),
               cah: Math.round(stats.cah_score ?? 0),
+              hangman: Math.round(stats.hangman_skill ?? 0),
               activity: Math.round(Math.min(totalGames / 100, 1) * 100 * 100) / 100,
               consistency: Math.round(Math.min((stats.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
             },

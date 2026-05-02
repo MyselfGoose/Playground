@@ -10,6 +10,7 @@ export const BOARD_PATHS = {
   npat: "/api/v1/leaderboard/npat",
   taboo: "/api/v1/leaderboard/taboo",
   cah: "/api/v1/leaderboard/cah",
+  hangman: "/api/v1/leaderboard/hangman",
 };
 
 /**
