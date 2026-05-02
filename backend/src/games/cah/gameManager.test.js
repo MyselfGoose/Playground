@@ -59,6 +59,7 @@ test('CAH round lifecycle with 3-player judge flow', async (t) => {
 
   const room = createThreePlayerRoom();
   await startGame(room);
+  assert.ok(typeof room.game.gameSessionId === 'string' && room.game.gameSessionId.length > 0);
   assert.equal(room.game.status, 'submitting');
   assert.equal(room.game.blackCard.pick, 1);
   assert.equal(room.game.judgeUserId, 'u2');

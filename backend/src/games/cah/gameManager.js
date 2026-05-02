@@ -235,6 +235,7 @@ export async function startGame(room) {
   room.usedWhiteSourceIdsByUser.clear();
   room.deckRecycled = false;
   room.game = {
+    gameSessionId: crypto.randomUUID(),
     status: 'dealing',
     roundIndex: 0,
     judgeUserId: nextJudge(room.players, null),
@@ -397,6 +398,7 @@ export function snapshotFor(room, viewerUserId) {
   return {
     ...base,
     game: {
+      gameSessionId: game.gameSessionId ?? null,
       status: game.status,
       phase: game.status,
       roundIndex: game.roundIndex,

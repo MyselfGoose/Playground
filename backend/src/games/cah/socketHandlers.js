@@ -105,13 +105,13 @@ export function installCahHandlers({ socket, registry, logger }) {
   });
 
   register(socket, logger, 'judge_pick_winner', cahJudgePickWinnerSchema, async (data) => {
-    const room = registry.judgePick(socket, data.submissionId);
+    const room = await registry.judgePick(socket, data.submissionId);
     registry.emitRoom(room.code, 'reveal_cards');
     return { room: registry.snapshotForSocket(socket) };
   });
 
   register(socket, logger, 'judge_select', cahJudgePickWinnerSchema, async (data) => {
-    const room = registry.judgePick(socket, data.submissionId);
+    const room = await registry.judgePick(socket, data.submissionId);
     registry.emitRoom(room.code, 'reveal_cards');
     return { room: registry.snapshotForSocket(socket) };
   });

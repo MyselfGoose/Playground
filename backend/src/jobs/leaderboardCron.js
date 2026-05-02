@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
+import { cahLeaderboardLedgerRepository } from '../repositories/cahLeaderboardLedgerRepository.js';
 import { userStatsRepository } from '../repositories/userStatsRepository.js';
 
 /**
@@ -24,13 +25,14 @@ export async function runLeaderboardDailyCron(logger) {
     for (const uid of userIds) {
       try {
         const oid = uid instanceof mongoose.Types.ObjectId ? uid : new mongoose.Types.ObjectId(String(uid));
-        const [typingDays, npatDays, tabooDays] = await Promise.all([
+        const [typingDays, npatDays, tabooDays, cahDays] = await Promise.all([
           typingAttemptRepository.activeDaysSince(oid, since),
           npatResultRepository.activeDaysSince(oid, since),
           tabooResultRepository.activeDaysSince(oid, since),
+          cahLeaderboardLedgerRepository.activeDaysSince(oid, since),
         ]);
 
-        const totalDays = Math.min(typingDays + npatDays + tabooDays, 30);
+        const totalDays = Math.min(typingDays + npatDays + tabooDays + cahDays, 30);
 
         await userStatsRepository.updateActiveDaysAndGlobalScore(oid, totalDays, tabooDays);
         updated += 1;

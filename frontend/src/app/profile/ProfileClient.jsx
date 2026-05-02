@@ -74,7 +74,10 @@ export function ProfileClient() {
   }
 
   const totalGames = stats
-    ? (stats.typing?.totalGames ?? 0) + (stats.npat?.totalGames ?? 0) + (stats.taboo?.gamesPlayed ?? 0)
+    ? (stats.typing?.totalGames ?? 0) +
+      (stats.npat?.totalGames ?? 0) +
+      (stats.taboo?.gamesPlayed ?? 0) +
+      (stats.cah?.gamesPlayed ?? 0)
     : 0;
   const globalScore = stats?.global?.score ?? 0;
   const globalRank = stats?.global?.rank;
@@ -198,6 +201,54 @@ export function ProfileClient() {
                     icon="📊" 
                     label="NPAT Rank" 
                     value={stats.npat?.npatRank ? `#${stats.npat.npatRank}` : "Unranked"}
+                  />
+                </div>
+              </div>
+
+              {/* Cards Against Humanity */}
+              <div className="mt-10 mb-10">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <span>🃏</span> Cards Against Humanity
+                </h3>
+                <p className="text-xs text-foreground/55 mb-4 max-w-xl">
+                  Rankings use composite score from round win rate, average wins per finished game, and games played.
+                  At least four finished matches are required to appear on the CAH leaderboard.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StatRow
+                    icon="🎯"
+                    label="Composite score"
+                    value={(stats.cah?.score ?? 0).toFixed(1)}
+                  />
+                  <StatRow
+                    icon="🏆"
+                    label="Round wins"
+                    value={String(stats.cah?.roundWins ?? 0)}
+                  />
+                  <StatRow
+                    icon="📈"
+                    label="Win rate (submitter rounds)"
+                    value={`${(stats.cah?.winRate ?? 0).toFixed(1)}%`}
+                  />
+                  <StatRow
+                    icon="🎮"
+                    label="Games finished"
+                    value={String(stats.cah?.gamesPlayed ?? 0)}
+                  />
+                  <StatRow
+                    icon="🔄"
+                    label="Rounds played (submit)"
+                    value={String(stats.cah?.roundsPlayed ?? 0)}
+                  />
+                  <StatRow
+                    icon="⚖️"
+                    label="Rounds judged"
+                    value={String(stats.cah?.roundsJudged ?? 0)}
+                  />
+                  <StatRow
+                    icon="📊"
+                    label="CAH rank"
+                    value={stats.cah?.cahRank ? `#${stats.cah.cahRank}` : "Unranked"}
                   />
                 </div>
               </div>

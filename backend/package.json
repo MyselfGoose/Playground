@@ -11,7 +11,7 @@
     "db:reset": "node scripts/dbReset.js",
     "db:import:cah": "node scripts/importCah.js",
     "db:validate:cah": "node scripts/validateCahImport.js",
-    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/services/*.test.js"
+    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/services/*.test.js src/repositories/*.test.js"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,7 @@
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
+import { cahLeaderboardLedgerRepository } from '../repositories/cahLeaderboardLedgerRepository.js';
 import { userStatsRepository } from '../repositories/userStatsRepository.js';
 
 const WPM_HARD_CAP = 300;
@@ -337,6 +338,106 @@ export async function persistTabooResults({ code, game, players, logger }) {
       });
     } catch (err) {
       logger.warn({ err, userId: d.userId, event: 'user_stats_taboo_update_failed' }, 'leaderboard');
+    }
+  }
+}
+
+/**
+ * Persist CAH round outcome after judge picks a winner (idempotent per session + round index).
+ * @param {Record<string, unknown>} room
+ * @param {import('pino').Logger | undefined} log
+ */
+export async function persistCahRoundResult(room, log) {
+  const game = room?.game;
+  if (!game?.gameSessionId || game.status !== 'revealing') return;
+  const gameSessionId = String(game.gameSessionId);
+  const roundIndex = Number(game.roundIndex);
+  if (!Number.isFinite(roundIndex)) return;
+
+  let inserted = false;
+  try {
+    inserted = await cahLeaderboardLedgerRepository.tryInsertRoundLedger({
+      gameSessionId,
+      roundIndex,
+      roomCode: room.code ?? '',
+    });
+  } catch (err) {
+    log?.warn({ err, event: 'cah_round_ledger_failed' }, 'leaderboard');
+    return;
+  }
+  if (!inserted) return;
+
+  const winnerUserId = game.winnerUserId ? String(game.winnerUserId) : '';
+  const judgeUserId = game.judgeUserId ? String(game.judgeUserId) : '';
+  const submissions = Array.isArray(game.submissions) ? game.submissions : [];
+  const submitterIds = [...new Set(submissions.map((s) => String(s.userId || '')).filter(Boolean))];
+
+  try {
+    await cahLeaderboardLedgerRepository.insertActivityForUsers(
+      [...submitterIds, judgeUserId].filter(Boolean),
+    );
+  } catch (err) {
+    log?.warn({ err, event: 'cah_activity_insert_failed' }, 'leaderboard');
+  }
+
+  const usernameById = new Map(
+    (Array.isArray(room.players) ? room.players : []).map((p) => [String(p.userId), String(p.username ?? 'Player')]),
+  );
+
+  for (const uid of submitterIds) {
+    try {
+      await userStatsRepository.applyCahSubmitterRound({
+        userId: uid,
+        username: usernameById.get(uid) ?? 'Player',
+        won: Boolean(winnerUserId && uid === winnerUserId),
+      });
+    } catch (err) {
+      log?.warn({ err, userId: uid, event: 'cah_submitter_stats_failed' }, 'leaderboard');
+    }
+  }
+
+  if (judgeUserId) {
+    try {
+      await userStatsRepository.applyCahJudgeRound({
+        userId: judgeUserId,
+        username: usernameById.get(judgeUserId) ?? 'Player',
+      });
+    } catch (err) {
+      log?.warn({ err, userId: judgeUserId, event: 'cah_judge_stats_failed' }, 'leaderboard');
+    }
+  }
+}
+
+/**
+ * Persist completed CAH match (increments games played once per participant).
+ * @param {Record<string, unknown>} room
+ * @param {import('pino').Logger | undefined} log
+ */
+export async function persistCahGameResult(room, log) {
+  const game = room?.game;
+  if (!game?.gameSessionId || game.status !== 'finished') return;
+  const gameSessionId = String(game.gameSessionId);
+
+  let inserted = false;
+  try {
+    inserted = await cahLeaderboardLedgerRepository.tryInsertGameLedger({ gameSessionId });
+  } catch (err) {
+    log?.warn({ err, event: 'cah_game_ledger_failed' }, 'leaderboard');
+    return;
+  }
+  if (!inserted) return;
+
+  const players = Array.isArray(room.players) ? room.players : [];
+  for (const p of players) {
+    const uid = String(p.userId || '');
+    if (!uid) continue;
+    try {
+      await userStatsRepository.applyCahGameCompleted({
+        userId: uid,
+        username: String(p.username ?? 'Player'),
+      });
+    } catch (err) {
+      log?.warn({ err, userId: uid, event: 'cah_game_completed_stats_failed' }, 'leaderboard');
     }
   }
 }

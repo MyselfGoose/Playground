@@ -1,21 +1,31 @@
 import mongoose from 'mongoose';
 import { UserStats } from '../models/UserStats.js';
+import { CAH_MAX_ROUNDS_LIMIT } from '../games/cah/constants.js';
 
-function computeGlobalScore(doc) {
-  const typingSkill = Math.min(doc.typing_bestWpm / 150, 1) * 100;
+/** Minimum completed CAH matches to appear on the CAH leaderboard. */
+export const CAH_LEADERBOARD_MIN_GAMES = 4;
+
+export function computeGlobalScore(doc) {
+  const typingSkill = Math.min((doc.typing_bestWpm || 0) / 150, 1) * 100;
   const accuracySkill = doc.typing_weightedAccuracy || 0;
-  const npatSkill = Math.min(doc.npat_averageScore / 35, 1) * 100;
+  const npatSkill = Math.min((doc.npat_averageScore || 0) / 35, 1) * 100;
   const tabooSkill = doc.taboo_score || 0;
-  const totalGames = (doc.typing_totalGames || 0) + (doc.npat_totalGames || 0) + (doc.taboo_gamesPlayed || 0);
+  const cahSkill = doc.cah_score || 0;
+  const totalGames =
+    (doc.typing_totalGames || 0) +
+    (doc.npat_totalGames || 0) +
+    (doc.taboo_gamesPlayed || 0) +
+    (doc.cah_gamesPlayed || 0);
   const activityScore = Math.min(totalGames / 100, 1) * 100;
   const consistencyScore = Math.min((doc.activeDaysLast30 || 0) / 20, 1) * 100;
   return (
-    typingSkill * 0.24 +
-    accuracySkill * 0.16 +
-    npatSkill * 0.2 +
-    tabooSkill * 0.2 +
-    activityScore * 0.15 +
-    consistencyScore * 0.05
+    typingSkill * 0.22 +
+    accuracySkill * 0.14 +
+    npatSkill * 0.18 +
+    tabooSkill * 0.16 +
+    cahSkill * 0.18 +
+    activityScore * 0.1 +
+    consistencyScore * 0.02
   );
 }
 
@@ -64,6 +74,27 @@ function computeTabooDerived(updated) {
     taboo_avgGuessesPerRound: Math.round(avgGuessesPerRound * 100) / 100,
     taboo_score: Math.round(score * 100) / 100,
   };
+}
+
+export function computeCahDerived(updated) {
+  const gamesPlayed = updated.cah_gamesPlayed || 0;
+  const roundsPlayed = updated.cah_roundsPlayed || 0;
+  const roundWins = updated.cah_roundWins || 0;
+  const winRate = roundsPlayed > 0 ? (roundWins / roundsPlayed) * 100 : 0;
+  const avgRoundWinsPerGame = gamesPlayed > 0 ? roundWins / gamesPlayed : 0;
+  const efficiencyComponent = clamp(0, (avgRoundWinsPerGame / CAH_MAX_ROUNDS_LIMIT) * 100, 100);
+  const volumeComponent = clamp(0, (Math.log10(gamesPlayed + 1) / Math.log10(51)) * 100, 100);
+  const score = clamp(0, winRate * 0.45 + efficiencyComponent * 0.35 + volumeComponent * 0.2, 100);
+  return {
+    cah_winRate: Math.round(winRate * 100) / 100,
+    cah_avgRoundWinsPerGame: Math.round(avgRoundWinsPerGame * 100) / 100,
+    cah_score: Math.round(score * 100) / 100,
+  };
+}
+
+function toUserOid(userId) {
+  if (!mongoose.Types.ObjectId.isValid(userId)) return null;
+  return userId instanceof mongoose.Types.ObjectId ? userId : new mongoose.Types.ObjectId(String(userId));
 }
 
 export const userStatsRepository = {
@@ -190,19 +221,64 @@ export const userStatsRepository = {
     );
   },
 
+  async applyCahSubmitterRound({ userId, username, won }) {
+    const oid = toUserOid(userId);
+    if (!oid) return;
+    const updated = await UserStats.findOneAndUpdate(
+      { userId: oid },
+      {
+        $inc: { cah_roundsPlayed: 1, cah_roundWins: won ? 1 : 0 },
+        $set: { lastPlayedAt: new Date(), username },
+      },
+      { upsert: true, new: true, lean: true },
+    );
+    const cahDerived = computeCahDerived(updated);
+    const globalScore = Math.round(computeGlobalScore({ ...updated, ...cahDerived }) * 100) / 100;
+    await UserStats.updateOne({ userId: oid }, { $set: { ...cahDerived, global_score: globalScore } });
+  },
+
+  async applyCahJudgeRound({ userId, username }) {
+    const oid = toUserOid(userId);
+    if (!oid) return;
+    const updated = await UserStats.findOneAndUpdate(
+      { userId: oid },
+      {
+        $inc: { cah_roundsJudged: 1 },
+        $set: { lastPlayedAt: new Date(), username },
+      },
+      { upsert: true, new: true, lean: true },
+    );
+    const cahDerived = computeCahDerived(updated);
+    const globalScore = Math.round(computeGlobalScore({ ...updated, ...cahDerived }) * 100) / 100;
+    await UserStats.updateOne({ userId: oid }, { $set: { ...cahDerived, global_score: globalScore } });
+  },
+
+  async applyCahGameCompleted({ userId, username }) {
+    const oid = toUserOid(userId);
+    if (!oid) return;
+    const updated = await UserStats.findOneAndUpdate(
+      { userId: oid },
+      {
+        $inc: { cah_gamesPlayed: 1 },
+        $set: { lastPlayedAt: new Date(), username },
+      },
+      { upsert: true, new: true, lean: true },
+    );
+    const cahDerived = computeCahDerived(updated);
+    const globalScore = Math.round(computeGlobalScore({ ...updated, ...cahDerived }) * 100) / 100;
+    await UserStats.updateOne({ userId: oid }, { $set: { ...cahDerived, global_score: globalScore } });
+  },
+
   /**
    * Leaderboard query with pagination + minimum game threshold.
-   * @param {{ sortField: string, minGamesField: string, minGames: number, page: number, limit: number }} opts
+   * @param {{ sortField: string, minGamesField: string, minGames: number, page: number, limit: number, sort?: Record<string, 1|-1> }} opts
    */
-  async leaderboard({ sortField, minGamesField, minGames, page, limit }) {
+  async leaderboard({ sortField, minGamesField, minGames, page, limit, sort }) {
     const filter = { [minGamesField]: { $gte: minGames } };
     const skip = (page - 1) * limit;
+    const sortObj = sort ?? { [sortField]: -1, lastPlayedAt: -1 };
     const [entries, total] = await Promise.all([
-      UserStats.find(filter)
-        .sort({ [sortField]: -1, lastPlayedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      UserStats.find(filter).sort(sortObj).skip(skip).limit(limit).lean(),
       UserStats.countDocuments(filter),
     ]);
     return { entries, total, page };
@@ -261,7 +337,14 @@ export const userStatsRepository = {
     const users = await UserStats.find({
       $expr: {
         $gte: [
-          { $add: ['$typing_totalGames', '$npat_totalGames', '$taboo_gamesPlayed'] },
+          {
+            $add: [
+              { $ifNull: ['$typing_totalGames', 0] },
+              { $ifNull: ['$npat_totalGames', 0] },
+              { $ifNull: ['$taboo_gamesPlayed', 0] },
+              { $ifNull: ['$cah_gamesPlayed', 0] },
+            ],
+          },
           totalGamesThreshold,
         ],
       },
@@ -284,7 +367,14 @@ export const userStatsRepository = {
       {
         $expr: {
           $lt: [
-            { $add: ['$typing_totalGames', '$npat_totalGames', '$taboo_gamesPlayed'] },
+            {
+              $add: [
+                { $ifNull: ['$typing_totalGames', 0] },
+                { $ifNull: ['$npat_totalGames', 0] },
+                { $ifNull: ['$taboo_gamesPlayed', 0] },
+                { $ifNull: ['$cah_gamesPlayed', 0] },
+              ],
+            },
             totalGamesThreshold,
           ],
         },

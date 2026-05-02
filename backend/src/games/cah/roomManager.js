@@ -12,6 +12,7 @@ import {
   startGame,
   submitCards,
 } from './gameManager.js';
+import { persistCahGameResult, persistCahRoundResult } from '../../services/leaderboardStatsService.js';
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -37,7 +38,8 @@ function normalizeSettings(input = {}) {
   };
 }
 
-export function createCahRoomManager({ cahNs }) {
+export function createCahRoomManager({ cahNs, logger }) {
+  const log = logger;
   const rooms = new Map();
   const socketToCode = new Map();
   const userToCode = new Map();
@@ -224,11 +226,16 @@ export function createCahRoomManager({ cahNs }) {
     return room;
   }
 
-  function judgePick(socket, submissionId) {
+  async function judgePick(socket, submissionId) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     judgePickWinner(room, socket.data.userId, submissionId);
     bumpStateVersion(room);
+    try {
+      await persistCahRoundResult(room, log);
+    } catch (err) {
+      log?.warn({ err, event: 'persist_cah_round_unhandled' }, 'cah');
+    }
     return room;
   }
 
@@ -237,6 +244,13 @@ export function createCahRoomManager({ cahNs }) {
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     if (room.hostId !== socket.data.userId) throw Object.assign(new Error('Only host can advance round'), { code: 'NOT_HOST' });
     await nextRound(room);
+    if (room.game?.status === 'finished') {
+      try {
+        await persistCahGameResult(room, log);
+      } catch (err) {
+        log?.warn({ err, event: 'persist_cah_game_unhandled' }, 'cah');
+      }
+    }
     bumpStateVersion(room);
     return room;
   }

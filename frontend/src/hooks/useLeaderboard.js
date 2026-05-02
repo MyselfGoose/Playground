@@ -9,20 +9,23 @@ export const BOARD_PATHS = {
   "typing-accuracy": "/api/v1/leaderboard/typing/accuracy",
   npat: "/api/v1/leaderboard/npat",
   taboo: "/api/v1/leaderboard/taboo",
+  cah: "/api/v1/leaderboard/cah",
 };
 
 /**
  * @param {keyof typeof BOARD_PATHS} board
  * @param {number} page
+ * @param {{ sort?: string }} [options]
  */
-export function useLeaderboard(board, page = 1) {
+export function useLeaderboard(board, page = 1, options = {}) {
+  const sort = options.sort;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [data, setData] = useState(/** @type {{ entries: unknown[], total: number, page: number } | null} */ (null));
   const cacheRef = useRef(/** @type {Map<string, unknown>} */ (new Map()));
 
   const fetchBoard = useCallback(async () => {
-    const key = `${board}:${page}`;
+    const key = sort ? `${board}:${page}:${sort}` : `${board}:${page}`;
     const cached = cacheRef.current.get(key);
     if (cached) {
       setData(cached);
@@ -36,7 +39,9 @@ export function useLeaderboard(board, page = 1) {
     try {
       const path = BOARD_PATHS[board];
       if (!path) throw new Error(`Unknown board: ${board}`);
-      const json = await apiFetch(`${path}?page=${page}&limit=25`);
+      const qs = new URLSearchParams({ page: String(page), limit: '25' });
+      if (board === 'cah' && sort) qs.set('sort', sort);
+      const json = await apiFetch(`${path}?${qs}`);
       const result = json?.data ?? { entries: [], total: 0, page: 1 };
       cacheRef.current.set(key, result);
       setData(result);
@@ -45,7 +50,7 @@ export function useLeaderboard(board, page = 1) {
     } finally {
       setLoading(false);
     }
-  }, [board, page]);
+  }, [board, page, sort]);
 
   useEffect(() => {
     void fetchBoard();

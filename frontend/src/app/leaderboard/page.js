@@ -12,7 +12,8 @@ const BOARDS = [
     key: "global",
     label: "Global",
     subtitle: "Composite ranking across all games",
-    explainer: "Global ranking combines typing skill, NPAT skill, activity, and consistency. A minimum of 5 total games is required.",
+    explainer:
+      "Global ranking combines typing, NPAT, Taboo, Cards Against Humanity, overall activity, and consistency. A minimum of 5 total games across those modes is required.",
   },
   {
     key: "typing-wpm",
@@ -38,14 +39,26 @@ const BOARDS = [
     subtitle: "Ranked by individual contribution score",
     explainer: "Taboo ranking is based on speaking skill, guessing accuracy, win consistency, and fair-play penalties (taboo violations). Minimum 3 completed Taboo games required.",
   },
+  {
+    key: "cah",
+    label: "CAH",
+    subtitle: "Cards Against Humanity — composite skill",
+    explainer:
+      "Rankings emphasize composite score from round win rate, average round wins per completed game, and experience. Judge rounds count toward activity but not submitter win rate. Minimum 4 completed CAH games required.",
+  },
 ];
 
-function primaryMetric(board, entry) {
+function primaryMetric(board, entry, { cahSort } = {}) {
   if (board === "global") return { label: "Score", value: (entry.globalScore ?? 0).toFixed(1) };
   if (board === "typing-wpm") return { label: "WPM", value: (entry.typing_bestWpm ?? 0).toFixed(1) };
   if (board === "typing-accuracy") return { label: "Accuracy", value: `${(entry.typing_weightedAccuracy ?? 0).toFixed(1)}%` };
   if (board === "npat") return { label: "Avg Score", value: (entry.npat_averageScore ?? 0).toFixed(1) };
   if (board === "taboo") return { label: "Score", value: (entry.taboo_score ?? 0).toFixed(1) };
+  if (board === "cah") {
+    if (cahSort === "wins") return { label: "Round wins", value: String(entry.cah_roundWins ?? 0) };
+    if (cahSort === "winRate") return { label: "Win rate", value: `${(entry.cah_winRate ?? 0).toFixed(1)}%` };
+    return { label: "Score", value: (entry.cah_score ?? 0).toFixed(1) };
+  }
   return { label: "Score", value: "—" };
 }
 
@@ -82,6 +95,14 @@ function boardStats(board, entry) {
       { label: "Speaker Success", value: `${(entry.taboo_speakerSuccessRate ?? 0).toFixed(1)}%` },
     ];
   }
+  if (board === "cah") {
+    return [
+      { label: "Composite score", value: (entry.cah_score ?? 0).toFixed(1) },
+      { label: "Round wins", value: String(entry.cah_roundWins ?? 0) },
+      { label: "Win rate", value: `${(entry.cah_winRate ?? 0).toFixed(1)}%` },
+      { label: "Games finished", value: String(entry.cah_gamesPlayed ?? 0) },
+    ];
+  }
   return [
     { label: "Global Score", value: (entry.globalScore ?? 0).toFixed(1) },
     { label: "Typing Skill", value: `${(entry.breakdown?.typing ?? 0).toFixed(0)}%` },
@@ -96,6 +117,7 @@ function contributionBreakdown(entry) {
     accuracy: Math.round(entry.typing_weightedAccuracy ?? 0),
     npat: Math.round(Math.min((entry.npat_averageScore ?? 0) / 35, 1) * 100),
     taboo: Math.round(entry.taboo_score ?? 0),
+    cah: Math.round(entry.cah_score ?? 0),
     activity: Math.round(Math.min((entry.totalGames ?? 0) / 100, 1) * 100),
     consistency: 0,
   };
@@ -106,6 +128,7 @@ function badgeFor(entry) {
   if ((entry.totalGames ?? 0) <= 3) return "New Player";
   if ((entry.npat_winRate ?? 0) >= 70) return "High Win Rate";
   if ((entry.taboo_score ?? 0) >= 80) return "Elite Taboo";
+  if ((entry.cah_score ?? 0) >= 75 && (entry.cah_gamesPlayed ?? 0) >= 4) return "CAH Sharp";
   if ((entry.typing_bestWpm ?? 0) >= 100) return "Speedster";
   return null;
 }
@@ -121,6 +144,7 @@ function explanationFromBreakdown(entry) {
     accuracy: "accuracy",
     npat: "NPAT performance",
     taboo: "Taboo contribution",
+    cah: "Cards Against Humanity skill",
     activity: "overall activity",
     consistency: "consistency",
   };
@@ -130,14 +154,17 @@ function explanationFromBreakdown(entry) {
 export default function LeaderboardPage() {
   const [activeBoard, setActiveBoard] = useState("global");
   const [page, setPage] = useState(1);
+  const [cahSort, setCahSort] = useState("score");
   const [expandedId, setExpandedId] = useState(null);
-  const { loading, error, data } = useLeaderboard(activeBoard, page);
+  const leaderboardOptions = activeBoard === "cah" ? { sort: cahSort } : {};
+  const { loading, error, data } = useLeaderboard(activeBoard, page, leaderboardOptions);
   const { user } = useUser();
   const myStats = useMyStats();
 
   const switchBoard = useCallback((key) => {
     setActiveBoard(key);
     setPage(1);
+    if (key !== "cah") setCahSort("score");
   }, []);
 
   const entries = useMemo(() => data?.entries ?? [], [data]);
@@ -150,6 +177,7 @@ export default function LeaderboardPage() {
     if (activeBoard === "typing-accuracy") return myStats.data.typing?.accuracyRank;
     if (activeBoard === "npat") return myStats.data.npat?.npatRank;
     if (activeBoard === "taboo") return myStats.data.taboo?.tabooRank;
+    if (activeBoard === "cah") return myStats.data.cah?.cahRank;
     return null;
   })();
 
@@ -180,6 +208,7 @@ export default function LeaderboardPage() {
           {/* Page title */}
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">{boardMeta.label}</h1>
           <p className="mt-1 text-base text-foreground/70">{boardMeta.subtitle}</p>
+          <p className="mt-3 max-w-2xl text-sm text-foreground/65">{boardMeta.explainer}</p>
         </div>
       </div>
 
@@ -198,6 +227,27 @@ export default function LeaderboardPage() {
           </motion.div>
         ) : null}
 
+        {activeBoard === "cah" ? (
+          <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
+            <label htmlFor="cah-sort" className="text-sm font-bold text-foreground/70">
+              Sort by
+            </label>
+            <select
+              id="cah-sort"
+              value={cahSort}
+              onChange={(e) => {
+                setCahSort(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-full border border-muted-bright/40 bg-background px-4 py-2 text-sm font-bold text-foreground ring-1 ring-muted-bright/50"
+            >
+              <option value="score">Composite score</option>
+              <option value="wins">Round wins</option>
+              <option value="winRate">Win rate</option>
+            </select>
+          </div>
+        ) : null}
+
         {loading && entries.length === 0 ? (
           <div className="flex items-center justify-center py-24 text-muted text-lg font-bold">Loading rankings…</div>
         ) : error ? (
@@ -211,14 +261,14 @@ export default function LeaderboardPage() {
         ) : (
           <>
             {/* TOP 3 PODIUM SPOTLIGHT */}
-            <TopThreePodium entries={entries} board={activeBoard} pm={primaryMetric} />
+            <TopThreePodium entries={entries} board={activeBoard} cahSort={cahSort} />
 
             {/* REST OF THE RANKINGS - FLOWING FEED */}
             <div className="mt-16">
               <h2 className="text-xl font-extrabold text-foreground mb-6 text-center">The Chase</h2>
               <div className="space-y-4 max-w-2xl mx-auto">
                 {entries.slice(3).map((entry, index) => {
-                  const pm = primaryMetric(activeBoard, entry);
+                  const pm = primaryMetric(activeBoard, entry, { cahSort });
                   const badge = badgeFor(entry);
                   const expanded = expandedId === entry.userId;
                   const stats = boardStats(activeBoard, entry);
@@ -294,11 +344,12 @@ export default function LeaderboardPage() {
                               {activeBoard === "global" ? (
                                 <>
                                   <p className="text-xs font-bold uppercase tracking-wide text-muted mb-3">Breakdown</p>
-                                  <div className="grid grid-cols-3 gap-3 text-xs">
+                                  <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
                                     <Metric label="Typing" value={`${breakdown.typing.toFixed(0)}%`} />
                                     <Metric label="Accuracy" value={`${breakdown.accuracy.toFixed(0)}%`} />
                                     <Metric label="NPAT" value={`${breakdown.npat.toFixed(0)}%`} />
                                     <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
+                                    <Metric label="CAH" value={`${(breakdown.cah ?? 0).toFixed(0)}%`} />
                                     <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
                                     <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
                                   </div>
@@ -348,7 +399,7 @@ export default function LeaderboardPage() {
   );
 }
 
-function TopThreePodium({ entries, board, pm }) {
+function TopThreePodium({ entries, board, cahSort }) {
   const top3 = entries.slice(0, 3);
 
   // Position: 2nd, 1st, 3rd (visual arrangement for podium effect)
@@ -371,7 +422,7 @@ function TopThreePodium({ entries, board, pm }) {
           if (!entry) return null;
 
           const medals = ["🥇", "🥈", "🥉"];
-          const metric = pm(board, entry);
+          const metric = primaryMetric(board, entry, { cahSort });
           const isFirst = index === 0;
 
           return (

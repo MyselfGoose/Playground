@@ -35,6 +35,14 @@ const userStatsSchema = new mongoose.Schema(
     taboo_recentPerformanceScore: { type: Number, default: 0 },
     taboo_score: { type: Number, default: 0 },
 
+    cah_gamesPlayed: { type: Number, default: 0 },
+    cah_roundsPlayed: { type: Number, default: 0 },
+    cah_roundWins: { type: Number, default: 0 },
+    cah_roundsJudged: { type: Number, default: 0 },
+    cah_winRate: { type: Number, default: 0 },
+    cah_avgRoundWinsPerGame: { type: Number, default: 0 },
+    cah_score: { type: Number, default: 0 },
+
     global_score: { type: Number, default: 0 },
     global_rank: { type: Number, default: null },
 
@@ -50,6 +58,8 @@ userStatsSchema.index({ typing_weightedAccuracy: -1 });
 userStatsSchema.index({ npat_averageScore: -1 });
 userStatsSchema.index({ taboo_score: -1 });
 userStatsSchema.index({ taboo_recentPerformanceScore: -1 });
+userStatsSchema.index({ cah_score: -1 });
+userStatsSchema.index({ cah_roundWins: -1 });
 userStatsSchema.index({ global_score: -1 });
 
 export const UserStats =
