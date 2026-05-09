@@ -13,6 +13,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { io } from "socket.io-client";
 import { API_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
+import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { formatJoinCodeForServer } from "./roomCode.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
@@ -150,6 +151,9 @@ export function NpatProvider({ children }) {
       setSocketErrorState(err?.message ?? "Could not connect");
       setSocketErrorCode("CONNECT_ERROR");
       setConnected(false);
+    });
+    socket.on("reconnect", () => {
+      dispatchReconcile("npat_reconnected");
     });
     socket.on("room_update", onRoomPayload);
     socket.on("game_started", onRoomPayload);

@@ -82,6 +82,13 @@ export const envSchema = z
     }, z.string().min(1, 'JWT_REFRESH_SECRET is required in production')),
     JWT_ACCESS_EXPIRY: z.string().min(1).default('15m'),
     JWT_REFRESH_EXPIRY: z.string().min(1).default('7d'),
+    /** Short-lived token for Socket.IO handshakes (`typ: socket_admission`). */
+    JWT_SOCKET_ADMISSION_EXPIRY: z.string().min(1).default('120s'),
+    /**
+     * If two tabs refresh concurrently, the losing refresh sees an already-rotated session row.
+     * Within this grace window, allow issuing cookies tied to the winning rotation instead of TOKEN_REUSE.
+     */
+    REFRESH_CONCURRENT_GRACE_MS: z.coerce.number().int().min(500).max(60_000).default(8000),
     BCRYPT_COST: z.coerce.number().int().min(10).max(14).default(12),
 
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),

@@ -2,11 +2,16 @@ import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '../constants/auth.js'
 import { parseDurationToMs } from '../utils/parseDuration.js';
 import { readAccessToken } from '../middleware/authMiddleware.js';
 import { AppError } from '../errors/AppError.js';
+import { recordAuthRefresh } from '../observability/platformMetrics.js';
 
 /**
- * @param {{ authService: ReturnType<import('../services/authService.js').createAuthService>, env: import('../config/env.js').Env }} params
+ * @param {{
+ *   authService: ReturnType<import('../services/authService.js').createAuthService>,
+ *   env: import('../config/env.js').Env,
+ *   tokenService: ReturnType<import('../services/tokenService.js').createTokenService>,
+ * }} params
  */
-export function createAuthController({ authService, env }) {
+export function createAuthController({ authService, env, tokenService }) {
   const cookieBase = () => ({
     httpOnly: true,
     secure: env.COOKIE_SECURE,
@@ -98,6 +103,10 @@ export function createAuthController({ authService, env }) {
       try {
         const result = await authService.refresh(refreshToken, requestMeta(req));
         setAuthCookies(res, result.accessToken, result.refreshToken);
+        recordAuthRefresh({
+          ok: true,
+          grace: Boolean(result.concurrentRefreshMerged),
+        });
         req.log?.info({ event: 'auth_refresh', userId: result.user._id }, 'auth_event');
         res.status(200).json({
           data: {
@@ -105,6 +114,7 @@ export function createAuthController({ authService, env }) {
           },
         });
       } catch (err) {
+        recordAuthRefresh({ ok: false });
         // Always clear cookies on any refresh failure so the client stops replaying a bad token.
         clearAuthCookies(res);
         req.log?.warn(
@@ -176,6 +186,24 @@ export function createAuthController({ authService, env }) {
         throw new AppError(401, 'Authentication required', { code: 'UNAUTHENTICATED', expose: true });
       }
       res.status(200).json({ data: { token } });
+    },
+
+    /**
+     * Short-lived Socket.IO credential (`typ: socket_admission`) bound to refresh session `sid`.
+     * Prefer over `/socket-handshake` so reconnect can mint fresh tickets without pinning access JWTs.
+     */
+    async socketAdmission(req, res) {
+      const admission = await tokenService.signSocketAdmissionToken(
+        req.user.id,
+        req.user.roles,
+        req.user.sid,
+      );
+      res.status(200).json({
+        data: {
+          token: admission,
+          expiresIn: env.JWT_SOCKET_ADMISSION_EXPIRY,
+        },
+      });
     },
   };
 }

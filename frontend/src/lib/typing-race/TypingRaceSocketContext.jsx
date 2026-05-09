@@ -13,14 +13,17 @@ import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 import { API_BASE, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
+import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
 const TypingRaceContext = createContext(null);
 
 const ACK_TIMEOUT_MS = 15_000;
 const DEV = process.env.NODE_ENV !== "production";
 
+const TYPING_ROOM_STORAGE_KEY = "playgrounds:typing-race:last-room-code";
+
 const NOT_CONNECTED_HELP =
-  "Could not reach the typing game server. Stay signed in, refresh the page, and set NEXT_PUBLIC_API_URL to the same API origin you use for REST (no trailing /api/v1).";
+  "Could not reach the typing game server. Stay signed in — we will retry automatically — and set NEXT_PUBLIC_API_URL to the same API origin you use for REST (no trailing /api/v1).";
 
 /**
  * Maps socket / ack errors to copy suitable for UI toasts and inline alerts.
@@ -44,6 +47,9 @@ export function typingRaceUserFacingError(err) {
   }
   if (code === "EMIT_FAILED") {
     return e.message || "Could not send the request.";
+  }
+  if (code === "SOCKET_NOT_AUTHENTICATED") {
+    return e.message || "Waiting for the server connection…";
   }
   return e.message || "Request failed.";
 }
@@ -107,7 +113,14 @@ export function TypingRaceProvider({ children }) {
   const [socketError, setSocketError] = useState(
     /** @type {string | null} */ (!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null),
   );
+  /** Plan F: explicit socket lifecycle for UX + emit gating. */
+  const [socketLifecycle, setSocketLifecycle] = useState(
+    /** @type {'DISCONNECTED'|'CONNECTING'|'AUTHENTICATING'|'AUTHENTICATED'|'RECONNECTING'|'FAILED'} */ (
+      "DISCONNECTED"
+    ),
+  );
   const socketRef = useRef(/** @type {import('socket.io-client').Socket | null} */ (null));
+  const authenticatedRef = useRef(false);
   const lastConnectErrorRef = useRef(/** @type {string | null} */ (null));
   const eventRateRef = useRef({ tickAt: Date.now(), peerProgress: 0 });
 
@@ -118,6 +131,13 @@ export function TypingRaceProvider({ children }) {
       const sn = /** @type {any} */ (r).serverNow;
       if (typeof sn === "number") {
         setServerOffsetMs(sn - Date.now());
+      }
+      const rc = /** @type {any} */ (r).roomCode;
+      if (typeof rc === "string" && typeof sessionStorage !== "undefined") {
+        const digits = rc.replace(/\D/g, "");
+        if (digits.length >= 4) {
+          sessionStorage.setItem(TYPING_ROOM_STORAGE_KEY, digits);
+        }
       }
       setRoom(r);
     } else {
@@ -150,6 +170,14 @@ export function TypingRaceProvider({ children }) {
             }),
           };
         }
+      }
+      if (!authenticatedRef.current) {
+        return {
+          ok: false,
+          error: Object.assign(new Error("Reconnecting to game server… Try again in a moment."), {
+            code: "SOCKET_NOT_AUTHENTICATED",
+          }),
+        };
       }
       return await new Promise((resolve) => {
         try {
@@ -189,29 +217,39 @@ export function TypingRaceProvider({ children }) {
     /** @type {import('socket.io-client').Socket | null} */
     let socket = null;
 
+    async function fetchAdmissionToken() {
+      const json = await apiFetch("/api/v1/auth/socket-admission");
+      const tok = json?.data?.token;
+      if (!tok) throw new Error("missing admission token");
+      return tok;
+    }
+
     (async () => {
       let token;
       try {
-        const json = await apiFetch("/api/v1/auth/socket-handshake");
-        token = json?.data?.token;
+        setSocketLifecycle("AUTHENTICATING");
+        token = await fetchAdmissionToken();
       } catch (e) {
         if (cancelled) {
           return;
         }
         const msg =
           e instanceof ApiError
-            ? e.message
+            ? e.user_message || e.message
             : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
         setSocketError(msg);
+        setSocketLifecycle("FAILED");
         return;
       }
       if (cancelled || !token) {
         if (!cancelled && !token) {
-          setSocketError("Could not get a session token for multiplayer. Try signing out and back in.");
+          setSocketError("Could not get a session ticket for multiplayer.");
+          setSocketLifecycle("FAILED");
         }
         return;
       }
 
+      setSocketLifecycle("CONNECTING");
       socket = io(`${API_BASE}/typing-race`, {
         path: "/socket.io",
         withCredentials: true,
@@ -227,6 +265,30 @@ export function TypingRaceProvider({ children }) {
       }
       socketRef.current = socket;
 
+      socket.io.on("reconnect_attempt", async () => {
+        authenticatedRef.current = false;
+        setSocketLifecycle("RECONNECTING");
+        try {
+          const fresh = await fetchAdmissionToken();
+          socket.auth = { token: fresh };
+        } catch {
+          dispatchReconcile("typing_admission_refresh_failed");
+        }
+      });
+
+      const tryRejoinStoredRoom = () => {
+        if (cancelled || !socket?.connected || typeof sessionStorage === "undefined") return;
+        const digits = String(sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY) ?? "").replace(/\D/g, "");
+        if (digits.length < 4) return;
+        socket.timeout(ACK_TIMEOUT_MS).emit("typing_join_room", { roomCode: digits }, (err, res) => {
+          if (err || !res?.ok || !res?.data?.room) {
+            sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
+            return;
+          }
+          applyRoom(res.data.room);
+        });
+      };
+
       const onRoom = (payload) => {
         if (payload?.room) {
           applyRoom(payload.room);
@@ -235,11 +297,16 @@ export function TypingRaceProvider({ children }) {
 
       socket.on("connect", () => {
         lastConnectErrorRef.current = null;
+        authenticatedRef.current = true;
         setConnected(socket.connected);
         setSocketError(null);
+        setSocketLifecycle("AUTHENTICATED");
+        tryRejoinStoredRoom();
       });
       socket.on("disconnect", () => {
+        authenticatedRef.current = false;
         setConnected(false);
+        setSocketLifecycle("DISCONNECTED");
       });
       socket.on("connect_error", (err) => {
         const detail = err?.message ?? "Could not connect";
@@ -248,11 +315,16 @@ export function TypingRaceProvider({ children }) {
           `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${API_BASE || "your API"}.`,
         );
         setConnected(false);
+        setSocketLifecycle("FAILED");
       });
       socket.on("reconnect", () => {
         lastConnectErrorRef.current = null;
+        authenticatedRef.current = true;
         setConnected(socket.connected);
         setSocketError(null);
+        setSocketLifecycle("AUTHENTICATED");
+        dispatchReconcile("typing_socket_reconnected");
+        tryRejoinStoredRoom();
       });
 
       socket.on("typing_room_updated", onRoom);
@@ -312,6 +384,7 @@ export function TypingRaceProvider({ children }) {
 
     return () => {
       cancelled = true;
+      authenticatedRef.current = false;
       if (socket) {
         socket.removeAllListeners();
         socket.disconnect();
@@ -319,6 +392,7 @@ export function TypingRaceProvider({ children }) {
       socketRef.current = null;
       setConnected(false);
       setRoom(null);
+      setSocketLifecycle("DISCONNECTED");
     };
   }, [authLoading, userId, applyRoom]);
 
@@ -352,6 +426,9 @@ export function TypingRaceProvider({ children }) {
   const leaveRoom = useCallback(async () => {
     const result = await emitAck("typing_leave_room", {});
     setRoom(null);
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
+    }
     return result;
   }, [emitAck]);
 
@@ -394,6 +471,7 @@ export function TypingRaceProvider({ children }) {
       room,
       connected,
       isConnecting,
+      socketLifecycle,
       serverNow,
       serverOffsetMs,
       socketError,
@@ -414,6 +492,7 @@ export function TypingRaceProvider({ children }) {
       room,
       connected,
       isConnecting,
+      socketLifecycle,
       serverNow,
       serverOffsetMs,
       socketError,

@@ -1,8 +1,6 @@
 import { Server } from 'socket.io';
 import { createTokenService } from '../../services/tokenService.js';
-import { resolveAccessContext } from '../../middleware/authMiddleware.js';
-import { ACCESS_TOKEN_COOKIE } from '../../constants/auth.js';
-import { parseCookies } from '../../utils/parseCookies.js';
+import { createSocketAuthMiddleware } from '../../middleware/socketAuthMiddleware.js';
 import { createNpatRoomRegistry } from './roomManager.js';
 import { installHandlers } from './socketHandlers.js';
 import { createTypingRaceRegistry } from '../typing-race/roomRegistry.js';
@@ -10,27 +8,6 @@ import { installTypingRaceSocketServer } from '../typing-race/typingRaceSocket.j
 import { attachTabooNamespace } from '../taboo/tabooSocket.js';
 import { attachCahNamespace } from '../cah/cahSocket.js';
 import { attachHangmanNamespace } from '../hangman/hangmanSocket.js';
-
-/**
- * Read the access token off a Socket.IO handshake. Priority:
- *   1. explicit `auth.token` payload (tests, non-browser clients)
- *   2. `Authorization: Bearer` header
- *   3. `access_token` cookie (browser default)
- *
- * @param {import('socket.io').Socket['handshake']} handshake
- */
-function readHandshakeToken(handshake) {
-  const authPayload = /** @type {any} */ (handshake?.auth);
-  if (authPayload && typeof authPayload.token === 'string' && authPayload.token.trim()) {
-    return authPayload.token.trim();
-  }
-  const header = handshake?.headers?.authorization;
-  if (typeof header === 'string' && header.startsWith('Bearer ')) {
-    return header.slice(7).trim();
-  }
-  const cookies = parseCookies(handshake?.headers?.cookie);
-  return cookies[ACCESS_TOKEN_COOKIE] ?? null;
-}
 
 /**
  * @param {{
@@ -42,26 +19,7 @@ function readHandshakeToken(handshake) {
  * }} params
  */
 export function installNpatSocketServer({ npatNs, registry, env, logger, tokenService }) {
-  npatNs.use(async (socket, next) => {
-    try {
-      const token = readHandshakeToken(socket.handshake);
-      if (!token) {
-        return next(new Error('UNAUTHENTICATED'));
-      }
-      const ctx = await resolveAccessContext(token, { tokenService });
-      socket.data.userId = ctx.id;
-      socket.data.username = ctx.username;
-      socket.data.roles = ctx.roles;
-      socket.data.sid = ctx.sid;
-      return next();
-    } catch (err) {
-      logger.debug(
-        { err, event: 'npat_handshake_rejected', socketId: socket.id },
-        'npat_socket',
-      );
-      return next(new Error('UNAUTHENTICATED'));
-    }
-  });
+  npatNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: 'npat_socket' }));
 
   npatNs.on('connection', async (socket) => {
     const userId = /** @type {string} */ (socket.data.userId);

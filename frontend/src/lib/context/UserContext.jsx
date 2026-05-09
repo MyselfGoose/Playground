@@ -9,11 +9,18 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
+import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
+import { subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
 
 /** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string }} AuthUser */
 
+/** @typedef {'INIT'|'HYDRATING'|'SYNCED'|'DEGRADED'|'RECOVERING'} SessionLifecycle */
+
 const UserContext = createContext(null);
+
+const RECONCILE_DEBOUNCE_MS = 500;
 
 function avatarUrlFor(username) {
   const seed = encodeURIComponent(username || "player");
@@ -34,11 +41,64 @@ function mapUser(u) {
   };
 }
 
+async function fetchMeWithRetries(signal, maxAttempts = 4) {
+  let delay = 400;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await apiFetch("/api/v1/auth/me", { signal });
+    } catch (e) {
+      if (signal?.aborted || e?.name === "AbortError") throw e;
+      if (e instanceof ApiError && e.status === 401) throw e;
+      if (attempt >= maxAttempts) throw e;
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 4000);
+    }
+  }
+  throw new Error("bootstrap exhausted");
+}
+
 export function UserProvider({ children }) {
+  const pathname = usePathname();
   const [user, setUserState] = useState(/** @type {AuthUser | null} */ (null));
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState(/** @type {string | null} */ (null));
+  const [lifecycle, setLifecycle] = useState(/** @type {SessionLifecycle} */ ("INIT"));
+
   const mountedRef = useRef(true);
+  const reconcileTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+
+  const runReconcile = useCallback(async (reason) => {
+    if (!mountedRef.current) return;
+    setLifecycle("RECOVERING");
+    try {
+      const me = await apiFetch("/api/v1/auth/me");
+      if (!mountedRef.current) return;
+      setUserState(mapUser(me?.data?.user));
+      invalidateDerivedCaches();
+      setSessionError(null);
+      setLifecycle("SYNCED");
+    } catch (e) {
+      if (!mountedRef.current) return;
+      if (e instanceof ApiError && e.status === 401) {
+        setUserState(null);
+        setLifecycle("SYNCED");
+      } else {
+        setSessionError(e instanceof Error ? e.message : "Could not reach the server");
+        setLifecycle("DEGRADED");
+      }
+    }
+  }, []);
+
+  const scheduleReconcile = useCallback(
+    (reason) => {
+      if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+      reconcileTimerRef.current = setTimeout(() => {
+        reconcileTimerRef.current = null;
+        void runReconcile(reason);
+      }, RECONCILE_DEBOUNCE_MS);
+    },
+    [runReconcile],
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -46,23 +106,25 @@ export function UserProvider({ children }) {
 
     async function bootstrap() {
       setLoading(true);
+      setLifecycle("HYDRATING");
       setSessionError(null);
       try {
-        const me = await apiFetch("/api/v1/auth/me", { signal: ac.signal });
+        const me = await fetchMeWithRetries(ac.signal);
         if (!mountedRef.current || ac.signal.aborted) return;
         setUserState(mapUser(me?.data?.user));
+        setLifecycle("SYNCED");
       } catch (e) {
         if (e?.name === "AbortError" || ac.signal.aborted) return;
         if (!mountedRef.current) return;
         if (e instanceof ApiError && e.status === 401) {
-          // apiFetch already tried /refresh. A 401 here means no valid session.
           setUserState(null);
+          setLifecycle("SYNCED");
         } else if (e instanceof ApiError && e.status >= 500) {
-          // Server error — keep whatever we have (nothing on bootstrap) and surface the error.
-          setSessionError(e.message);
+          setSessionError(e.user_message || e.message);
+          setLifecycle("DEGRADED");
         } else {
-          // Network / CORS / parse error — surface but don't flip to logged-out.
-          setSessionError(e?.message ?? "Could not reach the server");
+          setSessionError(e instanceof Error ? e.message : "Could not reach the server");
+          setLifecycle("DEGRADED");
         }
       } finally {
         if (mountedRef.current && !ac.signal.aborted) {
@@ -71,29 +133,62 @@ export function UserProvider({ children }) {
       }
     }
 
-    bootstrap();
+    void bootstrap();
     return () => {
       mountedRef.current = false;
       ac.abort();
+      if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const unsub = subscribeReconcile(({ reason }) => {
+      scheduleReconcile(reason ?? "event");
+    });
+    return unsub;
+  }, [scheduleReconcile]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVis = () => {
+      if (document.visibilityState === "visible") scheduleReconcile("visibility");
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [scheduleReconcile]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onOnline = () => scheduleReconcile("online");
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [scheduleReconcile]);
+
+  useEffect(() => {
+    if (loading) return;
+    scheduleReconcile("navigation");
+  }, [pathname, loading, scheduleReconcile]);
 
   const refreshUser = useCallback(async () => {
     try {
       const me = await apiFetch("/api/v1/auth/me");
       const next = mapUser(me?.data?.user);
       setUserState(next);
+      invalidateDerivedCaches();
       setSessionError(null);
+      setLifecycle("SYNCED");
       return next;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setUserState(null);
+        setLifecycle("SYNCED");
         return null;
       }
       setSessionError(e instanceof Error ? e.message : "Could not reach the server");
-      return user;
+      setLifecycle("DEGRADED");
+      return null;
     }
-  }, [user]);
+  }, []);
 
   const login = useCallback(async ({ email, password }) => {
     const json = await apiFetch("/api/v1/auth/login", {
@@ -105,7 +200,9 @@ export function UserProvider({ children }) {
     });
     const next = mapUser(json?.data?.user);
     setUserState(next);
+    invalidateDerivedCaches();
     setSessionError(null);
+    setLifecycle("SYNCED");
     return next;
   }, []);
 
@@ -120,7 +217,9 @@ export function UserProvider({ children }) {
     });
     const next = mapUser(json?.data?.user);
     setUserState(next);
+    invalidateDerivedCaches();
     setSessionError(null);
+    setLifecycle("SYNCED");
     return next;
   }, []);
 
@@ -131,7 +230,9 @@ export function UserProvider({ children }) {
       // Still drop client state; server clears cookies when reachable.
     }
     setUserState(null);
+    invalidateDerivedCaches();
     setSessionError(null);
+    setLifecycle("SYNCED");
   }, []);
 
   const value = useMemo(
@@ -139,12 +240,14 @@ export function UserProvider({ children }) {
       user,
       loading,
       sessionError,
+      lifecycle,
       login,
       register,
       logout,
       refreshUser,
+      reconcileNow: runReconcile,
     }),
-    [user, loading, sessionError, login, register, logout, refreshUser],
+    [user, loading, sessionError, lifecycle, login, register, logout, refreshUser, runReconcile],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

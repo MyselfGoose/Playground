@@ -13,6 +13,8 @@ import { refreshSessionRepository } from '../repositories/refreshSessionReposito
  */
 export function createAuthService({ env, passwordService, tokenService }) {
   const refreshTtlMs = () => parseDurationToMs(env.JWT_REFRESH_EXPIRY);
+  const concurrentRefreshGraceMs = () =>
+    typeof env.REFRESH_CONCURRENT_GRACE_MS === 'number' ? env.REFRESH_CONCURRENT_GRACE_MS : 8000;
 
   /**
    * @param {{ _id: unknown, roles: string[] }} userDoc
@@ -133,8 +135,43 @@ export function createAuthService({ env, passwordService, tokenService }) {
           throw new AppError(401, 'Invalid credentials', { code: 'INVALID_REFRESH', expose: true });
         }
         if (stale.replacedByJti || stale.revokedAt) {
-          // Token reuse: someone is presenting a refresh token that has already been rotated or
-          // revoked. Nuke every session for this user.
+          const revokedMs = stale.revokedAt ? new Date(stale.revokedAt).getTime() : 0;
+          const ageMs = revokedMs ? Date.now() - revokedMs : Number.POSITIVE_INFINITY;
+
+          // Benign multi-tab refresh: another tab already won rotation recently — mint cookies for that winning session.
+          if (
+            typeof stale.replacedByJti === 'string' &&
+            stale.replacedByJti.length > 0 &&
+            ageMs >= 0 &&
+            ageMs < concurrentRefreshGraceMs() &&
+            String(stale.userId) === sub
+          ) {
+            const newRow = await refreshSessionRepository.findByJti(stale.replacedByJti);
+            const nowDate = new Date();
+            if (
+              newRow &&
+              !newRow.revokedAt &&
+              !newRow.replacedByJti &&
+              new Date(newRow.expiresAt) > nowDate &&
+              String(newRow.userId) === sub
+            ) {
+              const user = await userRepository.findByIdLean(sub);
+              if (!user?.isActive) {
+                await refreshSessionRepository.revokeByJti(newRow.jti);
+                throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+              }
+              const refreshOut = await tokenService.signRefreshToken(sub, newRow.jti);
+              const accessOut = await tokenService.signAccessToken(sub, user.roles, newRow.jti);
+              return {
+                user,
+                accessToken: accessOut,
+                refreshToken: refreshOut,
+                concurrentRefreshMerged: true,
+              };
+            }
+          }
+
+          // Token reuse / stale rotation outside grace — revoke everything for safety.
           await refreshSessionRepository.revokeAllForUser(stale.userId);
           throw new AppError(401, 'Invalid credentials', { code: 'TOKEN_REUSE', expose: true });
         }
@@ -164,7 +201,7 @@ export function createAuthService({ env, passwordService, tokenService }) {
       }
       const refreshOut = await tokenService.signRefreshToken(sub, newSessionJti);
       const accessOut = await tokenService.signAccessToken(sub, user.roles, newSessionJti);
-      return { user, accessToken: accessOut, refreshToken: refreshOut };
+      return { user, accessToken: accessOut, refreshToken: refreshOut, concurrentRefreshMerged: false };
     },
 
     /**

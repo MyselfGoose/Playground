@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../lib/api.js";
+import { registerDerivedCacheInvalidator } from "../lib/reconciliation/leaderboardInvalidation.js";
 
 export const BOARD_PATHS = {
   global: "/api/v1/leaderboard/global",
@@ -24,6 +25,12 @@ export function useLeaderboard(board, page = 1, options = {}) {
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [data, setData] = useState(/** @type {{ entries: unknown[], total: number, page: number } | null} */ (null));
   const cacheRef = useRef(/** @type {Map<string, unknown>} */ (new Map()));
+
+  useEffect(() => {
+    return registerDerivedCacheInvalidator(() => {
+      cacheRef.current.clear();
+    });
+  }, []);
 
   const fetchBoard = useCallback(async () => {
     const key = sort ? `${board}:${page}:${sort}` : `${board}:${page}`;
@@ -67,10 +74,17 @@ export function useMyStats() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [data, setData] = useState(null);
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    return registerDerivedCacheInvalidator(() => setNonce((n) => n + 1));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const json = await apiFetch("/api/v1/leaderboard/me");
         if (!cancelled) setData(json?.data ?? null);
@@ -80,8 +94,10 @@ export function useMyStats() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [nonce]);
 
   return { loading, error, data };
 }
@@ -95,6 +111,10 @@ export function useUserProfile(userId) {
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [data, setData] = useState(/** @type {Record<string, unknown> | null} */ (null));
   const cacheRef = useRef(/** @type {Map<string, unknown>} */ (new Map()));
+
+  useEffect(() => {
+    return registerDerivedCacheInvalidator(() => cacheRef.current.clear());
+  }, []);
 
   useEffect(() => {
     if (!userId) {

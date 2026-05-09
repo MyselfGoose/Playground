@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { bumpMetric } from '../observability/platformMetrics.js';
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
@@ -51,6 +52,7 @@ export async function runLeaderboardDailyCron(logger) {
     await userStatsRepository.recomputeGlobalRanks();
     await userStatsRepository.recomputeHangmanRanks();
 
+    bumpMetric('leaderboard_cron_complete');
     const elapsed = Date.now() - start;
     logger.info({ event: 'leaderboard_cron_done', updated, elapsed }, 'leaderboard_cron');
   } catch (err) {

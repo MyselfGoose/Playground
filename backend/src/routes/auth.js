@@ -26,7 +26,7 @@ export function createAuthRouter({ env }) {
   const passwordService = createPasswordService({ bcryptCost: env.BCRYPT_COST });
   const tokenService = createTokenService(env);
   const authService = createAuthService({ env, passwordService, tokenService });
-  const authController = createAuthController({ authService, env });
+  const authController = createAuthController({ authService, env, tokenService });
   const { requireAuth } = createAuthMiddleware({ tokenService });
 
   const authLimiter = rateLimit({
@@ -51,6 +51,7 @@ export function createAuthRouter({ env }) {
   router.post('/logout-all', requireAuth, asyncHandler(authController.logoutAll));
   router.get('/me', requireAuth, asyncHandler(authController.me));
   router.get('/socket-handshake', requireAuth, asyncHandler(authController.socketHandshake));
+  router.get('/socket-admission', requireAuth, asyncHandler(authController.socketAdmission));
 
   return router;
 }

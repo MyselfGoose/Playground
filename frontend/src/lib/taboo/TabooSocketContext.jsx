@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io } from "socket.io-client";
 import { API_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
+import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
 const TabooContext = createContext(null);
 const ACK_TIMEOUT_MS = 15_000;
@@ -71,6 +72,10 @@ export function TabooProvider({ children }) {
     const onRoomPayload = (payload) => {
       if (payload?.room) applyRoomSnapshot(payload.room);
     };
+    socket.io.on("reconnect_attempt", () => {
+      dispatchReconcile("taboo_reconnect_attempt");
+    });
+
     socket.on("connect", () => {
       setConnectionState("connected");
       setSocketError(null);
@@ -83,7 +88,10 @@ export function TabooProvider({ children }) {
       setConnectionState("reconnecting");
       setSocketError(err?.message ?? "Could not connect");
     });
-    socket.on("reconnect", () => setConnectionState("connected"));
+    socket.on("reconnect", () => {
+      setConnectionState("connected");
+      dispatchReconcile("taboo_reconnected");
+    });
     socket.on("room_update", onRoomPayload);
     socket.on("session_resumed", onRoomPayload);
 

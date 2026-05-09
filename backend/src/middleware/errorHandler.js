@@ -1,4 +1,5 @@
 import { AppError } from '../errors/AppError.js';
+import { defaultMetaForStatus, metaForError } from '../errors/errorCatalog.js';
 
 /**
  * Central error boundary: log full detail, return safe JSON to clients.
@@ -27,16 +28,46 @@ export function createErrorHandler(env) {
     const exposeMessage =
       resolvedStatus < 500 || env.NODE_ENV !== 'production';
 
+    const catalogMeta = isApp
+      ? metaForError({
+          code: typeof err.code === 'string' ? err.code : '',
+          statusCode: resolvedStatus,
+          message: err.message,
+        })
+      : defaultMetaForStatus(resolvedStatus, err instanceof Error ? err.message : 'Request failed');
+
+    /** @type {Record<string, unknown>} */
+    const unified = {
+      category:
+        isApp && typeof err.category === 'string' && err.category ? err.category : catalogMeta.category,
+      recoverable:
+        typeof err.recoverable === 'boolean' ? err.recoverable : catalogMeta.recoverable,
+      retryable: typeof err.retryable === 'boolean' ? err.retryable : catalogMeta.retryable,
+      requires_reauth:
+        typeof err.requires_reauth === 'boolean' ? err.requires_reauth : catalogMeta.requires_reauth,
+      user_message:
+        isApp && typeof err.user_message === 'string' && err.user_message
+          ? err.user_message
+          : catalogMeta.user_message,
+    };
+
+    const safeMsg =
+      exposeMessage && (!isApp || err.expose !== false) ? err.message : 'Internal Server Error';
+
     const body = {
       error: {
-        message:
-          exposeMessage && (!isApp || err.expose !== false) ? err.message : 'Internal Server Error',
+        message: safeMsg,
+        ...unified,
         requestId: req.id,
       },
     };
 
     if (isApp && err.code && err.expose !== false) {
       body.error.code = err.code;
+    }
+    if (!body.error.code) {
+      body.error.code =
+        resolvedStatus === 429 ? 'RATE_LIMIT' : resolvedStatus >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_FAILED';
     }
 
     if (env.NODE_ENV === 'development' && err.stack) {

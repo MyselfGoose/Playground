@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io } from "socket.io-client";
 import { API_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
+import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
 const HangmanContext = createContext(null);
 const ACK_TIMEOUT_MS = 15_000;
@@ -86,6 +87,10 @@ export function HangmanProvider({ children }) {
       if (payload?.room) applyRoomSnapshot(payload.room);
     };
 
+    socket.io.on("reconnect_attempt", () => {
+      dispatchReconcile("hangman_reconnect_attempt");
+    });
+
     socket.on("connect", () => {
       setConnectionState("connected");
       setSocketError(null);
@@ -107,6 +112,7 @@ export function HangmanProvider({ children }) {
     socket.on("reconnect", () => {
       setConnectionState("connected");
       setSyncState("syncing");
+      dispatchReconcile("hangman_reconnected");
     });
     socket.on("room_update", onRoomPayload);
     socket.on("session_resumed", onRoomPayload);

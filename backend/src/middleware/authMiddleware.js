@@ -1,3 +1,4 @@
+import * as jose from 'jose';
 import { ACCESS_TOKEN_COOKIE } from '../constants/auth.js';
 import { AppError } from '../errors/AppError.js';
 import { userRepository } from '../repositories/userRepository.js';
@@ -38,6 +39,43 @@ export async function resolveAccessContext(token, { tokenService }) {
     roles: user.roles,
     sid,
   };
+}
+
+/**
+ * Resolve identity for Socket.IO: tries short-lived `socket_admission` JWT, otherwise access JWT.
+ * Admission tokens are disposable handshake credentials bound to the same refresh session `sid`.
+ *
+ * @param {string} rawToken
+ * @param {{ tokenService: ReturnType<import('../services/tokenService.js').createTokenService> }} deps
+ */
+export async function resolveSocketCredential(rawToken, { tokenService }) {
+  let peekTyp = '';
+  try {
+    const p = jose.decodeJwt(rawToken);
+    peekTyp = typeof p.typ === 'string' ? p.typ : '';
+  } catch {
+    peekTyp = '';
+  }
+
+  if (peekTyp === 'socket_admission') {
+    const { sub, sid } = await tokenService.verifySocketAdmissionToken(rawToken);
+    const sessionAlive = await refreshSessionRepository.isJtiActive(sid);
+    if (!sessionAlive) {
+      throw new AppError(401, 'Session revoked', { code: 'SESSION_REVOKED', expose: true });
+    }
+    const user = await userRepository.findByIdLean(sub);
+    if (!user?.isActive) {
+      throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+    }
+    return {
+      id: String(user._id),
+      username: user.username,
+      roles: user.roles,
+      sid,
+    };
+  }
+
+  return resolveAccessContext(rawToken, { tokenService });
 }
 
 /**

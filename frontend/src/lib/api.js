@@ -2,6 +2,8 @@
  * Browser API client: cookies (httpOnly JWTs) are sent automatically; never persist tokens in JS.
  */
 
+import { dispatchReconcile, notifyRefreshCompleted } from "./reconciliation/reconciliationEvents.js";
+
 /**
  * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
  */
@@ -33,14 +35,28 @@ export const API_BASE = resolveApiBase();
 export class ApiError extends Error {
   /**
    * @param {string} message
-   * @param {{ status?: number; code?: string; body?: unknown }} [meta]
+   * @param {{
+   *   status?: number,
+   *   code?: string,
+   *   body?: unknown,
+   *   category?: string,
+   *   recoverable?: boolean,
+   *   retryable?: boolean,
+   *   requires_reauth?: boolean,
+   *   user_message?: string,
+   * }} [meta]
    */
-  constructor(message, { status, code, body } = {}) {
+  constructor(message, meta = {}) {
     super(message);
     this.name = "ApiError";
-    this.status = status;
-    this.code = code;
-    this.body = body;
+    this.status = meta.status;
+    this.code = meta.code;
+    this.body = meta.body;
+    this.category = meta.category;
+    this.recoverable = meta.recoverable;
+    this.retryable = meta.retryable;
+    this.requires_reauth = meta.requires_reauth;
+    this.user_message = meta.user_message;
   }
 }
 
@@ -54,6 +70,54 @@ function buildUrl(path) {
   }
   if (path.startsWith("http")) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+/**
+ * @param {unknown} json
+ */
+function parseUnifiedApiError(json, res) {
+  const errBody =
+    json && typeof json === "object" && json !== null && "error" in json ? json : null;
+  const nested =
+    errBody && typeof errBody.error === "object" && errBody.error !== null ? errBody.error : null;
+
+  const rawMsg =
+    nested && "message" in nested && typeof nested.message === "string"
+      ? nested.message
+      : res.statusText || "Request failed";
+  const userMsg =
+    nested && "user_message" in nested && typeof nested.user_message === "string"
+      ? nested.user_message
+      : rawMsg;
+  const code =
+    nested && "code" in nested && nested.code != null ? String(nested.code) : undefined;
+  const category =
+    nested && "category" in nested && typeof nested.category === "string"
+      ? nested.category
+      : undefined;
+  const recoverable =
+    nested && "recoverable" in nested && typeof nested.recoverable === "boolean"
+      ? nested.recoverable
+      : undefined;
+  const retryable =
+    nested && "retryable" in nested && typeof nested.retryable === "boolean"
+      ? nested.retryable
+      : undefined;
+  const requires_reauth =
+    nested && "requires_reauth" in nested && typeof nested.requires_reauth === "boolean"
+      ? nested.requires_reauth
+      : undefined;
+
+  return new ApiError(userMsg || rawMsg, {
+    status: res.status,
+    code,
+    body: json,
+    category,
+    recoverable,
+    retryable,
+    requires_reauth,
+    user_message: userMsg,
+  });
 }
 
 async function rawFetch(path, options = {}) {
@@ -82,25 +146,29 @@ async function rawFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    const errBody =
-      json && typeof json === "object" && json !== null && "error" in json ? json : null;
-    const message =
-      errBody && typeof errBody.error === "object" && errBody.error !== null && "message" in errBody.error
-        ? String(errBody.error.message)
-        : res.statusText || "Request failed";
-    const code =
-      errBody && typeof errBody.error === "object" && errBody.error !== null && "code" in errBody.error
-        ? String(errBody.error.code)
-        : undefined;
-    throw new ApiError(message, { status: res.status, code, body: json });
+    if (json && typeof json === "object" && json !== null && "error" in json) {
+      throw parseUnifiedApiError(json, res);
+    }
+    throw new ApiError(res.statusText || "Request failed", { status: res.status, body: json });
   }
 
   return json;
 }
 
 /**
- * In-flight refresh singleton: concurrent 401s share a single POST /auth/refresh. Subsequent
- * callers await the same promise, avoiding the rotation-race-with-itself scenario.
+ * Serialize refresh across tabs via Web Locks API when available (Chromium, Safari recent).
+ */
+async function refreshViaCoordinator() {
+  const req = () => rawFetch("/api/v1/auth/refresh", { method: "POST" });
+
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    return navigator.locks.request("playgrounds-auth-refresh", req);
+  }
+  return req();
+}
+
+/**
+ * In-flight refresh singleton: concurrent 401s share a single POST /auth/refresh.
  *
  * @type {Promise<unknown> | null}
  */
@@ -117,7 +185,6 @@ const NO_AUTO_REFRESH = new Set([
 
 function shouldAutoRefresh(path, options) {
   if (NO_AUTO_REFRESH.has(path)) return false;
-  // Explicit opt-out from the caller (used by bootstrap where a 401 is expected before first refresh).
   if (options && options.noAutoRefresh) return false;
   return true;
 }
@@ -134,7 +201,16 @@ export async function apiFetch(path, options = {}) {
       throw err;
     }
     if (!refreshInFlight) {
-      refreshInFlight = rawFetch("/api/v1/auth/refresh", { method: "POST" }).finally(() => {
+      refreshInFlight = (async () => {
+        try {
+          const json = await refreshViaCoordinator();
+          notifyRefreshCompleted();
+          return json;
+        } catch (e) {
+          dispatchReconcile("refresh_failed");
+          throw e;
+        }
+      })().finally(() => {
         refreshInFlight = null;
       });
     }

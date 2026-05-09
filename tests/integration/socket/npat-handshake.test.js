@@ -46,7 +46,7 @@ describe('NPAT Socket.IO handshake', () => {
     assert.ok(err && typeof err.message === 'string', `expected connect_error, got ${err}`);
   });
 
-  it('connects with access token from register', async () => {
+  it('connects with socket admission token from register session', async () => {
     const email = `sock_${Date.now()}@example.com`;
     const reg = await request(stack.server)
       .post('/api/v1/auth/register')
@@ -62,11 +62,11 @@ describe('NPAT Socket.IO handshake', () => {
     const cookieHeader = cookies.map((c) => c.split(';')[0]).join('; ');
 
     const hs = await request(stack.server)
-      .get('/api/v1/auth/socket-handshake')
+      .get('/api/v1/auth/socket-admission')
       .set('Cookie', cookieHeader)
       .expect(200);
     const token = hs.body?.data?.token;
-    assert.ok(typeof token === 'string' && token.length > 10, 'expected token from socket-handshake');
+    assert.ok(typeof token === 'string' && token.length > 10, 'expected token from socket-admission');
 
     const socket = ioClient(`${stack.baseUrl}/npat`, {
       path: '/socket.io',

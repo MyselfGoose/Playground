@@ -30,7 +30,7 @@ describe('Typing race Socket.IO handshake', () => {
     await stopMongoMemoryServer();
   });
 
-  it('connects with token from socket-handshake', async () => {
+  it('connects with token from socket-admission', async () => {
     const email = `tr_${Date.now()}@example.com`;
     const reg = await request(stack.server)
       .post('/api/v1/auth/register')
@@ -44,7 +44,7 @@ describe('Typing race Socket.IO handshake', () => {
     const cookies = reg.headers['set-cookie'];
     const cookieHeader = cookies.map((c) => c.split(';')[0]).join('; ');
     const hs = await request(stack.server)
-      .get('/api/v1/auth/socket-handshake')
+      .get('/api/v1/auth/socket-admission')
       .set('Cookie', cookieHeader)
       .expect(200);
     const token = hs.body?.data?.token;
@@ -87,7 +87,7 @@ describe('Typing race Socket.IO handshake', () => {
       const cookies = reg.headers['set-cookie'];
       const cookieHeader = cookies.map((c) => c.split(';')[0]).join('; ');
       const hs = await request(stack.server)
-        .get('/api/v1/auth/socket-handshake')
+        .get('/api/v1/auth/socket-admission')
         .set('Cookie', cookieHeader)
         .expect(200);
       return hs.body?.data?.token;
