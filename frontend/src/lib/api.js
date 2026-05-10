@@ -102,13 +102,8 @@ function buildUrl(path) {
   if (path.startsWith("http")) return path;
   const base = API_BASE;
   if (!base) {
-    const prod = typeof process !== "undefined" && process.env.NODE_ENV === "production";
-    if (prod && !sameOriginApiMode()) {
-      throw new ApiError(
-        "Set NEXT_PUBLIC_API_URL to your API origin, or NEXT_PUBLIC_SAME_ORIGIN_API=1 with API_PROXY_TARGET on Next.",
-        { status: 0, code: "MISSING_API_BASE" },
-      );
-    }
+    // Production without NEXT_PUBLIC_API_URL: use same-origin paths so Next `API_PROXY_TARGET`
+    // rewrites can reach the API. Never throw here — missing build-time env used to brick the whole UI.
     const p = path.startsWith("/") ? path : `/${path}`;
     return p;
   }
