@@ -11,7 +11,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { io } from "socket.io-client";
-import { SOCKET_BASE } from "../api.js";
+import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { formatJoinCodeForServer } from "./roomCode.js";
@@ -83,13 +83,13 @@ export function NpatProvider({ children }) {
   const [resumedCode, setResumedCode] = useState(/** @type {string | null} */ (null));
   const [socketError, setSocketErrorState] = useState(
     /** @type {string | null} */ (
-      !SOCKET_BASE
+      !getSocketBase()
         ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL (e.g. http://localhost:4000)."
         : null
     ),
   );
   const [socketErrorCode, setSocketErrorCode] = useState(
-    /** @type {string | null} */ (!SOCKET_BASE ? "MISSING_SOCKET_URL" : null),
+    /** @type {string | null} */ (!getSocketBase() ? "MISSING_SOCKET_URL" : null),
   );
   const socketRef = useRef(/** @type {import('socket.io-client').Socket | null} */ (null));
 
@@ -118,9 +118,10 @@ export function NpatProvider({ children }) {
   useEffect(() => {
     if (authLoading) return undefined;
     if (!user) return undefined;
-    if (!SOCKET_BASE) return undefined;
+    const sockBase = getSocketBase();
+    if (!sockBase) return undefined;
 
-    const socket = io(`${SOCKET_BASE}/npat`, {
+    const socket = io(`${sockBase}/npat`, {
       path: "/socket.io",
       withCredentials: true,
       // Polling first avoids Firefox/WebSocket upgrade races during fast navigation (e.g. play → result).

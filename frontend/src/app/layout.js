@@ -20,11 +20,24 @@ export const metadata = {
   },
 };
 
+/** Ensures API URL injection reflects Vercel env at request time (not only build-time static shell). */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }) {
+  const playgroundsPublicCfg = {
+    apiBase: String(process.env.NEXT_PUBLIC_API_URL ?? "").trim(),
+    socketUrl: String(process.env.NEXT_PUBLIC_SOCKET_URL ?? "").trim(),
+  };
+
   return (
     <html lang="en" className={`${nunito.variable} h-full antialiased bg-background light`} suppressHydrationWarning>
       <head>
         <meta name="color-scheme" content="light dark" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__PLAYGROUNDS_CONFIG__ = ${JSON.stringify(playgroundsPublicCfg)};`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

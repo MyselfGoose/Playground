@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
-import { SOCKET_BASE, apiFetch, ApiError } from "../api.js";
+import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
@@ -111,7 +111,7 @@ export function TypingRaceProvider({ children }) {
   const [connected, setConnected] = useState(false);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [socketError, setSocketError] = useState(
-    /** @type {string | null} */ (!SOCKET_BASE ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null),
+    /** @type {string | null} */ (!getSocketBase() ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null),
   );
   /** Plan F: explicit socket lifecycle for UX + emit gating. */
   const [socketLifecycle, setSocketLifecycle] = useState(
@@ -209,7 +209,8 @@ export function TypingRaceProvider({ children }) {
     if (!userId) {
       return undefined;
     }
-    if (!SOCKET_BASE) {
+    const sockBase = getSocketBase();
+    if (!sockBase) {
       return undefined;
     }
 
@@ -250,7 +251,7 @@ export function TypingRaceProvider({ children }) {
       }
 
       setSocketLifecycle("CONNECTING");
-      socket = io(`${SOCKET_BASE}/typing-race`, {
+      socket = io(`${sockBase}/typing-race`, {
         path: "/socket.io",
         withCredentials: true,
         auth: { token },
@@ -312,7 +313,7 @@ export function TypingRaceProvider({ children }) {
         const detail = err?.message ?? "Could not connect";
         lastConnectErrorRef.current = detail;
         setSocketError(
-          `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${SOCKET_BASE || "your API host"}.`,
+          `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${getSocketBase() || "your API host"}.`,
         );
         setConnected(false);
         setSocketLifecycle("FAILED");

@@ -1,5 +1,12 @@
 /**
  * Browser API client: cookies (httpOnly JWTs) are sent automatically; never persist tokens in JS.
+ *
+ * API origin resolution order:
+ * 1) `NEXT_PUBLIC_SAME_ORIGIN_API` → empty base (same-origin `/api/v1`, Next rewrite proxy).
+ * 2) Runtime injection `window.__PLAYGROUNDS_CONFIG__` from RootLayout (Vercel env read at request time).
+ * 3) Build-time `process.env.NEXT_PUBLIC_API_URL` (classic Next inlining).
+ *
+ * (2) fixes deployments where the client bundle was built without `NEXT_PUBLIC_*` but the variable exists at runtime on the server.
  */
 
 import { dispatchReconcile, notifyRefreshCompleted } from "./reconciliation/reconciliationEvents.js";
@@ -29,7 +36,14 @@ function sameOriginApiMode() {
   return v === "1" || v.toLowerCase() === "true";
 }
 
-function resolveApiBase() {
+/** @returns {{ apiBase?: string, socketUrl?: string } | null} */
+function readInjectedConfig() {
+  if (typeof window === "undefined") return null;
+  const c = window.__PLAYGROUNDS_CONFIG__;
+  return c && typeof c === "object" ? c : null;
+}
+
+function resolveApiBaseFromEnvOnly() {
   if (sameOriginApiMode()) return "";
 
   const fromEnv = trimmedEnv("NEXT_PUBLIC_API_URL");
@@ -41,33 +55,39 @@ function resolveApiBase() {
   return "";
 }
 
-function resolveSocketBase() {
+/**
+ * Resolved REST API origin (no path). Empty string means same-origin relative `/api/v1`.
+ */
+export function getApiBase() {
+  if (sameOriginApiMode()) return "";
+
+  const cfg = readInjectedConfig();
+  if (cfg && typeof cfg.apiBase === "string" && cfg.apiBase.trim()) {
+    return normalizeApiBase(cfg.apiBase);
+  }
+
+  return resolveApiBaseFromEnvOnly();
+}
+
+/**
+ * Socket.IO origin (Railway / API host). Uses explicit socket URL when REST is proxied same-origin.
+ */
+export function getSocketBase() {
+  const cfg = readInjectedConfig();
+  if (cfg && typeof cfg.socketUrl === "string" && cfg.socketUrl.trim()) {
+    return normalizeApiBase(cfg.socketUrl);
+  }
+
   const sockEnv = trimmedEnv("NEXT_PUBLIC_SOCKET_URL");
   if (sockEnv) return normalizeApiBase(sockEnv);
 
-  const api = resolveApiBase();
+  const api = getApiBase();
   if (api) return api;
 
   if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
     return "http://localhost:4000";
   }
   return "";
-}
-
-export const API_BASE = resolveApiBase();
-/** Origin for Socket.IO only — required when API_BASE is same-origin (proxied) but sockets hit the API host directly. */
-export const SOCKET_BASE = resolveSocketBase();
-
-/**
- * Absolute URL for browser fetch to the REST API (same-origin relative path when API_BASE is empty).
- * @param {string} path e.g. `/api/v1/foo`
- */
-export function apiUrl(path) {
-  if (path.startsWith("http")) return path;
-  const p = path.startsWith("/") ? path : `/${path}`;
-  const base = API_BASE;
-  if (!base) return p;
-  return `${base}${p}`;
 }
 
 export class ApiError extends Error {
@@ -98,12 +118,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Absolute URL for browser fetch to the REST API (same-origin relative path when base is empty).
+ * @param {string} path e.g. `/api/v1/foo`
+ */
+export function apiUrl(path) {
+  if (path.startsWith("http")) return path;
+  const p = path.startsWith("/") ? path : `/${path}`;
+  const base = getApiBase();
+  if (!base) return p;
+  return `${base}${p}`;
+}
+
 function buildUrl(path) {
   if (path.startsWith("http")) return path;
-  const base = API_BASE;
+  const base = getApiBase();
   if (!base) {
-    // Production without NEXT_PUBLIC_API_URL: use same-origin paths so Next `API_PROXY_TARGET`
-    // rewrites can reach the API. Never throw here — missing build-time env used to brick the whole UI.
     const p = path.startsWith("/") ? path : `/${path}`;
     return p;
   }
@@ -228,7 +258,7 @@ function shouldAutoRefresh(path, options) {
 }
 
 /**
- * @param {string} path Absolute URL or path (joined with API_BASE)
+ * @param {string} path Absolute URL or path (joined with getApiBase())
  * @param {RequestInit & { noAutoRefresh?: boolean }} [options]
  */
 export async function apiFetch(path, options = {}) {

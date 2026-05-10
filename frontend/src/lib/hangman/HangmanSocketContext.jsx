@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { SOCKET_BASE } from "../api.js";
+import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
@@ -50,7 +50,7 @@ export function HangmanProvider({ children }) {
   const [connectionState, setConnectionState] = useState("disconnected");
   const [syncState, setSyncState] = useState("joining");
   const [socketError, setSocketError] = useState(
-    !SOCKET_BASE ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null,
+    !getSocketBase() ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null,
   );
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
@@ -74,8 +74,9 @@ export function HangmanProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!user?.id || !SOCKET_BASE) return undefined;
-    const socket = io(`${SOCKET_BASE}/hangman`, {
+    const sockBase = getSocketBase();
+    if (!user?.id || !sockBase) return undefined;
+    const socket = io(`${sockBase}/hangman`, {
       path: "/socket.io",
       withCredentials: true,
       transports: ["polling", "websocket"],
