@@ -104,6 +104,13 @@ async function main() {
     'boot_config',
   );
 
+  if (env.COOKIE_DOMAIN) {
+    logger.warn(
+      { cookieDomain: env.COOKIE_DOMAIN },
+      'cookie_domain_is_set_verify_it_matches_browser_host_mobile_auth_breaks_on_mismatch',
+    );
+  }
+
   // Gemini readiness is non-fatal: mark degraded via health state if probe fails.
   const aiProbe = await runGeminiHealthCheck();
   if (!aiProbe.ok) {

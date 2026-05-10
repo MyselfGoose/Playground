@@ -66,6 +66,8 @@ export function UserProvider({ children }) {
 
   const mountedRef = useRef(true);
   const reconcileTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  /** Skip navigation-driven reconcile briefly after login/register so Set-Cookie can settle before `/me`. */
+  const skipNavigationReconcileUntilRef = useRef(0);
 
   const runReconcile = useCallback(async (reason) => {
     if (!mountedRef.current) return;
@@ -166,6 +168,7 @@ export function UserProvider({ children }) {
 
   useEffect(() => {
     if (loading) return;
+    if (Date.now() < skipNavigationReconcileUntilRef.current) return;
     scheduleReconcile("navigation");
   }, [pathname, loading, scheduleReconcile]);
 
@@ -198,6 +201,7 @@ export function UserProvider({ children }) {
         password,
       }),
     });
+    skipNavigationReconcileUntilRef.current = Date.now() + 2000;
     const next = mapUser(json?.data?.user);
     setUserState(next);
     invalidateDerivedCaches();
@@ -215,6 +219,7 @@ export function UserProvider({ children }) {
         password,
       }),
     });
+    skipNavigationReconcileUntilRef.current = Date.now() + 2000;
     const next = mapUser(json?.data?.user);
     setUserState(next);
     invalidateDerivedCaches();

@@ -39,6 +39,16 @@ export function createAuthRouter({ env }) {
     keyGenerator: (req) => req.ip ?? req.socket?.remoteAddress ?? 'unknown',
   });
 
+  const refreshLimiter = rateLimit({
+    windowMs: env.AUTH_REFRESH_RATE_LIMIT_WINDOW_MS,
+    limit: env.AUTH_REFRESH_RATE_LIMIT_MAX,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
+    validate: { trustProxy: env.TRUST_PROXY > 0 },
+    keyGenerator: (req) => req.ip ?? req.socket?.remoteAddress ?? 'unknown',
+  });
+
   router.post(
     '/register',
     authLimiter,
@@ -46,7 +56,7 @@ export function createAuthRouter({ env }) {
     asyncHandler(authController.register),
   );
   router.post('/login', authLimiter, validateBody(loginBodySchema), asyncHandler(authController.login));
-  router.post('/refresh', authLimiter, asyncHandler(authController.refresh));
+  router.post('/refresh', refreshLimiter, asyncHandler(authController.refresh));
   router.post('/logout', asyncHandler(authController.logout));
   router.post('/logout-all', requireAuth, asyncHandler(authController.logoutAll));
   router.get('/me', requireAuth, asyncHandler(authController.me));

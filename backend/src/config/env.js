@@ -93,6 +93,9 @@ export const envSchema = z
 
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+    /** Separate ceiling for token rotation — `/auth/refresh` should not share login/register burst limits. */
+    AUTH_REFRESH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
+    AUTH_REFRESH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
 
     COOKIE_SECURE: z.preprocess((val) => {
       if (val === undefined || val === '') return undefined;
@@ -121,6 +124,9 @@ export const envSchema = z
     NPAT_ROUND_END_COUNTDOWN_MS: z.coerce.number().int().min(1000).max(120_000).default(10_000),
     NPAT_BETWEEN_ROUNDS_MS: z.coerce.number().int().min(1000).max(120_000).default(5000),
     NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(1000),
+
+    /** Cards Against Humanity — max distinct players per lobby (host included). */
+    CAH_MAX_PLAYERS: z.coerce.number().int().min(3).max(24).default(10),
     NPAT_EARLY_FINISH_PROPOSE_RATE_MS: z.coerce.number().int().min(500).max(60_000).default(4000),
     NPAT_EARLY_FINISH_VOTE_RATE_MS: z.coerce.number().int().min(100).max(10_000).default(400),
 

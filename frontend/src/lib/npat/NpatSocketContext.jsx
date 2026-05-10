@@ -11,7 +11,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { io } from "socket.io-client";
-import { API_BASE } from "../api.js";
+import { SOCKET_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { formatJoinCodeForServer } from "./roomCode.js";
@@ -83,13 +83,13 @@ export function NpatProvider({ children }) {
   const [resumedCode, setResumedCode] = useState(/** @type {string | null} */ (null));
   const [socketError, setSocketErrorState] = useState(
     /** @type {string | null} */ (
-      !API_BASE
-        ? "Set NEXT_PUBLIC_API_URL to your API origin (e.g. http://localhost:4000)."
+      !SOCKET_BASE
+        ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL (e.g. http://localhost:4000)."
         : null
     ),
   );
   const [socketErrorCode, setSocketErrorCode] = useState(
-    /** @type {string | null} */ (!API_BASE ? "MISSING_API_BASE" : null),
+    /** @type {string | null} */ (!SOCKET_BASE ? "MISSING_SOCKET_URL" : null),
   );
   const socketRef = useRef(/** @type {import('socket.io-client').Socket | null} */ (null));
 
@@ -100,8 +100,8 @@ export function NpatProvider({ children }) {
   // Route-scoped socket error: clear whenever the path changes so a stale error from /lobby
   // does not leak into /play or /result.
   useEffect(() => {
-    setSocketErrorState((prev) => (socketErrorCode === "MISSING_API_BASE" ? prev : null));
-    setSocketErrorCode((prev) => (prev === "MISSING_API_BASE" ? prev : null));
+    setSocketErrorState((prev) => (socketErrorCode === "MISSING_SOCKET_URL" ? prev : null));
+    setSocketErrorCode((prev) => (prev === "MISSING_SOCKET_URL" ? prev : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
@@ -118,9 +118,9 @@ export function NpatProvider({ children }) {
   useEffect(() => {
     if (authLoading) return undefined;
     if (!user) return undefined;
-    if (!API_BASE) return undefined;
+    if (!SOCKET_BASE) return undefined;
 
-    const socket = io(`${API_BASE}/npat`, {
+    const socket = io(`${SOCKET_BASE}/npat`, {
       path: "/socket.io",
       withCredentials: true,
       // Polling first avoids Firefox/WebSocket upgrade races during fast navigation (e.g. play → result).

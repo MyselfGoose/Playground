@@ -206,6 +206,7 @@ export function createCahRoom(hostId, hostName, settings = {}) {
       maxRounds: Number(settings.maxRounds ?? CAH_DEFAULT_MAX_ROUNDS),
       handSize: Number(settings.handSize ?? CAH_DEFAULT_HAND_SIZE),
       packs: sanitizePacks(settings.packs),
+      maxPlayers: Number(settings.maxPlayers ?? 10),
     },
     players: [{ userId: hostId, username: hostName, ready: false, connected: true, score: 0 }],
     game: null,

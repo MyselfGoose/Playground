@@ -56,3 +56,15 @@ Use `optionalRoleGuard('admin')` **after** `requireAuth` on routes that must be 
 ```js
 router.delete('/admin/users/:id', requireAuth, optionalRoleGuard('admin'), handler);
 ```
+
+## Debugging mobile / cross-origin auth
+
+Use this checklist when **phones log in then immediately appear signed out**, **requests fail**, or **cookies never stick**:
+
+1. **Compare browser `Origin` vs `CORS_ORIGIN`** — `Origin` must match an entry exactly (`https://www…` vs apex is a common miss).
+2. **Login response** — Confirm `Set-Cookie` for `access_token` / `refresh_token` on `POST /api/v1/auth/login` (remote Web Inspector / Safari Web Inspector).
+3. **Follow-up API** — Confirm the browser sends a `Cookie` header on `GET /api/v1/auth/me` (same inspection tools).
+4. **HTTPS + SameSite** — Production defaults to `SameSite=None`; cookies must be `Secure`. Mixed HTTP/HTTPS between site and API drops cookies.
+5. **`COOKIE_DOMAIN`** — Prefer unset unless sharing across subdomains; a wrong `Domain` breaks Safari/Chrome in subtle ways (see boot warning when set).
+6. **Rate limits** — Bursts of `401` + auto-refresh should not hit `429` on `/auth/refresh` (refresh uses its own limiter; check response headers if users see “too many requests”).
+7. **Same-origin API proxy (optional)** — Frontend can use Next `API_PROXY_TARGET` rewrites plus `NEXT_PUBLIC_SAME_ORIGIN_API=1` so REST cookies are first-party; Socket.IO still needs `NEXT_PUBLIC_SOCKET_URL` to the real API host (see frontend/env docs).

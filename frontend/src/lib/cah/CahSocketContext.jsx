@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { API_BASE } from "../api.js";
+import { SOCKET_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
@@ -49,7 +49,9 @@ export function CahProvider({ children }) {
   const [room, setRoom] = useState(null);
   const [connectionState, setConnectionState] = useState("disconnected");
   const [syncState, setSyncState] = useState("joining");
-  const [socketError, setSocketError] = useState(!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null);
+  const [socketError, setSocketError] = useState(
+    !SOCKET_BASE ? "Set NEXT_PUBLIC_SOCKET_URL (same-origin API mode) or NEXT_PUBLIC_API_URL." : null,
+  );
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
@@ -63,8 +65,8 @@ export function CahProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !user || !API_BASE) return undefined;
-    const socket = io(`${API_BASE}/cah`, {
+    if (loading || !user || !SOCKET_BASE) return undefined;
+    const socket = io(`${SOCKET_BASE}/cah`, {
       path: "/socket.io",
       withCredentials: true,
       transports: ["polling", "websocket"],

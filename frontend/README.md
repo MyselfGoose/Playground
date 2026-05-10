@@ -18,6 +18,14 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
+## API URL (Playgrounds)
+
+- **Local:** By default the app calls `http://localhost:4000` for REST (see `src/lib/api.js`).
+- **Production (cross-origin):** Set `NEXT_PUBLIC_API_URL` to your API origin (no `/api/v1` suffix).
+- **Production (same-origin REST proxy):** On Vercel/hosting, set server env `API_PROXY_TARGET` to the API base URL, set `NEXT_PUBLIC_SAME_ORIGIN_API=1`, and set `NEXT_PUBLIC_SOCKET_URL` to that same API origin so Socket.IO connections still hit the backend directly.
+
+See [backend `docs/auth-flow.md`](../backend/src/docs/auth-flow.md) for cookie and mobile debugging.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

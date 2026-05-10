@@ -28,17 +28,22 @@ function normalizeCode(code) {
     .slice(0, 4);
 }
 
-function normalizeSettings(input = {}) {
+function normalizeSettings(input = {}, serverMaxPlayers) {
   const maxRounds = Number(input.maxRounds ?? CAH_DEFAULT_MAX_ROUNDS);
   const packs = Array.isArray(input.packs) ? [...new Set(input.packs.map((p) => String(p).trim()).filter(Boolean))] : [];
+  const cap =
+    typeof serverMaxPlayers === 'number' && Number.isFinite(serverMaxPlayers)
+      ? Math.min(24, Math.max(3, Math.floor(serverMaxPlayers)))
+      : 10;
   return {
     maxRounds: Math.max(1, Math.min(CAH_MAX_ROUNDS_LIMIT, Number.isFinite(maxRounds) ? maxRounds : CAH_DEFAULT_MAX_ROUNDS)),
     handSize: CAH_DEFAULT_HAND_SIZE,
     packs,
+    maxPlayers: cap,
   };
 }
 
-export function createCahRoomManager({ cahNs, logger }) {
+export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayers }) {
   const log = logger;
   const rooms = new Map();
   const socketToCode = new Map();
@@ -90,7 +95,7 @@ export function createCahRoomManager({ cahNs, logger }) {
     }
     if (!code) throw Object.assign(new Error('Could not allocate room'), { code: 'ROOM_ALLOC_FAIL' });
 
-    const room = createCahRoom(socket.data.userId, socket.data.username, normalizeSettings(settings));
+    const room = createCahRoom(socket.data.userId, socket.data.username, normalizeSettings(settings, lobbyMaxPlayers));
     room.code = code;
     room.socketIds = new Set([socket.id]);
     rooms.set(code, room);
@@ -109,6 +114,12 @@ export function createCahRoomManager({ cahNs, logger }) {
     const existing = room.players.find((p) => p.userId === socket.data.userId);
     if (!existing && room.game && room.game.status !== 'finished' && room.game.status !== 'lobby') {
       throw Object.assign(new Error('Game already in progress'), { code: 'ROOM_LOCKED' });
+    }
+    if (
+      !existing &&
+      room.players.length >= Number(room.settings?.maxPlayers ?? lobbyMaxPlayers ?? 10)
+    ) {
+      throw Object.assign(new Error('Lobby is full'), { code: 'LOBBY_FULL' });
     }
     await leaveRoom(socket, { hardLeave: false });
     if (existing) {

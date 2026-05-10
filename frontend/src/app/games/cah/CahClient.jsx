@@ -91,6 +91,9 @@ export default function CahClient({ view }) {
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="rounded-[26px] border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)] sm:p-6">
             <h2 className="text-2xl font-black text-foreground">Create Lobby</h2>
+            <p className="mt-2 text-xs font-semibold text-foreground/55">
+              Each lobby allows up to 10 players by default (server limit).
+            </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <label className="rounded-xl bg-muted-bright/30 p-3 ring-1 ring-foreground/10">
                 <p className="text-xs font-black uppercase tracking-wide text-foreground/55">Rounds</p>
@@ -170,6 +173,8 @@ export default function CahClient({ view }) {
   if (view === "lobby") {
     const allReady = room.players?.every((p) => p.ready);
     const playerCount = room.players?.length ?? 0;
+    const maxSlots = Math.max(3, Number(room.settings?.maxPlayers ?? 10));
+    const lobbyFull = playerCount >= maxSlots;
     const canStart = Boolean(room.permissions?.canStart) && allReady && playerCount >= 3;
     return (
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
@@ -215,10 +220,20 @@ export default function CahClient({ view }) {
               Minimum 3 players required to start
             </p>
           ) : null}
+          {lobbyFull ? (
+            <p className="mt-3 rounded-lg border border-foreground/15 bg-muted-bright/20 px-3 py-2 text-sm font-semibold text-foreground/75">
+              Lobby is full ({playerCount}/{maxSlots}). No new players can join until someone leaves.
+            </p>
+          ) : null}
         </section>
 
         <section className="rounded-[26px] border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)] sm:p-6">
-          <h3 className="text-xl font-black text-foreground">Players</h3>
+          <h3 className="text-xl font-black text-foreground">
+            Players{" "}
+            <span className="text-base font-semibold text-foreground/60">
+              ({playerCount}/{maxSlots})
+            </span>
+          </h3>
           <div className="mt-3 grid gap-2">
             {(room.players ?? []).map((p) => (
               <div key={p.userId} className="flex items-center justify-between rounded-xl bg-muted-bright/25 px-3 py-2 ring-1 ring-foreground/10">

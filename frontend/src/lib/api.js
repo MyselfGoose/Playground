@@ -18,12 +18,36 @@ export function normalizeApiBase(raw) {
   return s.replace(/\/+$/, "");
 }
 
+function trimmedEnv(key) {
+  if (typeof process === "undefined") return "";
+  const v = process.env[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function sameOriginApiMode() {
+  const v = trimmedEnv("NEXT_PUBLIC_SAME_ORIGIN_API");
+  return v === "1" || v.toLowerCase() === "true";
+}
+
 function resolveApiBase() {
-  const fromEnv =
-    typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
-      ? normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
-      : "";
-  if (fromEnv) return fromEnv;
+  if (sameOriginApiMode()) return "";
+
+  const fromEnv = trimmedEnv("NEXT_PUBLIC_API_URL");
+  if (fromEnv) return normalizeApiBase(fromEnv);
+
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
+    return "http://localhost:4000";
+  }
+  return "";
+}
+
+function resolveSocketBase() {
+  const sockEnv = trimmedEnv("NEXT_PUBLIC_SOCKET_URL");
+  if (sockEnv) return normalizeApiBase(sockEnv);
+
+  const api = resolveApiBase();
+  if (api) return api;
+
   if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
     return "http://localhost:4000";
   }
@@ -31,6 +55,20 @@ function resolveApiBase() {
 }
 
 export const API_BASE = resolveApiBase();
+/** Origin for Socket.IO only — required when API_BASE is same-origin (proxied) but sockets hit the API host directly. */
+export const SOCKET_BASE = resolveSocketBase();
+
+/**
+ * Absolute URL for browser fetch to the REST API (same-origin relative path when API_BASE is empty).
+ * @param {string} path e.g. `/api/v1/foo`
+ */
+export function apiUrl(path) {
+  if (path.startsWith("http")) return path;
+  const p = path.startsWith("/") ? path : `/${path}`;
+  const base = API_BASE;
+  if (!base) return p;
+  return `${base}${p}`;
+}
 
 export class ApiError extends Error {
   /**
@@ -61,14 +99,19 @@ export class ApiError extends Error {
 }
 
 function buildUrl(path) {
-  const base = API_BASE;
-  if (!base && !path.startsWith("http")) {
-    throw new ApiError(
-      "Set NEXT_PUBLIC_API_URL to your API origin (e.g. http://localhost:4000).",
-      { status: 0, code: "MISSING_API_BASE" },
-    );
-  }
   if (path.startsWith("http")) return path;
+  const base = API_BASE;
+  if (!base) {
+    const prod = typeof process !== "undefined" && process.env.NODE_ENV === "production";
+    if (prod && !sameOriginApiMode()) {
+      throw new ApiError(
+        "Set NEXT_PUBLIC_API_URL to your API origin, or NEXT_PUBLIC_SAME_ORIGIN_API=1 with API_PROXY_TARGET on Next.",
+        { status: 0, code: "MISSING_API_BASE" },
+      );
+    }
+    const p = path.startsWith("/") ? path : `/${path}`;
+    return p;
+  }
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { API_BASE } from "../api.js";
+import { SOCKET_BASE } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
@@ -44,7 +44,9 @@ export function TabooProvider({ children }) {
   const [room, setRoom] = useState(null);
   const [categories, setCategories] = useState([]);
   const [connectionState, setConnectionState] = useState("disconnected");
-  const [socketError, setSocketError] = useState(!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null);
+  const [socketError, setSocketError] = useState(
+    !SOCKET_BASE ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null,
+  );
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
@@ -58,8 +60,8 @@ export function TabooProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !user || !API_BASE) return undefined;
-    const socket = io(`${API_BASE}/taboo`, {
+    if (loading || !user || !SOCKET_BASE) return undefined;
+    const socket = io(`${SOCKET_BASE}/taboo`, {
       path: "/socket.io",
       withCredentials: true,
       transports: ["polling", "websocket"],

@@ -84,6 +84,13 @@ export const ERROR_CODE_META = {
     requires_reauth: false,
     user_message: 'Database is temporarily unavailable. Try again shortly.',
   },
+  LOBBY_FULL: {
+    category: 'GAME',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'This lobby is full. Ask the host or wait for a spot.',
+  },
 };
 
 /**

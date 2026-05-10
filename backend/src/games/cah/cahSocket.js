@@ -18,9 +18,17 @@ export function installCahSocketServer({ cahNs, registry, logger, tokenService }
   });
 }
 
-export function attachCahNamespace({ io, logger, tokenService }) {
+/**
+ * @param {{
+ *   io: import('socket.io').Server,
+ *   logger: import('pino').Logger,
+ *   tokenService: ReturnType<import('../../services/tokenService.js').createTokenService>,
+ *   env: import('../../config/env.js').Env,
+ * }} params
+ */
+export function attachCahNamespace({ io, logger, tokenService, env }) {
   const cahNs = io.of('/cah');
-  const registry = createCahRoomManager({ cahNs, logger });
+  const registry = createCahRoomManager({ cahNs, logger, maxPlayers: env.CAH_MAX_PLAYERS });
   installCahSocketServer({ cahNs, registry, logger, tokenService });
   return {
     registry,

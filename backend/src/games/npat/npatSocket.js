@@ -95,7 +95,7 @@ export function attachSocketIo({ server, env, logger }) {
     tokenService,
   });
   const tabooRuntime = attachTabooNamespace({ io, logger, tokenService });
-  const cahRuntime = attachCahNamespace({ io, logger, tokenService });
+  const cahRuntime = attachCahNamespace({ io, logger, tokenService, env });
   const hangmanRuntime = attachHangmanNamespace({ io, logger, tokenService });
 
   logger.info("socket_io_attached");

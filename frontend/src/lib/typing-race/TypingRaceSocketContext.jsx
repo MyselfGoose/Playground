@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
-import { API_BASE, apiFetch, ApiError } from "../api.js";
+import { SOCKET_BASE, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 
@@ -23,7 +23,7 @@ const DEV = process.env.NODE_ENV !== "production";
 const TYPING_ROOM_STORAGE_KEY = "playgrounds:typing-race:last-room-code";
 
 const NOT_CONNECTED_HELP =
-  "Could not reach the typing game server. Stay signed in — we will retry automatically — and set NEXT_PUBLIC_API_URL to the same API origin you use for REST (no trailing /api/v1).";
+  "Could not reach the typing game server. Stay signed in — we will retry automatically — and set NEXT_PUBLIC_SOCKET_URL (or NEXT_PUBLIC_API_URL) to your Socket.IO / REST API origin (no trailing /api/v1).";
 
 /**
  * Maps socket / ack errors to copy suitable for UI toasts and inline alerts.
@@ -38,7 +38,7 @@ export function typingRaceUserFacingError(err) {
   if (code === "NOT_CONNECTED") {
     const detail = /** @type {any} */ (e).connectDetail;
     if (typeof detail === "string" && detail.trim()) {
-      return `${detail.trim()} If this persists, set NEXT_PUBLIC_API_URL to the same API origin you use for REST, and add your page origin to CORS_ORIGIN on the API.`;
+      return `${detail.trim()} If this persists, set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL to your API origin, and add your page origin to CORS_ORIGIN on the API.`;
     }
     return NOT_CONNECTED_HELP;
   }
@@ -111,7 +111,7 @@ export function TypingRaceProvider({ children }) {
   const [connected, setConnected] = useState(false);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [socketError, setSocketError] = useState(
-    /** @type {string | null} */ (!API_BASE ? "Set NEXT_PUBLIC_API_URL." : null),
+    /** @type {string | null} */ (!SOCKET_BASE ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null),
   );
   /** Plan F: explicit socket lifecycle for UX + emit gating. */
   const [socketLifecycle, setSocketLifecycle] = useState(
@@ -209,7 +209,7 @@ export function TypingRaceProvider({ children }) {
     if (!userId) {
       return undefined;
     }
-    if (!API_BASE) {
+    if (!SOCKET_BASE) {
       return undefined;
     }
 
@@ -250,7 +250,7 @@ export function TypingRaceProvider({ children }) {
       }
 
       setSocketLifecycle("CONNECTING");
-      socket = io(`${API_BASE}/typing-race`, {
+      socket = io(`${SOCKET_BASE}/typing-race`, {
         path: "/socket.io",
         withCredentials: true,
         auth: { token },
@@ -312,7 +312,7 @@ export function TypingRaceProvider({ children }) {
         const detail = err?.message ?? "Could not connect";
         lastConnectErrorRef.current = detail;
         setSocketError(
-          `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${API_BASE || "your API"}.`,
+          `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${SOCKET_BASE || "your API host"}.`,
         );
         setConnected(false);
         setSocketLifecycle("FAILED");

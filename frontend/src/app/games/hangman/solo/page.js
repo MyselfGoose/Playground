@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE } from "../../../../lib/api.js";
+import { apiUrl } from "../../../../lib/api.js";
 import { Button } from "../../../../components/Button.jsx";
 import { HangmanSvg } from "../components/HangmanSvg.jsx";
 import { LetterKeyboard } from "../components/LetterKeyboard.jsx";
 
 async function fetchRandomWord() {
-  if (!API_BASE) throw new Error("Set NEXT_PUBLIC_API_URL.");
-  const res = await fetch(`${API_BASE}/api/v1/hangman/word/random`, { credentials: "omit" });
+  const res = await fetch(apiUrl("/api/v1/hangman/word/random"), { credentials: "omit" });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg =
@@ -80,7 +79,7 @@ export default function HangmanSoloPage() {
     if (status !== "won" && status !== "lost") return;
     submittedResultRef.current = true;
     const totalGuesses = guessed.length + wrong.length;
-    void fetch(`${API_BASE}/api/v1/hangman/result/solo`, {
+    void fetch(apiUrl("/api/v1/hangman/result/solo"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
