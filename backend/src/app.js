@@ -87,6 +87,18 @@ export function createApp({ env, logger }) {
   });
   app.use(limiter);
 
+  const REQUEST_TIMEOUT_MS = 30_000;
+  app.use((req, res, next) => {
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      if (!res.headersSent) {
+        res.status(408).json({
+          error: { message: 'Request timeout', code: 'REQUEST_TIMEOUT' },
+        });
+      }
+    });
+    next();
+  });
+
   app.use(cookieParser());
   app.use((req, res, next) => {
     const limit =

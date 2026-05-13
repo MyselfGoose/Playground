@@ -14,10 +14,10 @@ import { io } from "socket.io-client";
 import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
+import { ackToResult, ACK_TIMEOUT_MS, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
 
 const TypingRaceContext = createContext(null);
 
-const ACK_TIMEOUT_MS = 15_000;
 const DEV = process.env.NODE_ENV !== "production";
 
 const TYPING_ROOM_STORAGE_KEY = "playgrounds:typing-race:last-room-code";
@@ -74,31 +74,6 @@ function waitUntilSocketConnected(socket, timeoutMs) {
     };
     socket.once("connect", onOk);
   });
-}
-
-/**
- * @param {unknown} err
- * @param {unknown} res
- */
-function ackToResult(err, res) {
-  if (err) {
-    const e = err instanceof Error ? err : new Error(String(err));
-    /** @type {any} */ (e).code = /** @type {any} */ (e).code ?? "ACK_TIMEOUT";
-    return { ok: false, error: e };
-  }
-  if (!res || typeof res !== "object") {
-    return {
-      ok: false,
-      error: Object.assign(new Error("Malformed server response"), { code: "BAD_ACK" }),
-    };
-  }
-  if (res.ok === true) {
-    return { ok: true, data: res.data ?? null };
-  }
-  const failure = res.error ?? {};
-  const msg = typeof failure.message === "string" ? failure.message : "Request failed";
-  const code = typeof failure.code === "string" ? failure.code : "UNKNOWN";
-  return { ok: false, error: Object.assign(new Error(msg), { code }) };
 }
 
 /** @typedef {Record<string, unknown> | null} RoomSnap */
@@ -218,12 +193,7 @@ export function TypingRaceProvider({ children }) {
     /** @type {import('socket.io-client').Socket | null} */
     let socket = null;
 
-    async function fetchAdmissionToken() {
-      const json = await apiFetch("/api/v1/auth/socket-admission");
-      const tok = json?.data?.token;
-      if (!tok) throw new Error("missing admission token");
-      return tok;
-    }
+    const fetchAdmissionToken = () => fetchAdmission(apiFetch);
 
     (async () => {
       let token;
@@ -309,8 +279,19 @@ export function TypingRaceProvider({ children }) {
         setConnected(false);
         setSocketLifecycle("DISCONNECTED");
       });
-      socket.on("connect_error", (err) => {
+      socket.on("connect_error", async (err) => {
         const detail = err?.message ?? "Could not connect";
+        if (detail === "UNAUTHENTICATED" || detail === "SESSION_REVOKED") {
+          try {
+            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
+            const fresh = await fetchAdmissionToken();
+            socket.auth = { token: fresh };
+            socket.connect();
+            return;
+          } catch {
+            dispatchReconcile("refresh_failed");
+          }
+        }
         lastConnectErrorRef.current = detail;
         setSocketError(
           `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${getSocketBase() || "your API host"}.`,
@@ -381,12 +362,21 @@ export function TypingRaceProvider({ children }) {
       });
       socket.on("typing_player_finished", onRoom);
       socket.on("typing_race_finished", onRoom);
+
+      const onVisibilityChange = () => {
+        if (document.visibilityState === "visible" && socket?.connected) {
+          tryRejoinStoredRoom();
+        }
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      socket.__visCleanup = () => document.removeEventListener("visibilitychange", onVisibilityChange);
     })();
 
     return () => {
       cancelled = true;
       authenticatedRef.current = false;
       if (socket) {
+        if (socket.__visCleanup) socket.__visCleanup();
         socket.removeAllListeners();
         socket.disconnect();
       }

@@ -13,6 +13,7 @@ const counters = {
   socket_handshake_ok: 0,
   socket_handshake_fail: 0,
   leaderboard_cron_complete: 0,
+  unhandled_rejection: 0,
 };
 
 /**
@@ -36,8 +37,47 @@ export function recordAuthRefresh({ ok, grace = false }) {
 }
 
 export function getPlatformMetrics() {
+  const mem = process.memoryUsage();
   return {
     counters: { ...counters },
     mongoReadyState: mongoose.connection.readyState,
+    uptime: process.uptime(),
+    memory: {
+      rss: mem.rss,
+      heapUsed: mem.heapUsed,
+      heapTotal: mem.heapTotal,
+      external: mem.external,
+    },
   };
+}
+
+/**
+ * Export metrics in Prometheus text exposition format for external scraping.
+ * @returns {string}
+ */
+export function getPrometheusMetrics() {
+  const lines = [];
+  const mem = process.memoryUsage();
+
+  for (const [name, value] of Object.entries(counters)) {
+    lines.push(`# TYPE playground_${name} counter`);
+    lines.push(`playground_${name} ${value}`);
+  }
+
+  lines.push(`# TYPE playground_uptime_seconds gauge`);
+  lines.push(`playground_uptime_seconds ${process.uptime().toFixed(1)}`);
+
+  lines.push(`# TYPE playground_memory_rss_bytes gauge`);
+  lines.push(`playground_memory_rss_bytes ${mem.rss}`);
+
+  lines.push(`# TYPE playground_memory_heap_used_bytes gauge`);
+  lines.push(`playground_memory_heap_used_bytes ${mem.heapUsed}`);
+
+  lines.push(`# TYPE playground_memory_heap_total_bytes gauge`);
+  lines.push(`playground_memory_heap_total_bytes ${mem.heapTotal}`);
+
+  lines.push(`# TYPE playground_mongo_ready_state gauge`);
+  lines.push(`playground_mongo_ready_state ${mongoose.connection.readyState}`);
+
+  return lines.join('\n') + '\n';
 }

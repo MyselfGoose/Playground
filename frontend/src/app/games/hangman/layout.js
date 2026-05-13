@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useUser } from "../../../lib/context/UserContext.jsx";
 import { HangmanProvider } from "../../../lib/hangman/HangmanSocketContext.jsx";
+import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
 
 export default function HangmanLayout({ children }) {
   const pathname = usePathname();
@@ -22,5 +23,5 @@ export default function HangmanLayout({ children }) {
     return <div className="flex min-h-[60vh] items-center justify-center text-foreground/60">Loading…</div>;
   }
 
-  return <HangmanProvider>{children}</HangmanProvider>;
+  return <ErrorBoundary level="game"><HangmanProvider>{children}</HangmanProvider></ErrorBoundary>;
 }

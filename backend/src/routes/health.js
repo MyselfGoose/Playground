@@ -2,7 +2,8 @@ import { createRequire } from 'node:module';
 import mongoose from 'mongoose';
 import { Router } from 'express';
 import { getAggregatedHealth, getAiHealth, getNpatEvaluationStats } from '../observability/serviceHealth.js';
-import { getPlatformMetrics } from '../observability/platformMetrics.js';
+import { getPlatformMetrics, getPrometheusMetrics } from '../observability/platformMetrics.js';
+import { isProcessDegraded, getLastUnhandledAt } from '../processHandlers.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json');
@@ -14,9 +15,14 @@ export function createHealthRouter({ env }) {
   healthRouter.get('/health', (_req, res) => {
     const aggregated = getAggregatedHealth(env);
     const code = aggregated.status === 'fail' ? 503 : 200;
-    res.status(code).json({
-      ok: aggregated.status !== 'fail',
-      status: aggregated.status,
+    const processDegraded = isProcessDegraded();
+    const effectiveStatus = processDegraded && aggregated.status === 'ok' ? 'degraded' : aggregated.status;
+    const effectiveCode = effectiveStatus === 'fail' ? 503 : code;
+    res.status(effectiveCode).json({
+      ok: effectiveStatus !== 'fail',
+      status: effectiveStatus,
+      processDegraded,
+      lastUnhandledAt: getLastUnhandledAt() || undefined,
       services: aggregated.services,
       ai: getAiHealth(),
       npatEvaluation: getNpatEvaluationStats(),
@@ -43,9 +49,15 @@ export function createHealthRouter({ env }) {
     res.status(200).json({ ok: true, mongoReadyState: mongoose.connection.readyState });
   });
 
-  /** In-process counters for lightweight observability (plan: replace with Prometheus). */
+  /** In-process counters as JSON. */
   healthRouter.get('/health/metrics', (_req, res) => {
     res.status(200).json(getPlatformMetrics());
+  });
+
+  /** Prometheus-compatible text exposition format for external scrapers. */
+  healthRouter.get('/health/metrics/prometheus', (_req, res) => {
+    res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.status(200).send(getPrometheusMetrics());
   });
 
   return healthRouter;

@@ -88,7 +88,7 @@ export const envSchema = z
      * If two tabs refresh concurrently, the losing refresh sees an already-rotated session row.
      * Within this grace window, allow issuing cookies tied to the winning rotation instead of TOKEN_REUSE.
      */
-    REFRESH_CONCURRENT_GRACE_MS: z.coerce.number().int().min(500).max(60_000).default(8000),
+    REFRESH_CONCURRENT_GRACE_MS: z.coerce.number().int().min(500).max(60_000).default(30_000),
     BCRYPT_COST: z.coerce.number().int().min(10).max(14).default(12),
 
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),

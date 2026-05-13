@@ -17,6 +17,11 @@ export function mongoUriMeta(mongoUri) {
 
 const INITIAL_DELAY_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
+const MONGO_CONNECT_OPTS = {
+  serverSelectionTimeoutMS: 10_000,
+  socketTimeoutMS: 45_000,
+  connectTimeoutMS: 10_000,
+};
 
 /**
  * Blocking connect with limited retries (scripts / tests).
@@ -31,7 +36,7 @@ export async function connectDbBlocking({ mongoUri, logger, maxAttempts = 8 }) {
     attempt += 1;
     try {
       mongoose.set('strictQuery', true);
-      await mongoose.connect(mongoUri);
+      await mongoose.connect(mongoUri, MONGO_CONNECT_OPTS);
       logger.info({ ...meta, attempt }, 'mongodb_connected');
       return;
     } catch (err) {
@@ -64,7 +69,7 @@ export function startMongoConnectionBackground({ mongoUri, logger }) {
           return;
         }
         mongoose.set('strictQuery', true);
-        await mongoose.connect(mongoUri);
+        await mongoose.connect(mongoUri, MONGO_CONNECT_OPTS);
         logger.info({ ...meta, attempt }, 'mongodb_connected');
         return;
       } catch (err) {

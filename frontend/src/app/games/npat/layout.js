@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { NpatProvider } from "../../../lib/npat/NpatSocketContext.jsx";
+import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
 
 export const metadata = {
   title: "Name Place Animal Thing — Playground",
@@ -17,7 +18,9 @@ function NpatShellFallback() {
 export default function NpatLayout({ children }) {
   return (
     <Suspense fallback={<NpatShellFallback />}>
-      <NpatProvider>{children}</NpatProvider>
+      <ErrorBoundary level="game">
+        <NpatProvider>{children}</NpatProvider>
+      </ErrorBoundary>
     </Suspense>
   );
 }

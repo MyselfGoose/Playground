@@ -5,6 +5,7 @@ import { Suspense, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { TypingRaceProvider } from "../../../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { useUser } from "../../../../lib/context/UserContext.jsx";
+import { ErrorBoundary } from "../../../../components/ErrorBoundary.jsx";
 
 function MultiAuthShell({ children }) {
   const { user, loading } = useUser();
@@ -35,6 +36,7 @@ function MultiAuthShell({ children }) {
 
 export default function TypingMultiLayout({ children }) {
   return (
+    <ErrorBoundary level="game">
     <TypingRaceProvider>
       {/* Full-bleed dark shell so the typing theme is not a narrow strip on the site canvas */}
       <div className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased">
@@ -49,5 +51,6 @@ export default function TypingMultiLayout({ children }) {
         </Suspense>
       </div>
     </TypingRaceProvider>
+    </ErrorBoundary>
   );
 }
