@@ -1,6 +1,20 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactCompiler: true,
+  /**
+   * Monorepo: repo root also has package-lock.json, so Next was inferring the wrong Turbopack root and
+   * watching/resolving the whole tree (backend + multiple node_modules) — huge RAM/CPU. Lock scope to this app.
+   * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory
+   */
+  turbopack: {
+    root: __dirname,
+  },
+  /** Dev: skip React Compiler to cut compile RAM/CPU; production builds still optimize. */
+  reactCompiler: process.env.NODE_ENV === "production",
   images: {
     remotePatterns: [
       {

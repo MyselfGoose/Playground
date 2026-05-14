@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Optional Node entry that forwards to the bash startup script (same flags).
- * Usage: node scripts/dev.js [--no-install] [--no-seed] [--fresh] [--verbose|--quiet]
+ * Usage: node scripts/dev.js [...] — see ./startup --help (--install for npm ci, default skips it).
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';

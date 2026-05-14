@@ -227,7 +227,7 @@ export function TypingRaceProvider({ children }) {
         auth: { token },
         transports: ["polling", "websocket"],
         autoConnect: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 10,
         reconnectionDelayMax: 5000,
       });
       if (cancelled) {
@@ -286,10 +286,14 @@ export function TypingRaceProvider({ children }) {
             await apiFetch("/api/v1/auth/refresh", { method: "POST" });
             const fresh = await fetchAdmissionToken();
             socket.auth = { token: fresh };
-            socket.connect();
             return;
           } catch {
+            socket.disconnect();
+            setSocketError("Session expired. Please sign in again.");
+            setConnected(false);
+            setSocketLifecycle("FAILED");
             dispatchReconcile("refresh_failed");
+            return;
           }
         }
         lastConnectErrorRef.current = detail;

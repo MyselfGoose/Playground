@@ -69,7 +69,7 @@ export function HangmanProvider({ children }) {
         auth: { token },
         transports: ["polling", "websocket"],
         autoConnect: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 10,
         reconnectionDelayMax: 5000,
       });
       if (cancelled) { socket.disconnect(); return; }
@@ -109,10 +109,13 @@ export function HangmanProvider({ children }) {
             await apiFetch("/api/v1/auth/refresh", { method: "POST" });
             const fresh = await fetchAdmissionToken();
             socket.auth = { token: fresh };
-            socket.connect();
             return;
           } catch {
+            socket.disconnect();
+            setSocketError("Session expired. Please sign in again.");
+            setConnectionState("disconnected");
             dispatchReconcile("refresh_failed");
+            return;
           }
         }
         setConnectionState("reconnecting");

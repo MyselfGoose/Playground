@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
 import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
+import { useConnectionTimeout } from "../../../lib/socket/useConnectionTimeout.js";
 
 export default function NpatEntryPage() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function NpatEntryPage() {
   const [createError, setCreateError] = useState(/** @type {string | null} */ (null));
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const codeLen = useMemo(() => getNpatRoomCodeLength(), []);
+  const connectTimedOut = useConnectionTimeout(connected);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
@@ -44,8 +46,12 @@ export default function NpatEntryPage() {
         </p>
       </motion.header>
 
-      {!connected ? (
-        <p className="text-center text-sm font-bold text-muted">⏳ Connecting to game server…</p>
+      {!connected && !socketError ? (
+        <p className="text-center text-sm font-bold text-muted">
+          {connectTimedOut
+            ? "Taking longer than expected… Check that the backend is running and reachable."
+            : "⏳ Connecting to game server…"}
+        </p>
       ) : null}
 
       {socketError ? (

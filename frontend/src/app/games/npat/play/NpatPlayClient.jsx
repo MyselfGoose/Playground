@@ -9,6 +9,7 @@ import { RoundFields } from "../RoundFields.jsx";
 import { EarlyFinishVote } from "../EarlyFinishVote.jsx";
 import { NpatEvaluatingPanel } from "../NpatEvaluatingPanel.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
+import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -31,6 +32,7 @@ export function NpatPlayClient() {
   } = useNpat();
   const [now, setNow] = useState(() => Date.now());
   const [joinPhase, setJoinPhase] = useState(/** @type {JoinPhase} */ ("idle"));
+  const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const [joinRetryToken, setJoinRetryToken] = useState(0);
 
@@ -163,7 +165,17 @@ export function NpatPlayClient() {
   if (!connected) {
     return (
       <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-ink-muted">
-        <p className="text-sm font-bold">Connecting to game server…</p>
+        {socketError ? (
+          <p className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-3 text-sm font-semibold text-error">
+            {socketError}
+          </p>
+        ) : (
+          <p className="text-sm font-bold">
+            {connectTimedOut
+              ? "Taking longer than expected… Check that the backend is running."
+              : "Connecting to game server…"}
+          </p>
+        )}
         <Link href="/games/npat" className="mt-6 text-sm font-bold text-accent underline">
           Home
         </Link>

@@ -98,7 +98,7 @@ export function NpatProvider({ children }) {
         auth: { token },
         transports: ["polling", "websocket"],
         autoConnect: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 10,
         reconnectionDelayMax: 5000,
       });
       if (cancelled) { socket.disconnect(); return; }
@@ -135,10 +135,14 @@ export function NpatProvider({ children }) {
             await apiFetch("/api/v1/auth/refresh", { method: "POST" });
             const fresh = await fetchAdmissionToken();
             socket.auth = { token: fresh };
-            socket.connect();
             return;
           } catch {
+            socket.disconnect();
+            setSocketErrorState("Session expired. Please sign in again.");
+            setSocketErrorCode("SESSION_EXPIRED");
+            setConnected(false);
             dispatchReconcile("refresh_failed");
+            return;
           }
         }
         setSocketErrorState(msg);
@@ -199,7 +203,7 @@ export function NpatProvider({ children }) {
       setRoom(null);
       setResumedCode(null);
     };
-  }, [authLoading, user, applyRoom]);
+  }, [authLoading, user?.id, applyRoom]);
 
   const clearSocketError = useCallback(() => {
     setSocketErrorState(null);

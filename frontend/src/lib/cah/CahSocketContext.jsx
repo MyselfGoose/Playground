@@ -60,7 +60,7 @@ export function CahProvider({ children }) {
         auth: { token },
         transports: ["polling", "websocket"],
         autoConnect: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 10,
         reconnectionDelayMax: 5000,
       });
       if (cancelled) { socket.disconnect(); return; }
@@ -100,10 +100,13 @@ export function CahProvider({ children }) {
             await apiFetch("/api/v1/auth/refresh", { method: "POST" });
             const fresh = await fetchAdmissionToken();
             socket.auth = { token: fresh };
-            socket.connect();
             return;
           } catch {
+            socket.disconnect();
+            setSocketError("Session expired. Please sign in again.");
+            setConnectionState("disconnected");
             dispatchReconcile("refresh_failed");
+            return;
           }
         }
         setConnectionState("reconnecting");
@@ -142,7 +145,7 @@ export function CahProvider({ children }) {
       setRoom(null);
       roomVersionRef.current = 0;
     };
-  }, [loading, user, applyRoomSnapshot]);
+  }, [loading, user?.id, applyRoomSnapshot]);
 
   const createRoom = useCallback(async (settings) => {
     const result = await emitAck(socketRef.current, "create_room", settings ?? {});

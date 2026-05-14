@@ -61,13 +61,23 @@ export function emitAck(socket, event, payload) {
   });
 }
 
+const ADMISSION_TIMEOUT_MS = 15_000;
+
 /**
  * Fetch a short-lived socket admission token from the REST API.
+ * Aborts after ADMISSION_TIMEOUT_MS so a hung network never leaves the UI
+ * stuck in "Connecting..." with no error.
  * @param {typeof import('../api.js').apiFetch} apiFetchFn
  */
 export async function fetchAdmissionToken(apiFetchFn) {
-  const json = await apiFetchFn("/api/v1/auth/socket-admission");
-  const tok = json?.data?.token;
-  if (!tok) throw new Error("missing admission token");
-  return tok;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ADMISSION_TIMEOUT_MS);
+  try {
+    const json = await apiFetchFn("/api/v1/auth/socket-admission", { signal: ac.signal });
+    const tok = json?.data?.token;
+    if (!tok) throw new Error("missing admission token");
+    return tok;
+  } finally {
+    clearTimeout(timer);
+  }
 }

@@ -12,6 +12,17 @@ const FRONTEND_DIR = path.join(ROOT, 'frontend');
 const LOCK_DIR = path.join(ROOT, '.startup.lock');
 const PID_FILE = path.join(ROOT, '.startup.pid');
 
+/** Max bytes retained from piped child stdout+stderr (tail) to bound orchestrator memory */
+const RUN_CMD_CAPTURE_MAX = 65536;
+
+/** Fewer concurrent network ops and less npm console work during ci (lighter on RAM/IO) */
+const NPM_CI_ENV = {
+  NPM_CONFIG_MAXSOCKETS: '1',
+  NPM_CONFIG_PROGRESS: 'false',
+  NPM_CONFIG_AUDIT: 'false',
+  NPM_CONFIG_FUND: 'false',
+};
+
 /** @typedef {'ok'|'degraded'|'fail'} StageStatus */
 /** @typedef {{ name: string, status: StageStatus, durationMs: number, reason?: string, details?: string }} StageResult */
 
@@ -26,19 +37,62 @@ function parseArgs(argv) {
   if (verbose && quiet) {
     throw new Error('Cannot combine --verbose and --quiet');
   }
+  const wantsInstall = args.has('--install');
+  const noInstall = args.has('--no-install');
+  if (wantsInstall && noInstall) {
+    throw new Error('Cannot combine --install and --no-install');
+  }
+  if (args.has('--install-root') && !wantsInstall) {
+    throw new Error('--install-root requires --install');
+  }
+  if (args.has('--parallel-install') && !wantsInstall) {
+    throw new Error('--parallel-install requires --install');
+  }
   return {
-    noInstall: args.has('--no-install'),
+    runDepsInstall: wantsInstall && !noInstall,
     noSeed: args.has('--no-seed'),
     fresh: args.has('--fresh'),
     verbose,
     quiet,
     force: args.has('--force'),
     smoke: args.has('--smoke'),
+    probeGemini: args.has('--probe-gemini'),
+    parallelInstall: args.has('--parallel-install'),
+    parallelDev: args.has('--parallel-dev'),
+    installRoot: args.has('--install-root'),
+    backendOnly: args.has('--backend-only'),
+    frontendOnly: args.has('--frontend-only'),
   };
 }
 
 function printHelp() {
-  process.stdout.write(`Game platform startup\n\nUsage: ./startup [options]\n\nOptions:\n  --no-install   Skip dependency install\n  --no-seed      Skip db seed stage\n  --fresh        Run backend db:reset before seed\n  --smoke        Run npm run test:smoke preflight\n  --force        Continue startup on smoke failure\n  -v --verbose   Print detailed stage output\n  -q --quiet     Minimal stage output\n`);
+  process.stdout.write(
+    `Game platform startup\n\n` +
+      `Entry: ./startup or ./startup.sh (repo root) — same script.\n\n` +
+      `Usage: ./startup [options]\n\n` +
+      `Options:\n` +
+      `  --install          Run npm ci in backend + frontend (heavy RAM/disk). Off by default to avoid OOM.\n` +
+      `  --install-root     With --install, also npm ci at repo root (use with --smoke or root test scripts)\n` +
+      `  --no-install       Same as default (no npm ci). Cannot combine with --install.\n` +
+      `  --no-seed          Skip db seed stage\n` +
+      `  --fresh            Run backend db:reset before seed\n` +
+      `  --smoke            Run npm run test:smoke (needs root node_modules → use --install --install-root first)\n` +
+      `  --force            Continue startup on smoke failure\n` +
+      `  --probe-gemini     After key check, run a live Gemini API probe (slow; not implied by stage name)\n` +
+      `  --parallel-install With --install: run workspace npm ci jobs concurrently (very heavy)\n` +
+      `  --parallel-dev     Start backend and frontend dev servers concurrently (default: serial)\n` +
+      `  --backend-only     Start only the API dev server (skip Next)\n` +
+      `  --frontend-only    Start only the Next dev server (skip API)\n` +
+      `  -v --verbose       Print detailed stage output\n` +
+      `  -q --quiet         Minimal stage output\n\n` +
+      `First time: ./startup --install [--install-root if needed]\n` +
+      `Daily dev:  ./startup   (starts servers only; avoids npm ci)\n` +
+      `Frontend dev uses Webpack by default (frontend/package.json "dev") to reduce RAM vs Turbopack; use npm run dev:turbo in frontend/ for Turbopack.\n` +
+      `Plain startup does not run npm ci, DB migrations, or the full test suite (use --install, and optionally --smoke for smoke tests).\n` +
+      `If RAM is still tight during dev: add --backend-only or --frontend-only.\n\n` +
+      `Gemini: stage "gemini-key-check" only validates GEMINI_API_KEY format unless --probe-gemini.\n` +
+      `The API also runs a full health probe in the background after listen (see backend logs).\n`,
+  );
 }
 
 function renderBanner() {
@@ -67,20 +121,20 @@ function summary(results, elapsedMs) {
   console.log(`TIME: ${(elapsedMs / 1000).toFixed(1)}s`);
 }
 
-function runCmd({ cmd, args, cwd, env, verbose }) {
+function runCmd({ cmd, args, cwd, env, verbose, discardOutput = false, maxCaptureBytes = RUN_CMD_CAPTURE_MAX }) {
   return new Promise((resolve) => {
     let out = '';
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
-    child.stdout.on('data', (chunk) => {
-      const text = String(chunk);
-      out += text;
-      if (verbose) process.stdout.write(text);
-    });
-    child.stderr.on('data', (chunk) => {
-      const text = String(chunk);
-      out += text;
-      if (verbose) process.stderr.write(text);
-    });
+    const append = (chunk) => {
+      out += String(chunk);
+      if (out.length > maxCaptureBytes) out = out.slice(-maxCaptureBytes);
+    };
+    const stdio =
+      verbose ? 'inherit' : discardOutput ? ['ignore', 'ignore', 'ignore'] : ['ignore', 'pipe', 'pipe'];
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...(env ?? {}) }, stdio });
+    if (!verbose && !discardOutput) {
+      child.stdout.on('data', append);
+      child.stderr.on('data', append);
+    }
     child.on('close', (code) => resolve({ code: code ?? 1, output: out.trim() }));
   });
 }
@@ -208,6 +262,9 @@ function parseProbeResult(output) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.backendOnly && opts.frontendOnly) {
+    throw new Error('Cannot combine --backend-only and --frontend-only');
+  }
   acquireLock();
   const startedAt = performance.now();
   const stages = [];
@@ -237,14 +294,40 @@ async function main() {
 
   stages.push(
     await runStage('dependency-check', async () => {
-      if (opts.noInstall) return { status: 'degraded', reason: 'skipped(--no-install)' };
-      const backendInstall = await runCmd({ cmd: 'npm', args: ['ci'], cwd: BACKEND_DIR, verbose: opts.verbose });
-      if (backendInstall.code !== 0) throw new Error('backend install failed');
-      const frontendInstall = await runCmd({ cmd: 'npm', args: ['ci'], cwd: FRONTEND_DIR, verbose: opts.verbose });
-      if (frontendInstall.code !== 0) throw new Error('frontend install failed');
-      if (fs.existsSync(path.join(ROOT, 'package.json'))) {
-        const rootInstall = await runCmd({ cmd: 'npm', args: ['ci'], cwd: ROOT, verbose: opts.verbose });
-        if (rootInstall.code !== 0) throw new Error('root install failed');
+      if (!opts.runDepsInstall) {
+        if (!opts.quiet) {
+          console.log('');
+          console.log('Skipping npm ci (default). After clone or when lockfiles change: ./startup --install');
+          console.log('(Add --install-root if you use --smoke or root-level scripts.)');
+          console.log('');
+        }
+        return { status: 'degraded', reason: 'skipped(no npm ci; use --install)' };
+      }
+      const rootPkg = path.join(ROOT, 'package.json');
+      const installRootDeps = fs.existsSync(rootPkg) && (opts.installRoot || opts.smoke);
+      const ciBase = {
+        cmd: 'npm',
+        args: ['ci'],
+        verbose: opts.verbose,
+        discardOutput: !opts.verbose,
+        env: NPM_CI_ENV,
+      };
+      if (opts.parallelInstall) {
+        const jobs = [runCmd({ ...ciBase, cwd: BACKEND_DIR }), runCmd({ ...ciBase, cwd: FRONTEND_DIR })];
+        if (installRootDeps) jobs.push(runCmd({ ...ciBase, cwd: ROOT }));
+        const results = await Promise.all(jobs);
+        if (results[0].code !== 0) throw new Error('backend install failed');
+        if (results[1].code !== 0) throw new Error('frontend install failed');
+        if (results[2] && results[2].code !== 0) throw new Error('root install failed');
+      } else {
+        const backendInstall = await runCmd({ ...ciBase, cwd: BACKEND_DIR });
+        if (backendInstall.code !== 0) throw new Error('backend install failed');
+        const frontendInstall = await runCmd({ ...ciBase, cwd: FRONTEND_DIR });
+        if (frontendInstall.code !== 0) throw new Error('frontend install failed');
+        if (installRootDeps) {
+          const rootInstall = await runCmd({ ...ciBase, cwd: ROOT });
+          if (rootInstall.code !== 0) throw new Error('root install failed');
+        }
       }
       return { status: 'ok' };
     }),
@@ -297,19 +380,26 @@ async function main() {
   if (!opts.quiet) stageLine(stages.at(-1));
 
   stages.push(
-    await runStage('ai-health-check', async () => {
+    await runStage('gemini-key-check', async () => {
       const raw = parseEnvValue(path.join(BACKEND_DIR, '.env'), 'GEMINI_API_KEY') || process.env.GEMINI_API_KEY || '';
       const keyCheck = validateGeminiApiKey(raw.trim());
       if (!keyCheck.ok) {
         return { status: 'degraded', reason: `gemini-key-${keyCheck.reason}` };
       }
+      if (!opts.probeGemini) {
+        return { status: 'ok' };
+      }
       let lastProbe = null;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         const probe = await runCmd({
           cmd: 'node',
-          args: ['-e', `import('${pathToFileURL(path.join(BACKEND_DIR, 'src/services/npat/npatGeminiHealth.js')).href}').then(async (m)=>{const r=await m.runGeminiHealthCheck();console.log(JSON.stringify(r));process.exit(r.ok?0:1);}).catch((e)=>{console.error(e?.message||String(e));process.exit(1);});`],
+          args: [
+            '-e',
+            `import('${pathToFileURL(path.join(BACKEND_DIR, 'src/services/npat/npatGeminiHealth.js')).href}').then(async (m)=>{const r=await m.runGeminiHealthCheck();console.log(JSON.stringify(r));process.exit(r.ok?0:1);}).catch((e)=>{console.error(e?.message||String(e));process.exit(1);});`,
+          ],
           cwd: BACKEND_DIR,
           verbose: opts.verbose,
+          maxCaptureBytes: 262144,
         });
         lastProbe = probe;
         if (probe.code === 0) return { status: 'ok' };
@@ -319,7 +409,6 @@ async function main() {
       }
       const parsed = parseProbeResult(lastProbe?.output);
       const reason = String(parsed?.reason ?? 'gemini-probe-failed');
-      // Provider-side throttling should not block local startup since NPAT has controlled fallback.
       if (reason.includes('rate_limit') || reason.includes('quota') || reason.includes('timeout')) {
         return { status: 'ok', reason: `${reason}-fallback-enabled` };
       }
@@ -349,108 +438,125 @@ async function main() {
   const backendPort = Number(parseEnvValue(path.join(BACKEND_DIR, '.env'), 'PORT') || 4000);
   const frontendPort = Number(parseEnvValue(path.join(FRONTEND_DIR, '.env.local'), 'PORT') || 3000);
 
-  stages.push(
-    await runStage('backend-start', async () => {
-      let backendOutput = '';
-      backendChild = spawn('npm', ['run', 'dev'], {
-        cwd: BACKEND_DIR,
-        stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+  const backendWanted = !opts.frontendOnly;
+  const frontendWanted = !opts.backendOnly;
+
+  const startBackendStage = async () => {
+    if (!backendWanted) return { status: 'ok', reason: 'skipped(--frontend-only)' };
+    let backendOutput = '';
+    backendChild = spawn('npm', ['run', 'dev'], {
+      cwd: BACKEND_DIR,
+      stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+    });
+    if (!opts.verbose) {
+      backendChild.stdout?.on('data', (chunk) => {
+        backendOutput += String(chunk);
+        if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
       });
-      if (!opts.verbose) {
-        backendChild.stdout?.on('data', (chunk) => {
-          backendOutput += String(chunk);
-          if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
-        });
-        backendChild.stderr?.on('data', (chunk) => {
-          backendOutput += String(chunk);
-          if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
-        });
-      }
-      const [ready, exitedEarly] = await Promise.all([
-        waitForPort(backendPort, 45000),
-        waitForChildExit(backendChild, 45000),
-      ]);
-      if (!ready) {
-        if (exitedEarly.exited) {
-          return {
-            status: 'fail',
-            reason: `backend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
-            details: backendOutput.trim().slice(-600),
-          };
-        }
+      backendChild.stderr?.on('data', (chunk) => {
+        backendOutput += String(chunk);
+        if (backendOutput.length > 8000) backendOutput = backendOutput.slice(-8000);
+      });
+    }
+    const [ready, exitedEarly] = await Promise.all([
+      waitForPort(backendPort, 45000),
+      waitForChildExit(backendChild, 45000),
+    ]);
+    if (!ready) {
+      if (exitedEarly.exited) {
         return {
           status: 'fail',
-          reason: `port-${backendPort}-not-ready`,
+          reason: `backend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
           details: backendOutput.trim().slice(-600),
         };
       }
-      return { status: 'ok' };
-    }),
-  );
-  if (!opts.quiet) stageLine(stages.at(-1));
-  if (stages.at(-1).status === 'fail') {
+      return {
+        status: 'fail',
+        reason: `port-${backendPort}-not-ready`,
+        details: backendOutput.trim().slice(-600),
+      };
+    }
+    return { status: 'ok' };
+  };
+
+  const startFrontendStage = async () => {
+    if (!frontendWanted) return { status: 'ok', reason: 'skipped(--backend-only)' };
+    let frontendOutput = '';
+    frontendChild = spawn('npm', ['run', 'dev', '--', '-p', String(frontendPort)], {
+      cwd: FRONTEND_DIR,
+      stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+    });
+    if (!opts.verbose) {
+      frontendChild.stdout?.on('data', (chunk) => {
+        frontendOutput += String(chunk);
+        if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
+      });
+      frontendChild.stderr?.on('data', (chunk) => {
+        frontendOutput += String(chunk);
+        if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
+      });
+    }
+    const [ready, exitedEarly] = await Promise.all([
+      waitForPort(frontendPort, 45000),
+      waitForChildExit(frontendChild, 45000),
+    ]);
+    if (!ready) {
+      if (exitedEarly.exited) {
+        return {
+          status: 'fail',
+          reason: `frontend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
+          details: frontendOutput.trim().slice(-600),
+        };
+      }
+      return {
+        status: 'fail',
+        reason: `port-${frontendPort}-not-ready`,
+        details: frontendOutput.trim().slice(-600),
+      };
+    }
+    return { status: 'ok' };
+  };
+
+  let serverStages;
+  if (opts.parallelDev && backendWanted && frontendWanted) {
+    serverStages = await Promise.all([
+      runStage('backend-start', startBackendStage),
+      runStage('frontend-start', startFrontendStage),
+    ]);
+  } else {
+    serverStages = [];
+    if (backendWanted) serverStages.push(await runStage('backend-start', startBackendStage));
+    if (frontendWanted) serverStages.push(await runStage('frontend-start', startFrontendStage));
+  }
+  for (const s of serverStages) {
+    stages.push(s);
+    if (!opts.quiet) stageLine(s);
+  }
+  if (serverStages.some((s) => s.status === 'fail')) {
     summary(stages, performance.now() - startedAt);
     process.exit(1);
   }
 
-  stages.push(
-    await runStage('frontend-start', async () => {
-      let frontendOutput = '';
-      frontendChild = spawn(
-        'npm',
-        ['run', 'dev', '--', '--webpack', '-p', String(frontendPort)],
-        {
-          cwd: FRONTEND_DIR,
-          env: { ...process.env, NEXT_DISABLE_TURBOPACK: '1' },
-          stdio: opts.verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
-        },
-      );
-      if (!opts.verbose) {
-        frontendChild.stdout?.on('data', (chunk) => {
-          frontendOutput += String(chunk);
-          if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
-        });
-        frontendChild.stderr?.on('data', (chunk) => {
-          frontendOutput += String(chunk);
-          if (frontendOutput.length > 8000) frontendOutput = frontendOutput.slice(-8000);
-        });
-      }
-      const [ready, exitedEarly] = await Promise.all([
-        waitForPort(frontendPort, 45000),
-        waitForChildExit(frontendChild, 45000),
-      ]);
-      if (!ready) {
-        if (exitedEarly.exited) {
-          return {
-            status: 'fail',
-            reason: `frontend-exited-${exitedEarly.code ?? exitedEarly.signal ?? 'unknown'}`,
-            details: frontendOutput.trim().slice(-600),
-          };
-        }
-        return {
-          status: 'fail',
-          reason: `port-${frontendPort}-not-ready`,
-          details: frontendOutput.trim().slice(-600),
-        };
-      }
-      return { status: 'ok' };
-    }),
-  );
-  if (!opts.quiet) stageLine(stages.at(-1));
-
   summary(stages, performance.now() - startedAt);
   if (!opts.quiet) {
-    console.log(`Backend:  http://localhost:${backendPort}`);
-    console.log(`Frontend: http://localhost:${frontendPort}`);
+    if (backendWanted && backendChild) console.log(`Backend:  http://localhost:${backendPort}`);
+    if (frontendWanted && frontendChild) console.log(`Frontend: http://localhost:${frontendPort}`);
   }
 
   await new Promise((resolve) => {
+    let settled = false;
     const onChildExit = () => {
+      if (settled) return;
+      settled = true;
       cleanup();
       resolve();
     };
-    if (backendChild) backendChild.once('exit', onChildExit);
-    if (frontendChild) frontendChild.once('exit', onChildExit);
+    const children = [backendChild, frontendChild].filter(Boolean);
+    if (children.length === 0) {
+      resolve();
+      return;
+    }
+    for (const c of children) c.once('exit', onChildExit);
   });
 }
 

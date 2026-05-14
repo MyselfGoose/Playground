@@ -111,13 +111,14 @@ async function main() {
     );
   }
 
-  // Gemini readiness is non-fatal: mark degraded via health state if probe fails.
-  const aiProbe = await runGeminiHealthCheck();
-  if (!aiProbe.ok) {
-    logger.warn({ aiProbe, mode: 'degraded' }, 'gemini_health_check_failed_boot_continues');
-  } else {
-    logger.info({ aiProbe }, 'gemini_health_check_ok');
-  }
+  // Gemini readiness is non-fatal: probe in background so it never blocks listen().
+  void runGeminiHealthCheck().then((aiProbe) => {
+    if (!aiProbe.ok) {
+      logger.warn({ aiProbe, mode: 'degraded' }, 'gemini_health_check_failed_boot_continues');
+    } else {
+      logger.info({ aiProbe }, 'gemini_health_check_ok');
+    }
+  });
 
   bootTrace('TRACE_BEFORE_DB_BACKGROUND');
   startMongoConnectionBackground({ mongoUri: env.MONGO_URI, logger });

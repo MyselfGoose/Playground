@@ -9,6 +9,7 @@ import { Button } from "../../../../components/Button.jsx";
 import { LobbyPanel } from "../../../../components/LobbyPanel.jsx";
 import { Avatar } from "../../../../components/Avatar.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
+import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -31,6 +32,7 @@ export function NpatLobbyClient() {
 
   const [copied, setCopied] = useState(false);
   const [joinPhase, setJoinPhase] = useState(/** @type {JoinPhase} */ ("idle"));
+  const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null));
   const [starting, setStarting] = useState(false);
@@ -122,7 +124,17 @@ export function NpatLobbyClient() {
   if (!connected) {
     return (
       <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-muted">
-        <p className="text-sm font-bold">Connecting to game server…</p>
+        {socketError ? (
+          <p className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-3 text-sm font-semibold text-error">
+            {socketError}
+          </p>
+        ) : (
+          <p className="text-sm font-bold">
+            {connectTimedOut
+              ? "Taking longer than expected… Check that the backend is running and reachable."
+              : "Connecting to game server…"}
+          </p>
+        )}
         <Link href="/games/npat" className="mt-8 text-sm font-bold text-primary underline">
           ← Back
         </Link>
