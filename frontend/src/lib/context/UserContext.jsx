@@ -12,7 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
-import { subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
+import { notifyRefreshCompleted, subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
 
 /** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string }} AuthUser */
 
@@ -68,6 +68,15 @@ export function UserProvider({ children }) {
   const reconcileTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   /** Skip navigation-driven reconcile briefly after login/register so Set-Cookie can settle before `/me`. */
   const skipNavigationReconcileUntilRef = useRef(0);
+  const lifecycleRef = useRef(lifecycle);
+  const sessionErrorRef = useRef(sessionError);
+
+  useEffect(() => {
+    lifecycleRef.current = lifecycle;
+  }, [lifecycle]);
+  useEffect(() => {
+    sessionErrorRef.current = sessionError;
+  }, [sessionError]);
 
   const runReconcile = useCallback(async (reason) => {
     if (!mountedRef.current) return;
@@ -153,7 +162,21 @@ export function UserProvider({ children }) {
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
     const onVis = () => {
-      if (document.visibilityState === "visible") scheduleReconcile("visibility");
+      if (document.visibilityState !== "visible") return;
+      const hadIssue = lifecycleRef.current === "DEGRADED" || Boolean(sessionErrorRef.current);
+      if (hadIssue) {
+        void (async () => {
+          try {
+            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
+            notifyRefreshCompleted();
+          } catch {
+            /* ignore — reconcile may still recover or surface 401 */
+          }
+          scheduleReconcile("visibility_recovery");
+        })();
+      } else {
+        scheduleReconcile("visibility");
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);

@@ -15,6 +15,7 @@ import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { ackToResult, ACK_TIMEOUT_MS, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
+import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
 
 const TypingRaceContext = createContext(null);
 
@@ -283,9 +284,7 @@ export function TypingRaceProvider({ children }) {
         const detail = err?.message ?? "Could not connect";
         if (detail === "UNAUTHENTICATED" || detail === "SESSION_REVOKED") {
           try {
-            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-            const fresh = await fetchAdmissionToken();
-            socket.auth = { token: fresh };
+            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
             return;
           } catch {
             socket.disconnect();

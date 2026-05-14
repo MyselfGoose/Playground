@@ -16,6 +16,7 @@ import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { formatJoinCodeForServer } from "./roomCode.js";
 import { emitAck, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
+import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -132,9 +133,7 @@ export function NpatProvider({ children }) {
         const msg = err?.message ?? "Could not connect";
         if (msg === "UNAUTHENTICATED" || msg === "SESSION_REVOKED") {
           try {
-            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-            const fresh = await fetchAdmissionToken();
-            socket.auth = { token: fresh };
+            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
             return;
           } catch {
             socket.disconnect();

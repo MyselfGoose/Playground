@@ -10,6 +10,7 @@
  */
 
 import { dispatchReconcile, notifyRefreshCompleted } from "./reconciliation/reconciliationEvents.js";
+import { withRefreshStorageLock } from "./refreshStorageMutex.js";
 
 /**
  * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
@@ -223,47 +224,8 @@ async function rawFetch(path, options = {}) {
   return json;
 }
 
-/**
- * BroadcastChannel-based mutex for browsers without Web Locks API (older iOS Safari).
- * Coordinates refresh across tabs so only one tab rotates the refresh token.
- */
+/** Web Locks API name for cross-tab refresh serialization (see refreshStorageMutex for fallback). */
 const LOCK_KEY = "playgrounds-auth-refresh";
-const LOCK_STORAGE_KEY = "playgrounds:auth-refresh-lock";
-const LOCK_TIMEOUT_MS = 10_000;
-
-function acquireStorageLock() {
-  const now = Date.now();
-  const raw = localStorage.getItem(LOCK_STORAGE_KEY);
-  if (raw) {
-    try {
-      const lock = JSON.parse(raw);
-      if (lock.ts && now - lock.ts < LOCK_TIMEOUT_MS) {
-        return false;
-      }
-    } catch { /* stale, take it */ }
-  }
-  localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify({ ts: now, tab: Math.random() }));
-  return true;
-}
-
-function releaseStorageLock() {
-  localStorage.removeItem(LOCK_STORAGE_KEY);
-}
-
-async function refreshWithStorageMutex(req) {
-  const maxWait = LOCK_TIMEOUT_MS + 2000;
-  const start = Date.now();
-
-  while (!acquireStorageLock()) {
-    if (Date.now() - start > maxWait) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  try {
-    return await req();
-  } finally {
-    releaseStorageLock();
-  }
-}
 
 /**
  * Serialize refresh across tabs via Web Locks API when available, with
@@ -276,7 +238,7 @@ async function refreshViaCoordinator() {
     return navigator.locks.request(LOCK_KEY, req);
   }
   if (typeof localStorage !== "undefined") {
-    return refreshWithStorageMutex(req);
+    return withRefreshStorageLock(req);
   }
   return req();
 }

@@ -6,6 +6,7 @@ import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { emitAck, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
+import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
 
 const HangmanContext = createContext(null);
 
@@ -106,9 +107,7 @@ export function HangmanProvider({ children }) {
         const msg = err?.message ?? "Could not connect";
         if (msg === "UNAUTHENTICATED" || msg === "SESSION_REVOKED") {
           try {
-            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-            const fresh = await fetchAdmissionToken();
-            socket.auth = { token: fresh };
+            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
             return;
           } catch {
             socket.disconnect();

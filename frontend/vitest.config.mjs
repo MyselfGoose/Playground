@@ -9,7 +9,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{jsx,tsx}"],
+    include: ["src/**/*.test.{js,jsx,tsx}"],
+    exclude: ["**/node_modules/**", "src/lib/typing-test/**", "src/lib/api.normalize.test.js"],
     globals: false,
   },
   resolve: {
