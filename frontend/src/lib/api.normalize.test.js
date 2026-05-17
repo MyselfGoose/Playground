@@ -14,4 +14,11 @@ describe("normalizeApiBase", () => {
   it("trims slashes", () => {
     assert.equal(normalizeApiBase("http://host///"), "http://host");
   });
+
+  it("adds https when scheme is missing", () => {
+    assert.equal(
+      normalizeApiBase("playground-production-d732.up.railway.app"),
+      "https://playground-production-d732.up.railway.app",
+    );
+  });
 });

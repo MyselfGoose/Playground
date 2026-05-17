@@ -18,6 +18,10 @@ import { dispatchSessionInvalidated } from "./session/sessionInvalidation.js";
  */
 export function normalizeApiBase(raw) {
   let s = String(raw).trim();
+  if (!s) return "";
+  if (!/^https?:\/\//i.test(s)) {
+    s = `https://${s}`;
+  }
   s = s.replace(/\/+$/, "");
   if (s.endsWith("/api/v1")) {
     s = s.slice(0, -"/api/v1".length);
