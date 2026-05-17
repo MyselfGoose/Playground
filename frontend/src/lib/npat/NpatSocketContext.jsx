@@ -10,13 +10,12 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { io } from "socket.io-client";
-import { getSocketBase, apiFetch, ApiError } from "../api.js";
+import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
-import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { formatJoinCodeForServer } from "./roomCode.js";
-import { emitAck, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
-import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
+import { connectGameSocket } from "../socket/createGameSocket.js";
+import { emitAck } from "../socket/socketUtils.js";
+import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -65,92 +64,67 @@ export function NpatProvider({ children }) {
     }
   }, [authLoading, user, router, pathname, searchParams]);
 
+  const resyncRoom = useCallback(
+    (socket) => {
+      void emitAck(socket, "get_room_state", {}).then((result) => {
+        if (result.ok && result.data?.room) applyRoom(result.data.room);
+      });
+    },
+    [applyRoom],
+  );
+
   useEffect(() => {
     if (authLoading) return undefined;
     if (!user) return undefined;
-    const sockBase = getSocketBase();
-    if (!sockBase) return undefined;
+    if (!getSocketBase()) return undefined;
 
     let cancelled = false;
-    /** @type {import('socket.io-client').Socket | null} */
-    let socket = null;
+    /** @type {(() => void) | null} */
+    let cleanup = null;
 
-    const fetchAdmissionToken = () => fetchAdmission(apiFetch);
-
-    (async () => {
-      let token;
-      try {
-        token = await fetchAdmissionToken();
-      } catch (e) {
-        if (cancelled) return;
-        const msg =
-          e instanceof ApiError
-            ? e.user_message || e.message
-            : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
-        setSocketErrorState(msg);
-        setSocketErrorCode("ADMISSION_FAILED");
-        return;
+    try {
+      const { socket, cleanup: socketCleanup } = connectGameSocket({
+        namespace: "/npat",
+        gameTag: "npat",
+        onConnect: () => {
+          if (cancelled) return;
+          setConnected(true);
+          setSocketErrorState(null);
+          setSocketErrorCode(null);
+        },
+        onDisconnect: () => {
+          if (cancelled) return;
+          setConnected(false);
+        },
+        onConnectError: (_s, msg) => {
+          if (cancelled) return;
+          setSocketErrorState(msg);
+          setSocketErrorCode("CONNECT_ERROR");
+          setConnected(false);
+        },
+        onReconnectFailed: () => {
+          if (cancelled) return;
+          setSocketErrorState(SESSION_EXPIRED_MESSAGE);
+          setSocketErrorCode("SESSION_EXPIRED");
+          setConnected(false);
+          setRoom((prev) =>
+            prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null,
+          );
+        },
+        onVisibilityResync: resyncRoom,
+      });
+      if (cancelled) {
+        socketCleanup();
+        return undefined;
       }
-      if (cancelled || !token) return;
 
-      socket = io(`${sockBase}/npat`, {
-        path: "/socket.io",
-        withCredentials: true,
-        auth: { token },
-        transports: ["polling", "websocket"],
-        autoConnect: true,
-        reconnectionAttempts: 10,
-        reconnectionDelayMax: 5000,
-      });
-      if (cancelled) { socket.disconnect(); return; }
       socketRef.current = socket;
-
-      socket.io.on("reconnect_attempt", async () => {
-        try {
-          const fresh = await fetchAdmissionToken();
-          socket.auth = { token: fresh };
-        } catch {
-          dispatchReconcile("npat_admission_refresh_failed");
-        }
-      });
+      cleanup = socketCleanup;
 
       const onRoomPayload = (payload) => {
         if (payload?.room) applyRoom(payload.room);
       };
 
-      socket.on("connect", () => {
-        setConnected(true);
-        setSocketErrorState(null);
-        setSocketErrorCode(null);
-      });
-      socket.on("disconnect", () => {
-        setConnected(false);
-        setRoom((prev) =>
-          prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null,
-        );
-      });
-      socket.on("connect_error", async (err) => {
-        const msg = err?.message ?? "Could not connect";
-        if (msg === "UNAUTHENTICATED" || msg === "SESSION_REVOKED") {
-          try {
-            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
-            return;
-          } catch {
-            socket.disconnect();
-            setSocketErrorState("Session expired. Please sign in again.");
-            setSocketErrorCode("SESSION_EXPIRED");
-            setConnected(false);
-            dispatchReconcile("refresh_failed");
-            return;
-          }
-        }
-        setSocketErrorState(msg);
-        setSocketErrorCode("CONNECT_ERROR");
-        setConnected(false);
-      });
-      socket.on("reconnect", () => {
-        dispatchReconcile("npat_reconnected");
-      });
       socket.on("room_update", onRoomPayload);
       socket.on("game_started", onRoomPayload);
       socket.on("round_started", onRoomPayload);
@@ -178,31 +152,25 @@ export function NpatProvider({ children }) {
           if (code) setResumedCode(code);
         }
       });
-
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "visible" && socket?.connected) {
-          emitAck(socket, "get_room_state", {}).then((result) => {
-            if (result.ok && result.data?.room) applyRoom(result.data.room);
-          });
-        }
-      };
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      socket.__visCleanup = () => document.removeEventListener("visibilitychange", onVisibilityChange);
-    })();
+    } catch {
+      if (!cancelled) {
+        setSocketErrorState(
+          "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL (e.g. http://localhost:4000).",
+        );
+        setSocketErrorCode("MISSING_SOCKET_URL");
+      }
+      return undefined;
+    }
 
     return () => {
       cancelled = true;
-      if (socket) {
-        if (socket.__visCleanup) socket.__visCleanup();
-        socket.removeAllListeners();
-        socket.disconnect();
-      }
+      cleanup?.();
       socketRef.current = null;
       setConnected(false);
       setRoom(null);
       setResumedCode(null);
     };
-  }, [authLoading, user?.id, applyRoom]);
+  }, [authLoading, user?.id, applyRoom, resyncRoom]);
 
   const clearSocketError = useCallback(() => {
     setSocketErrorState(null);

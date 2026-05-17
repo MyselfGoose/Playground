@@ -10,12 +10,12 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { io } from "socket.io-client";
 import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
-import { ackToResult, ACK_TIMEOUT_MS, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
-import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
+import { connectGameSocket } from "../socket/createGameSocket.js";
+import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
+import { ackToResult, ACK_TIMEOUT_MS } from "../socket/socketUtils.js";
 
 const TypingRaceContext = createContext(null);
 
@@ -194,61 +194,10 @@ export function TypingRaceProvider({ children }) {
     /** @type {import('socket.io-client').Socket | null} */
     let socket = null;
 
-    const fetchAdmissionToken = () => fetchAdmission(apiFetch);
+    /** @type {(() => void) | null} */
+    let socketCleanup = null;
 
-    (async () => {
-      let token;
-      try {
-        setSocketLifecycle("AUTHENTICATING");
-        token = await fetchAdmissionToken();
-      } catch (e) {
-        if (cancelled) {
-          return;
-        }
-        const msg =
-          e instanceof ApiError
-            ? e.user_message || e.message
-            : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
-        setSocketError(msg);
-        setSocketLifecycle("FAILED");
-        return;
-      }
-      if (cancelled || !token) {
-        if (!cancelled && !token) {
-          setSocketError("Could not get a session ticket for multiplayer.");
-          setSocketLifecycle("FAILED");
-        }
-        return;
-      }
-
-      setSocketLifecycle("CONNECTING");
-      socket = io(`${sockBase}/typing-race`, {
-        path: "/socket.io",
-        withCredentials: true,
-        auth: { token },
-        transports: ["polling", "websocket"],
-        autoConnect: true,
-        reconnectionAttempts: 10,
-        reconnectionDelayMax: 5000,
-      });
-      if (cancelled) {
-        socket.disconnect();
-        return;
-      }
-      socketRef.current = socket;
-
-      socket.io.on("reconnect_attempt", async () => {
-        authenticatedRef.current = false;
-        setSocketLifecycle("RECONNECTING");
-        try {
-          const fresh = await fetchAdmissionToken();
-          socket.auth = { token: fresh };
-        } catch {
-          dispatchReconcile("typing_admission_refresh_failed");
-        }
-      });
-
-      const tryRejoinStoredRoom = () => {
+    const tryRejoinStoredRoom = () => {
         if (cancelled || !socket?.connected || typeof sessionStorage === "undefined") return;
         const digits = String(sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY) ?? "").replace(/\D/g, "");
         if (digits.length < 4) return;
@@ -267,50 +216,61 @@ export function TypingRaceProvider({ children }) {
         }
       };
 
-      socket.on("connect", () => {
-        lastConnectErrorRef.current = null;
-        authenticatedRef.current = true;
-        setConnected(socket.connected);
-        setSocketError(null);
-        setSocketLifecycle("AUTHENTICATED");
-        tryRejoinStoredRoom();
+    try {
+      setSocketLifecycle("CONNECTING");
+      const { socket: gameSocket, cleanup } = connectGameSocket({
+        namespace: "/typing-race",
+        gameTag: "typing",
+        onConnect: (s) => {
+          if (cancelled) return;
+          lastConnectErrorRef.current = null;
+          authenticatedRef.current = true;
+          setConnected(s.connected);
+          setSocketError(null);
+          setSocketLifecycle("AUTHENTICATED");
+          tryRejoinStoredRoom();
+        },
+        onDisconnect: () => {
+          if (cancelled) return;
+          authenticatedRef.current = false;
+          setConnected(false);
+          setSocketLifecycle("DISCONNECTED");
+        },
+        onConnectError: (_s, msg) => {
+          if (cancelled) return;
+          lastConnectErrorRef.current = msg;
+          setSocketError(
+            `${msg} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${getSocketBase() || "your API host"}.`,
+          );
+          setConnected(false);
+          setSocketLifecycle("FAILED");
+        },
+        onReconnect: (s) => {
+          if (cancelled) return;
+          lastConnectErrorRef.current = null;
+          authenticatedRef.current = true;
+          setConnected(s.connected);
+          setSocketError(null);
+          setSocketLifecycle("AUTHENTICATED");
+          tryRejoinStoredRoom();
+        },
+        onReconnectFailed: () => {
+          if (cancelled) return;
+          setSocketError(SESSION_EXPIRED_MESSAGE);
+          setConnected(false);
+          setSocketLifecycle("FAILED");
+        },
+        onVisibilityResync: () => {
+          tryRejoinStoredRoom();
+        },
       });
-      socket.on("disconnect", () => {
-        authenticatedRef.current = false;
-        setConnected(false);
-        setSocketLifecycle("DISCONNECTED");
-      });
-      socket.on("connect_error", async (err) => {
-        const detail = err?.message ?? "Could not connect";
-        if (detail === "UNAUTHENTICATED" || detail === "SESSION_REVOKED") {
-          try {
-            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
-            return;
-          } catch {
-            socket.disconnect();
-            setSocketError("Session expired. Please sign in again.");
-            setConnected(false);
-            setSocketLifecycle("FAILED");
-            dispatchReconcile("refresh_failed");
-            return;
-          }
-        }
-        lastConnectErrorRef.current = detail;
-        setSocketError(
-          `${detail} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${getSocketBase() || "your API host"}.`,
-        );
-        setConnected(false);
-        setSocketLifecycle("FAILED");
-      });
-      socket.on("reconnect", () => {
-        lastConnectErrorRef.current = null;
-        authenticatedRef.current = true;
-        setConnected(socket.connected);
-        setSocketError(null);
-        setSocketLifecycle("AUTHENTICATED");
-        dispatchReconcile("typing_socket_reconnected");
-        tryRejoinStoredRoom();
-      });
+      if (cancelled) {
+        cleanup();
+        return undefined;
+      }
+      socket = gameSocket;
+      socketRef.current = socket;
+      socketCleanup = cleanup;
 
       socket.on("typing_room_updated", onRoom);
       socket.on("typing_countdown_started", onRoom);
@@ -365,24 +325,21 @@ export function TypingRaceProvider({ children }) {
       });
       socket.on("typing_player_finished", onRoom);
       socket.on("typing_race_finished", onRoom);
-
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "visible" && socket?.connected) {
-          tryRejoinStoredRoom();
-        }
-      };
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      socket.__visCleanup = () => document.removeEventListener("visibilitychange", onVisibilityChange);
-    })();
+    } catch (e) {
+      if (!cancelled) {
+        const msg =
+          e instanceof ApiError
+            ? e.user_message || e.message
+            : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
+        setSocketError(msg);
+        setSocketLifecycle("FAILED");
+      }
+    }
 
     return () => {
       cancelled = true;
       authenticatedRef.current = false;
-      if (socket) {
-        if (socket.__visCleanup) socket.__visCleanup();
-        socket.removeAllListeners();
-        socket.disconnect();
-      }
+      socketCleanup?.();
       socketRef.current = null;
       setConnected(false);
       setRoom(null);

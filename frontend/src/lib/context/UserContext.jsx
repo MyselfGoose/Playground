@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
 import { notifyRefreshCompleted, subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
+import { subscribeSessionInvalidated } from "../session/sessionInvalidation.js";
 
 /** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string }} AuthUser */
 
@@ -160,6 +161,14 @@ export function UserProvider({ children }) {
   }, [scheduleReconcile]);
 
   useEffect(() => {
+    return subscribeSessionInvalidated(() => {
+      setUserState(null);
+      setSessionError("Your session ended. Please sign in again.");
+      setLifecycle("SYNCED");
+    });
+  }, []);
+
+  useEffect(() => {
     if (typeof document === "undefined") return undefined;
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
@@ -216,16 +225,18 @@ export function UserProvider({ children }) {
     }
   }, []);
 
-  const login = useCallback(async ({ email, password }) => {
-    const json = await apiFetch("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: typeof email === "string" ? email.trim().toLowerCase() : email,
-        password,
-      }),
-    });
+  const confirmSessionAfterAuth = useCallback(async () => {
     skipNavigationReconcileUntilRef.current = Date.now() + 2000;
-    const next = mapUser(json?.data?.user);
+    setLifecycle("RECOVERING");
+    const me = await apiFetch("/api/v1/auth/me");
+    const next = mapUser(me?.data?.user);
+    if (!next) {
+      throw new ApiError("Please sign in to continue.", {
+        status: 401,
+        code: "UNAUTHENTICATED",
+        requires_reauth: true,
+      });
+    }
     setUserState(next);
     invalidateDerivedCaches();
     setSessionError(null);
@@ -233,8 +244,19 @@ export function UserProvider({ children }) {
     return next;
   }, []);
 
+  const login = useCallback(async ({ email, password }) => {
+    await apiFetch("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: typeof email === "string" ? email.trim().toLowerCase() : email,
+        password,
+      }),
+    });
+    return confirmSessionAfterAuth();
+  }, [confirmSessionAfterAuth]);
+
   const register = useCallback(async ({ username, email, password }) => {
-    const json = await apiFetch("/api/v1/auth/register", {
+    await apiFetch("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify({
         username: typeof username === "string" ? username.trim() : username,
@@ -242,14 +264,8 @@ export function UserProvider({ children }) {
         password,
       }),
     });
-    skipNavigationReconcileUntilRef.current = Date.now() + 2000;
-    const next = mapUser(json?.data?.user);
-    setUserState(next);
-    invalidateDerivedCaches();
-    setSessionError(null);
-    setLifecycle("SYNCED");
-    return next;
-  }, []);
+    return confirmSessionAfterAuth();
+  }, [confirmSessionAfterAuth]);
 
   const logout = useCallback(async () => {
     try {

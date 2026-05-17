@@ -1,12 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { io } from "socket.io-client";
-import { getSocketBase, apiFetch, ApiError } from "../api.js";
+import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
-import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
-import { emitAck, fetchAdmissionToken as fetchAdmission } from "../socket/socketUtils.js";
-import { recoverSocketAuthAfterHandshakeFailure } from "../socket/recoverSocketAuth.js";
+import { connectGameSocket } from "../socket/createGameSocket.js";
+import { emitAck } from "../socket/socketUtils.js";
+import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 
 const TabooContext = createContext(null);
 
@@ -30,114 +29,83 @@ export function TabooProvider({ children }) {
     setRoom(incomingRoom);
   }, []);
 
+  const resyncRoom = useCallback(
+    (socket) => {
+      void emitAck(socket, "get_room_state", {}).then((result) => {
+        if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
+      });
+    },
+    [applyRoomSnapshot],
+  );
+
   useEffect(() => {
-    const sockBase = getSocketBase();
-    if (loading || !user || !sockBase) return undefined;
+    if (loading || !user || !getSocketBase()) return undefined;
 
     let cancelled = false;
-    /** @type {import("socket.io-client").Socket | null} */
-    let socket = null;
+    /** @type {(() => void) | null} */
+    let cleanup = null;
 
-    const fetchAdmissionToken = () => fetchAdmission(apiFetch);
-
-    (async () => {
-      let token;
-      try {
-        token = await fetchAdmissionToken();
-      } catch (e) {
-        if (cancelled) return;
-        const msg =
-          e instanceof ApiError
-            ? e.user_message || e.message
-            : "Could not prepare multiplayer session. Sign in again.";
-        setSocketError(msg);
-        return;
-      }
-      if (cancelled || !token) return;
-
-      socket = io(`${sockBase}/taboo`, {
-        path: "/socket.io",
-        withCredentials: true,
-        auth: { token },
-        transports: ["polling", "websocket"],
-        autoConnect: true,
-        reconnectionAttempts: 10,
-        reconnectionDelayMax: 5000,
+    try {
+      const { socket, cleanup: socketCleanup } = connectGameSocket({
+        namespace: "/taboo",
+        gameTag: "taboo",
+        onConnect: (s) => {
+          if (cancelled) return;
+          setConnectionState("connected");
+          setSocketError(null);
+          resyncRoom(s);
+        },
+        onDisconnect: () => {
+          if (cancelled) return;
+          setConnectionState("disconnected");
+        },
+        onConnectError: (_s, msg) => {
+          if (cancelled) return;
+          setConnectionState("reconnecting");
+          setSocketError(msg);
+        },
+        onReconnect: (s) => {
+          if (cancelled) return;
+          setConnectionState("connected");
+          resyncRoom(s);
+        },
+        onReconnectFailed: () => {
+          if (cancelled) return;
+          setSocketError(SESSION_EXPIRED_MESSAGE);
+          setConnectionState("disconnected");
+        },
+        onVisibilityResync: resyncRoom,
       });
-      if (cancelled) { socket.disconnect(); return; }
+      if (cancelled) {
+        socketCleanup();
+        return undefined;
+      }
+
       socketRef.current = socket;
+      cleanup = socketCleanup;
 
       const onRoomPayload = (payload) => {
         if (payload?.room) applyRoomSnapshot(payload.room);
       };
-
-      socket.io.on("reconnect_attempt", async () => {
-        dispatchReconcile("taboo_reconnect_attempt");
-        try {
-          const fresh = await fetchAdmissionToken();
-          socket.auth = { token: fresh };
-        } catch {
-          dispatchReconcile("taboo_admission_refresh_failed");
-        }
-      });
-
-      socket.on("connect", () => {
-        setConnectionState("connected");
-        setSocketError(null);
-        void emitAck(socket, "get_room_state", {}).then((result) => {
-          if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
-        });
-      });
-      socket.on("disconnect", () => setConnectionState("disconnected"));
-      socket.on("connect_error", async (err) => {
-        const msg = err?.message ?? "Could not connect";
-        if (msg === "UNAUTHENTICATED" || msg === "SESSION_REVOKED") {
-          try {
-            await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, fetchAdmissionToken);
-            return;
-          } catch {
-            socket.disconnect();
-            setSocketError("Session expired. Please sign in again.");
-            setConnectionState("disconnected");
-            dispatchReconcile("refresh_failed");
-            return;
-          }
-        }
-        setConnectionState("reconnecting");
-        setSocketError(msg);
-      });
-      socket.on("reconnect", () => {
-        setConnectionState("connected");
-        dispatchReconcile("taboo_reconnected");
-      });
       socket.on("room_update", onRoomPayload);
       socket.on("session_resumed", onRoomPayload);
-
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "visible" && socket?.connected) {
-          void emitAck(socket, "get_room_state", {}).then((result) => {
-            if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
-          });
-        }
-      };
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      socket.__visCleanup = () => document.removeEventListener("visibilitychange", onVisibilityChange);
-    })();
+    } catch {
+      if (!cancelled) {
+        setSocketError("Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL.");
+      }
+      return undefined;
+    }
 
     return () => {
       cancelled = true;
-      if (socket) {
-        if (socket.__visCleanup) socket.__visCleanup();
-        socket.removeAllListeners();
-        socket.disconnect();
-      }
+      cleanup?.();
       socketRef.current = null;
       setConnectionState("disconnected");
       setRoom(null);
       roomVersionRef.current = 0;
       setCategories([]);
     };
-  }, [loading, user?.id, applyRoomSnapshot]);
+  }, [loading, user?.id, applyRoomSnapshot, resyncRoom]);
 
   const createRoom = useCallback(async (settings) => {
     const result = await emitAck(socketRef.current, "create_room", settings ?? {});

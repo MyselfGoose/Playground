@@ -11,6 +11,7 @@
 
 import { dispatchReconcile, notifyRefreshCompleted } from "./reconciliation/reconciliationEvents.js";
 import { withRefreshStorageLock } from "./refreshStorageMutex.js";
+import { dispatchSessionInvalidated } from "./session/sessionInvalidation.js";
 
 /**
  * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
@@ -284,6 +285,7 @@ export async function apiFetch(path, options = {}) {
           return json;
         } catch (e) {
           dispatchReconcile("refresh_failed");
+          dispatchSessionInvalidated("refresh_failed");
           throw e;
         }
       })().finally(() => {
@@ -295,6 +297,13 @@ export async function apiFetch(path, options = {}) {
     } catch {
       throw err;
     }
-    return rawFetch(path, options);
+    try {
+      return await rawFetch(path, options);
+    } catch (retryErr) {
+      if (retryErr instanceof ApiError && retryErr.requires_reauth) {
+        dispatchSessionInvalidated(retryErr.code ?? "requires_reauth");
+      }
+      throw retryErr;
+    }
   }
 }

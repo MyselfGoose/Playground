@@ -8,6 +8,7 @@
     "test:unit": "npm test --prefix backend && npm test --prefix frontend",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:smoke": "node scripts/run-smoke-tests.mjs",
+    "smoke:auth-proxy": "node scripts/smoke-auth-proxy.mjs",
     "test:e2e": "playwright test --config=tests/e2e/playwright.config.mjs",
     "test:all": "npm run test && npm run test:smoke && npm run test:e2e",
     "ci:e2e:serve": "npm run build --prefix frontend && npm run start --prefix frontend"

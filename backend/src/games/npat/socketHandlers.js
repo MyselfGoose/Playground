@@ -249,4 +249,16 @@ export function installHandlers({ socket, registry, env, logger }) {
       return { room: engine.toPublicDto() };
     },
   });
+
+  register('get_room_state', {
+    handler: () => {
+      const engine = registry.getEngineForSocket(socket);
+      if (!engine) {
+        const err = new Error('Not in a room');
+        /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+        throw err;
+      }
+      return { room: engine.toPublicDto() };
+    },
+  });
 }

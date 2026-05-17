@@ -6,6 +6,7 @@ declare global {
     __PLAYGROUNDS_CONFIG__?: {
       apiBase?: string;
       socketUrl?: string;
+      sameOriginApi?: boolean;
     };
   }
 }

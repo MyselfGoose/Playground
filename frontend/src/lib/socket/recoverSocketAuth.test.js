@@ -17,12 +17,14 @@ describe("recoverSocketAuthAfterHandshakeFailure", () => {
     expect(connect).toHaveBeenCalled();
   });
 
-  it("does not call connect when already connected", async () => {
+  it("disconnects and reconnects when already connected to force a fresh handshake", async () => {
     const apiFetch = vi.fn().mockResolvedValue({});
     const admission = vi.fn().mockResolvedValue("t2");
+    const disconnect = vi.fn();
     const connect = vi.fn();
-    const socket = { connected: true, connect, auth: {} };
+    const socket = { connected: true, disconnect, connect, auth: {} };
     await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
-    expect(connect).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalled();
+    expect(connect).toHaveBeenCalled();
   });
 });

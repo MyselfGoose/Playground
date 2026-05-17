@@ -21,7 +21,8 @@ export async function recoverSocketAuthAfterHandshakeFailure(socket, apiFetchFn,
   await apiFetchFn("/api/v1/auth/refresh", { method: "POST" });
   const fresh = await fetchAdmissionTokenFn();
   socket.auth = { token: fresh };
-  if (!socket.connected) {
-    socket.connect();
+  if (socket.connected) {
+    socket.disconnect();
   }
+  socket.connect();
 }

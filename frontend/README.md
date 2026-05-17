@@ -21,8 +21,15 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 ## API URL (Playgrounds)
 
 - **Local:** By default the app calls `http://localhost:4000` for REST (see `src/lib/api.js`).
-- **Production (cross-origin):** Set `NEXT_PUBLIC_API_URL` to your API origin (no `/api/v1` suffix).
-- **Production (same-origin REST proxy):** On Vercel/hosting, set server env `API_PROXY_TARGET` to the API base URL, set `NEXT_PUBLIC_SAME_ORIGIN_API=1`, and set `NEXT_PUBLIC_SOCKET_URL` to that same API origin so Socket.IO connections still hit the backend directly.
+- **Production (recommended — mobile-safe cookies):** Use the same-origin REST proxy (see `frontend/.env.example`):
+  - Vercel **server** env: `API_PROXY_TARGET=https://<your-railway-host>`
+  - Vercel **client** env: `NEXT_PUBLIC_SAME_ORIGIN_API=1`
+  - Vercel **client** env: `NEXT_PUBLIC_SOCKET_URL=https://<your-railway-host>`
+  - Remove or leave unset `NEXT_PUBLIC_API_URL` when using same-origin mode.
+  - Railway: `CORS_ORIGIN` must list your exact Vercel URL(s); leave `COOKIE_DOMAIN` unset.
+- **Production (legacy cross-origin):** `NEXT_PUBLIC_API_URL` only — cookies are third-party and unreliable on iOS/Android.
+
+Verify after deploy: `npm run smoke:auth-proxy` (set `API_PROXY_TARGET` / `FRONTEND_URL`).
 
 See [backend `docs/auth-flow.md`](../backend/src/docs/auth-flow.md) for cookie and mobile debugging.
 
