@@ -14,6 +14,7 @@ import {
   registerBodySchema,
   loginBodySchema,
   oauthCompleteBodySchema,
+  oauthRegisterBodySchema,
 } from '../validation/auth.schemas.js';
 
 /**
@@ -86,6 +87,14 @@ export function createAuthRouter({ env }) {
     authLimiter,
     validateBody(oauthCompleteBodySchema),
     asyncHandler(authController.oauthComplete),
+  );
+  router.get('/oauth/signup-preview', authLimiter, asyncHandler(authController.oauthSignupPreview));
+  router.get('/username-available', authLimiter, asyncHandler(authController.usernameAvailable));
+  router.post(
+    '/oauth/register',
+    authLimiter,
+    validateBody(oauthRegisterBodySchema),
+    asyncHandler(authController.oauthRegister),
   );
 
   return router;

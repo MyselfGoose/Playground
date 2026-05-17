@@ -31,6 +31,8 @@ export const GOOGLE_OAUTH_ERROR_MESSAGES = {
   GOOGLE_OAUTH_FAILED: "Google sign-in failed. Please try again.",
   OAUTH_STATE_INVALID: "Sign-in could not be completed. Please try again.",
   OAUTH_TICKET_INVALID: "Your sign-in link expired. Please try Google sign-in again.",
+  OAUTH_SIGNUP_TICKET_INVALID: "Your sign-up link expired. Please try Google sign-in again.",
+  USERNAME_TAKEN: "That username is already taken. Try another.",
 };
 
 /**

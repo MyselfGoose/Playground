@@ -1,14 +1,34 @@
 # Google OAuth setup
 
-OAuth redirects run on the **Railway API host** (not the Vercel Next.js proxy). After Google returns to the API, the backend issues a short-lived ticket and redirects the browser to the **Vercel frontend**. The SPA exchanges the ticket via `POST /api/v1/auth/oauth/complete` on the **same-origin proxy** so `access_token` / `refresh_token` cookies match email/password login.
+OAuth redirects run on the **Railway API host** (not the Vercel Next.js proxy). After Google returns to the API, the backend redirects the browser to **`/auth/google/complete`** on the Vercel frontend. Existing users exchange a session ticket; new users pick a username, then receive cookies via the same-origin proxy.
 
 ## Flow
 
+### Returning user (or auto-linked email)
+
 1. Browser → `GET https://<railway>/api/v1/auth/google?next=/games`
 2. Google → `GET https://<railway>/api/v1/auth/google/callback`
-3. API → `302 https://<vercel>/login?oauth_ticket=...&next=...`
-4. SPA → `POST https://<vercel>/api/v1/auth/oauth/complete` (proxied to Railway)
-5. API sets httpOnly cookies on the Vercel origin; SPA redirects to `next`
+3. API → `302 https://<vercel>/auth/google/complete?oauth_ticket=...&next=...`
+4. SPA (full-screen loader) → `POST https://<vercel>/api/v1/auth/oauth/complete` (proxied)
+5. API sets cookies; SPA redirects to `next`
+
+### New Google email
+
+1. Steps 1–2 same as above
+2. API → `302 https://<vercel>/auth/google/complete?oauth_signup_ticket=...&next=...`
+3. SPA loads signup preview → user picks username → `POST /api/v1/auth/oauth/register`
+4. API creates user, sets cookies; SPA redirects to `next`
+
+## API endpoints (auth router)
+
+| Method | Path | Proxied? |
+|--------|------|----------|
+| GET | `/auth/google` | No (Railway) |
+| GET | `/auth/google/callback` | No (Railway) |
+| POST | `/auth/oauth/complete` | Yes |
+| GET | `/auth/oauth/signup-preview?ticket=` | Yes |
+| GET | `/auth/username-available?username=` | Yes |
+| POST | `/auth/oauth/register` | Yes |
 
 ## A. Google Cloud Console
 
@@ -37,13 +57,16 @@ OAuth redirects run on the **Railway API host** (not the Vercel Next.js proxy). 
 | `FRONTEND_URL` | `https://<vercel-app>` |
 | `CORS_ORIGIN` | must include Vercel URL |
 
-Optional: `OAUTH_TICKET_EXPIRY=60s`
+Optional:
+
+- `OAUTH_TICKET_EXPIRY=60s` (session handoff)
+- `OAUTH_SIGNUP_TICKET_EXPIRY=10m` (username pick)
 
 ### Vercel (frontend)
 
 | Variable | Purpose |
 |----------|---------|
-| `API_PROXY_TARGET` | `https://<railway>` (REST + `/oauth/complete`) |
+| `API_PROXY_TARGET` | `https://<railway>` (REST + OAuth complete/register) |
 | `NEXT_PUBLIC_SAME_ORIGIN_API` | `1` |
 | `NEXT_PUBLIC_SOCKET_URL` | `https://<railway>` (Google button + Socket.IO) |
 
@@ -65,16 +88,16 @@ NEXT_PUBLIC_SAME_ORIGIN_API=1
 API_PROXY_TARGET=http://localhost:4000
 ```
 
-Click **Continue with Google** → `localhost:4000` → callback → redirect to `localhost:3000/login?oauth_ticket=...` → ticket exchange via proxy.
-
 ## D. Testing checklist
 
-- [ ] New Google user registers and lands in app
+- [ ] New Google user: username screen → register → lands in app
+- [ ] Returning Google user: full-screen loader → app (no login form flash)
 - [ ] Existing email/password user auto-links (`auto_link_event` in API logs)
-- [ ] Unverified Google email → `GOOGLE_EMAIL_UNVERIFIED` on login page
-- [ ] Cancel OAuth → `google_cancelled` message
-- [ ] Socket game works after Google login (admission token + cookies)
-- [ ] Mobile Safari: cookies on Vercel origin after `/oauth/complete`
+- [ ] Username taken → error on register form
+- [ ] Unverified Google email → error on complete page
+- [ ] Cancel OAuth → error on complete page with link to login
+- [ ] Socket game after Google login
+- [ ] Mobile Safari: cookies on Vercel origin after register/complete
 
 ## Auto-link rule
 

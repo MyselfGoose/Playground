@@ -188,6 +188,7 @@ export const envSchema = z
       return 'http://localhost:3000';
     }, z.string().url().optional()),
     OAUTH_TICKET_EXPIRY: z.string().min(1).default('60s'),
+    OAUTH_SIGNUP_TICKET_EXPIRY: z.string().min(1).default('10m'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

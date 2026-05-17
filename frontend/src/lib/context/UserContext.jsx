@@ -278,6 +278,17 @@ export function UserProvider({ children }) {
     [confirmSessionAfterAuth],
   );
 
+  const completeOAuthRegister = useCallback(
+    async (ticket, username) => {
+      await apiFetch("/api/v1/auth/oauth/register", {
+        method: "POST",
+        body: JSON.stringify({ ticket, username }),
+      });
+      return confirmSessionAfterAuth();
+    },
+    [confirmSessionAfterAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       await apiFetch("/api/v1/auth/logout", { method: "POST" });
@@ -299,6 +310,7 @@ export function UserProvider({ children }) {
       login,
       register,
       completeOAuth,
+      completeOAuthRegister,
       logout,
       refreshUser,
       reconcileNow: runReconcile,
@@ -311,6 +323,7 @@ export function UserProvider({ children }) {
       login,
       register,
       completeOAuth,
+      completeOAuthRegister,
       logout,
       refreshUser,
       runReconcile,

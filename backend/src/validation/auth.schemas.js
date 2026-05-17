@@ -19,15 +19,17 @@ export const loginPasswordSchema = z
   .min(1, 'Password is required')
   .max(128, 'Password is too long');
 
+export const usernameFieldSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim() : v),
+  z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Username may only contain letters, numbers, underscore, hyphen'),
+);
+
 export const registerBodySchema = z.object({
-  username: z.preprocess(
-    (v) => (typeof v === 'string' ? v.trim() : v),
-    z
-      .string()
-      .min(3)
-      .max(32)
-      .regex(/^[a-zA-Z0-9_-]+$/, 'Username may only contain letters, numbers, underscore, hyphen'),
-  ),
+  username: usernameFieldSchema,
   email: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.string().email().max(254),
@@ -68,4 +70,9 @@ export const loginBodySchema = z
 
 export const oauthCompleteBodySchema = z.object({
   ticket: z.string().min(8).max(128),
+});
+
+export const oauthRegisterBodySchema = z.object({
+  ticket: z.string().min(8).max(128),
+  username: usernameFieldSchema,
 });

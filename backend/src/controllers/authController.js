@@ -4,6 +4,8 @@ import { readAccessToken } from '../middleware/authMiddleware.js';
 import { AppError } from '../errors/AppError.js';
 import { recordAuthRefresh } from '../observability/platformMetrics.js';
 import { safeNextPath } from '../utils/safeNextPath.js';
+import { userRepository } from '../repositories/userRepository.js';
+import { usernameFieldSchema } from '../validation/auth.schemas.js';
 
 /**
  * @param {{
@@ -77,10 +79,10 @@ export function createAuthController({
   /**
    * @param {Record<string, string>} params
    */
-  function frontendLoginRedirectUrl(params) {
+  function frontendOAuthCompleteRedirectUrl(params) {
     const base = String(env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
     const qs = new URLSearchParams(params);
-    return `${base}/login?${qs.toString()}`;
+    return `${base}/auth/google/complete?${qs.toString()}`;
   }
 
   return {
@@ -257,7 +259,7 @@ export function createAuthController({
         req.log?.info({ event: 'auth_google_failure', reason: 'google_cancelled' }, 'auth_event');
         res.redirect(
           302,
-          frontendLoginRedirectUrl({ error: 'google_cancelled', next: nextFallback }),
+          frontendOAuthCompleteRedirectUrl({ error: 'google_cancelled', next: nextFallback }),
         );
         return;
       }
@@ -275,22 +277,31 @@ export function createAuthController({
 
         const { next } = await oauthStateService.verifyOAuthState(state);
         const profile = await googleOAuthClient.exchangeCodeForProfile(code);
-        const user = await googleAuthService.resolveGoogleUser(profile, requestMeta(req));
-        const ticket = await googleAuthService.createCompletionTicket(user, env);
+        const outcome = await googleAuthService.resolveGoogleCallback(profile);
 
+        if (outcome.kind === 'signup') {
+          const signupTicket = await googleAuthService.createSignupTicket(profile, env);
+          req.log?.info({ event: 'auth_google_callback_signup_ticket' }, 'auth_event');
+          res.redirect(
+            302,
+            frontendOAuthCompleteRedirectUrl({ oauth_signup_ticket: signupTicket, next }),
+          );
+          return;
+        }
+
+        const ticket = await googleAuthService.createCompletionTicket(outcome.user, env);
         req.log?.info(
-          { event: 'auth_google_callback_ticket', userId: String(user._id) },
+          { event: 'auth_google_callback_ticket', userId: String(outcome.user._id) },
           'auth_event',
         );
-
         res.redirect(
           302,
-          frontendLoginRedirectUrl({ oauth_ticket: ticket, next }),
+          frontendOAuthCompleteRedirectUrl({ oauth_ticket: ticket, next }),
         );
       } catch (err) {
         const reason = err instanceof AppError && err.code ? String(err.code) : 'GOOGLE_OAUTH_FAILED';
         req.log?.warn({ event: 'auth_google_failure', reason }, 'auth_event');
-        res.redirect(302, frontendLoginRedirectUrl({ error: reason, next: nextFallback }));
+        res.redirect(302, frontendOAuthCompleteRedirectUrl({ error: reason, next: nextFallback }));
       }
     },
 
@@ -302,6 +313,59 @@ export function createAuthController({
       assertGoogleOAuthReady();
       const ticket = req.body.ticket;
       const user = await googleAuthService.consumeCompletionTicket(ticket);
+      const result = await authService.completeAuthSession(
+        { _id: user._id, roles: user.roles },
+        requestMeta(req),
+      );
+      setAuthCookies(res, result.accessToken, result.refreshToken);
+      req.log?.info(
+        { event: 'auth_google_callback_success', userId: result.user._id },
+        'auth_event',
+      );
+      res.status(200).json({ data: { user: result.user } });
+    },
+
+    /**
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async oauthSignupPreview(req, res) {
+      assertGoogleOAuthReady();
+      const ticket = typeof req.query.ticket === 'string' ? req.query.ticket : '';
+      if (!ticket) {
+        throw new AppError(400, 'Sign-up link expired', {
+          code: 'OAUTH_SIGNUP_TICKET_INVALID',
+          expose: true,
+        });
+      }
+      const profile = await googleAuthService.peekSignupTicket(ticket);
+      res.status(200).json({
+        data: {
+          email: profile.email,
+          name: profile.name,
+        },
+      });
+    },
+
+    async usernameAvailable(req, res) {
+      const parsed = usernameFieldSchema.safeParse(req.query.username);
+      if (!parsed.success) {
+        res.status(200).json({ data: { available: false } });
+        return;
+      }
+      const taken = await userRepository.findByUsername(parsed.data);
+      res.status(200).json({ data: { available: !taken } });
+    },
+
+    /**
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async oauthRegister(req, res) {
+      assertGoogleOAuthReady();
+      const { ticket, username } = req.body;
+      const profile = await googleAuthService.consumeSignupTicket(ticket);
+      const user = await googleAuthService.registerGoogleUser(profile, username);
       const result = await authService.completeAuthSession(
         { _id: user._id, roles: user.roles },
         requestMeta(req),

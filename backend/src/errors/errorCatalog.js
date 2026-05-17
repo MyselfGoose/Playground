@@ -105,6 +105,20 @@ export const ERROR_CODE_META = {
     requires_reauth: false,
     user_message: 'Your sign-in link expired. Please try Google sign-in again.',
   },
+  OAUTH_SIGNUP_TICKET_INVALID: {
+    category: 'AUTH',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'Your sign-up link expired. Please try Google sign-in again.',
+  },
+  USERNAME_TAKEN: {
+    category: 'AUTH',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'That username is already taken. Try another.',
+  },
   OAUTH_STATE_INVALID: {
     category: 'AUTH',
     recoverable: false,

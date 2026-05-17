@@ -13,14 +13,13 @@ import {
 } from "../../lib/auth/oauth.js";
 
 function LoginForm() {
-  const { login, completeOAuth, user, loading } = useUser();
+  const { login, user, loading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [oauthPending, setOauthPending] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
@@ -38,40 +37,6 @@ function LoginForm() {
       router.replace(nextPath);
     }
   }, [loading, user, router, nextPath]);
-
-  useEffect(() => {
-    const ticket = searchParams.get("oauth_ticket");
-    if (!ticket || loading || user || oauthPending) return;
-
-    let cancelled = false;
-    setOauthPending(true);
-    setError("");
-
-    void (async () => {
-      try {
-        await completeOAuth(ticket);
-        if (!cancelled) {
-          router.replace(nextPath);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message =
-            err instanceof ApiError
-              ? err.message
-              : err instanceof Error
-                ? err.message
-                : "Google sign-in could not be completed";
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) setOauthPending(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams, loading, user, oauthPending, completeOAuth, router, nextPath]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -151,14 +116,8 @@ function LoginForm() {
             <h2 className="text-2xl font-extrabold text-foreground mb-2">Sign in</h2>
             <p className="text-sm text-foreground/60 mb-8">Enter your email and password to continue</p>
 
-            {oauthPending ? (
-              <motion.div className="mb-6 rounded-[var(--radius-lg)] bg-muted-bright/30 px-4 py-3 text-sm font-bold text-foreground/80">
-                Completing Google sign-in…
-              </motion.div>
-            ) : null}
-
             <div className="mb-6">
-              <GoogleSignInButton nextPath={nextPath} disabled={pending || oauthPending} />
+              <GoogleSignInButton nextPath={nextPath} disabled={pending} />
             </div>
 
             <motion.div className="relative mb-6">
