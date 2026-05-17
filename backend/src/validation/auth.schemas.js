@@ -65,3 +65,7 @@ export const loginBodySchema = z
       });
     }
   });
+
+export const oauthCompleteBodySchema = z.object({
+  ticket: z.string().min(8).max(128),
+});

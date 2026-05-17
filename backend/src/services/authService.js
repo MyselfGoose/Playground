@@ -100,10 +100,19 @@ export function createAuthService({ env, passwordService, tokenService }) {
       } else if (username) {
         user = await userRepository.findByUsernameWithPassword(username);
       }
-      if (!user?.passwordHash) {
+      if (!user) {
         throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
       }
       if (!user.isActive) {
+        throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+      }
+      if (!user.passwordHash) {
+        if (user.googleId) {
+          throw new AppError(401, 'This account uses Google sign-in', {
+            code: 'OAUTH_ONLY_ACCOUNT',
+            expose: true,
+          });
+        }
         throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
       }
       const ok = await passwordService.verify(password, user.passwordHash);
@@ -246,6 +255,15 @@ export function createAuthService({ env, passwordService, tokenService }) {
         throw new AppError(401, 'Invalid credentials', { code: 'USER_INACTIVE', expose: true });
       }
       return user;
+    },
+
+    /**
+     * Mint access/refresh session after OAuth ticket exchange (same path as login/register).
+     * @param {{ _id: unknown, roles: string[] }} userDoc
+     * @param {{ userAgent?: string, ip?: string }} meta
+     */
+    completeAuthSession(userDoc, meta) {
+      return issueSessionAndTokens(userDoc, meta);
     },
   };
 }

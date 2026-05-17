@@ -16,6 +16,13 @@ export const userRepository = {
   },
 
   /**
+   * @param {string} googleId
+   */
+  findByGoogleId(googleId) {
+    return User.findOne({ googleId }).lean();
+  },
+
+  /**
    * @param {string} username
    */
   findByUsername(username) {
@@ -30,7 +37,7 @@ export const userRepository = {
   },
 
   /**
-   * @param {{ username: string, email: string, passwordHash: string, roles?: string[] }} doc
+   * @param {{ username: string, email: string, passwordHash?: string, googleId?: string, authProviders?: string[], avatarUrl?: string, roles?: string[] }} doc
    */
   async createUser(doc) {
     const created = await User.create(doc);
@@ -49,5 +56,30 @@ export const userRepository = {
    */
   updateLastLogin(userId) {
     return User.updateOne({ _id: userId }, { $set: { lastLoginAt: new Date() } });
+  },
+
+  /**
+   * Link Google to an existing account when googleId is unset or already matches.
+   * @param {import('mongoose').Types.ObjectId | string} userId
+   * @param {{ googleId: string, avatarUrl?: string | null, authProviders: string[] }} patch
+   */
+  async linkGoogleAccount(userId, patch) {
+    const updated = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [{ googleId: null }, { googleId: { $exists: false } }, { googleId: patch.googleId }],
+      },
+      {
+        $set: {
+          googleId: patch.googleId,
+          ...(patch.avatarUrl ? { avatarUrl: patch.avatarUrl } : {}),
+          authProviders: patch.authProviders,
+        },
+      },
+      { new: true },
+    )
+      .select('-__v')
+      .lean();
+    return updated;
   },
 };

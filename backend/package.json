@@ -13,7 +13,7 @@
     "db:validate:cah": "node scripts/validateCahImport.js",
     "db:import:hangman": "node scripts/importHangmanWords.js",
     "db:backfill:hangman-stats": "node scripts/backfillHangmanUserStats.js",
-    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/games/hangman/*.test.js src/services/*.test.js src/repositories/*.test.js"
+    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/games/hangman/*.test.js src/services/*.test.js src/repositories/*.test.js src/utils/safeNextPath.test.js"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +29,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "google-auth-library": "^9.15.1",
     "helmet": "^8.1.0",
     "jose": "^5.10.0",
     "mongoose": "^8.10.1",

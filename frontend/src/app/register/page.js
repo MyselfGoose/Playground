@@ -6,18 +6,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
-import { Button } from "../../components/Button.jsx";
-
-function safeNextPath(raw) {
-  if (typeof raw !== "string" || !raw.startsWith("/")) return "/";
-  if (raw.startsWith("//")) return "/";
-  return raw;
-}
+import { GoogleSignInButton } from "../../components/GoogleSignInButton.jsx";
+import { safeNextPath } from "../../lib/auth/oauth.js";
 
 function RegisterForm() {
   const { register, user, loading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +25,7 @@ function RegisterForm() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(safeNextPath(searchParams.get("next")));
+      router.replace(nextPath);
     }
   }, [loading, user, router, searchParams]);
 
@@ -43,7 +39,7 @@ function RegisterForm() {
         email: email.trim().toLowerCase(),
         password,
       });
-      router.push(safeNextPath(searchParams.get("next")));
+      router.push(nextPath);
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Something went wrong";
@@ -81,6 +77,19 @@ function RegisterForm() {
           <div className="bg-background/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-8 sm:p-10 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40">
             <h2 className="text-2xl font-extrabold text-foreground mb-2">Join the Playground</h2>
             <p className="text-sm text-foreground/60 mb-8">Create your account and start playing today</p>
+
+            <div className="mb-6">
+              <GoogleSignInButton nextPath={nextPath} disabled={pending} />
+            </div>
+
+            <div className="relative mb-6">
+              <motion.div className="absolute inset-0 flex items-center" aria-hidden>
+                <div className="w-full border-t border-muted-bright/40" />
+              </motion.div>
+              <div className="relative flex justify-center text-xs uppercase tracking-wide">
+                <span className="bg-background px-3 text-foreground/50 font-bold">or</span>
+              </div>
+            </div>
 
             <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
               {error ? (

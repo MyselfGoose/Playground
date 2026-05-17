@@ -267,6 +267,17 @@ export function UserProvider({ children }) {
     return confirmSessionAfterAuth();
   }, [confirmSessionAfterAuth]);
 
+  const completeOAuth = useCallback(
+    async (ticket) => {
+      await apiFetch("/api/v1/auth/oauth/complete", {
+        method: "POST",
+        body: JSON.stringify({ ticket }),
+      });
+      return confirmSessionAfterAuth();
+    },
+    [confirmSessionAfterAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       await apiFetch("/api/v1/auth/logout", { method: "POST" });
@@ -287,11 +298,23 @@ export function UserProvider({ children }) {
       lifecycle,
       login,
       register,
+      completeOAuth,
       logout,
       refreshUser,
       reconcileNow: runReconcile,
     }),
-    [user, loading, sessionError, lifecycle, login, register, logout, refreshUser, runReconcile],
+    [
+      user,
+      loading,
+      sessionError,
+      lifecycle,
+      login,
+      register,
+      completeOAuth,
+      logout,
+      refreshUser,
+      runReconcile,
+    ],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

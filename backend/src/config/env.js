@@ -169,6 +169,25 @@ export const envSchema = z
     FEEDBACK_SCREENSHOT_MAX_BYTES: z.coerce.number().int().min(50_000).max(5_000_000).default(1_048_576),
     /** Repo path prefix for uploaded screenshots (Contents API). */
     FEEDBACK_SCREENSHOTS_PATH: z.string().min(1).default('.github/feedback-screenshots'),
+
+    /** Google OAuth — optional; routes return 503 when disabled or credentials missing. */
+    GOOGLE_OAUTH_ENABLED: z.preprocess((v) => {
+      if (v === undefined || v === null || String(v).trim() === '') return false;
+      const s = String(v).toLowerCase().trim();
+      return s === 'true' || s === '1';
+    }, z.boolean().default(false)),
+    GOOGLE_CLIENT_ID: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    GOOGLE_CLIENT_SECRET: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    /** Railway (API) callback — must match Google Cloud redirect URI exactly. */
+    GOOGLE_CALLBACK_URL: z.preprocess((v) => nonemptyOrUndefined(v), z.string().url().optional()),
+    /** Vercel / Next.js app origin for post-OAuth redirect (ticket handoff). */
+    FRONTEND_URL: z.preprocess((v) => {
+      const s = nonemptyOrUndefined(v);
+      if (s) return s.replace(/\/+$/, '');
+      if (isProductionEnv()) return undefined;
+      return 'http://localhost:3000';
+    }, z.string().url().optional()),
+    OAUTH_TICKET_EXPIRY: z.string().min(1).default('60s'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

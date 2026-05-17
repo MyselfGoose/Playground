@@ -6,30 +6,72 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
-import { Button } from "../../components/Button.jsx";
-
-function safeNextPath(raw) {
-  if (typeof raw !== "string" || !raw.startsWith("/")) return "/";
-  if (raw.startsWith("//")) return "/";
-  return raw;
-}
+import { GoogleSignInButton } from "../../components/GoogleSignInButton.jsx";
+import {
+  messageForGoogleOAuthError,
+  safeNextPath,
+} from "../../lib/auth/oauth.js";
 
 function LoginForm() {
-  const { login, user, loading } = useUser();
+  const { login, completeOAuth, user, loading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [oauthPending, setOauthPending] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  const nextPath = safeNextPath(searchParams.get("next"));
+
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    if (oauthError) {
+      setError(messageForGoogleOAuthError(oauthError) ?? "Google sign-in failed. Please try again.");
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (!loading && user) {
-      router.replace(safeNextPath(searchParams.get("next")));
+      router.replace(nextPath);
     }
-  }, [loading, user, router, searchParams]);
+  }, [loading, user, router, nextPath]);
+
+  useEffect(() => {
+    const ticket = searchParams.get("oauth_ticket");
+    if (!ticket || loading || user || oauthPending) return;
+
+    let cancelled = false;
+    setOauthPending(true);
+    setError("");
+
+    void (async () => {
+      try {
+        await completeOAuth(ticket);
+        if (!cancelled) {
+          router.replace(nextPath);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const message =
+            err instanceof ApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Google sign-in could not be completed";
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) setOauthPending(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, loading, user, oauthPending, completeOAuth, router, nextPath]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -37,7 +79,7 @@ function LoginForm() {
     setPending(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      router.push(safeNextPath(searchParams.get("next")));
+      router.push(nextPath);
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Something went wrong";
@@ -108,6 +150,25 @@ function LoginForm() {
           <div className="bg-background/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-8 sm:p-10 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40">
             <h2 className="text-2xl font-extrabold text-foreground mb-2">Sign in</h2>
             <p className="text-sm text-foreground/60 mb-8">Enter your email and password to continue</p>
+
+            {oauthPending ? (
+              <motion.div className="mb-6 rounded-[var(--radius-lg)] bg-muted-bright/30 px-4 py-3 text-sm font-bold text-foreground/80">
+                Completing Google sign-in…
+              </motion.div>
+            ) : null}
+
+            <div className="mb-6">
+              <GoogleSignInButton nextPath={nextPath} disabled={pending || oauthPending} />
+            </div>
+
+            <motion.div className="relative mb-6">
+              <motion.div className="absolute inset-0 flex items-center" aria-hidden>
+                <div className="w-full border-t border-muted-bright/40" />
+              </motion.div>
+              <div className="relative flex justify-center text-xs uppercase tracking-wide">
+                <span className="bg-background px-3 text-foreground/50 font-bold">or</span>
+              </div>
+            </motion.div>
 
             <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
               {error ? (

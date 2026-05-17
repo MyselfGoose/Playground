@@ -3,15 +3,26 @@ import { parseDurationToMs } from '../utils/parseDuration.js';
 import { readAccessToken } from '../middleware/authMiddleware.js';
 import { AppError } from '../errors/AppError.js';
 import { recordAuthRefresh } from '../observability/platformMetrics.js';
+import { safeNextPath } from '../utils/safeNextPath.js';
 
 /**
  * @param {{
  *   authService: ReturnType<import('../services/authService.js').createAuthService>,
  *   env: import('../config/env.js').Env,
  *   tokenService: ReturnType<import('../services/tokenService.js').createTokenService>,
+ *   googleAuthService: ReturnType<import('../services/googleAuthService.js').createGoogleAuthService>,
+ *   googleOAuthClient: ReturnType<import('../services/googleOAuthClient.js').createGoogleOAuthClient> | null,
+ *   oauthStateService: ReturnType<import('../services/oauthStateService.js').createOAuthStateService>,
  * }} params
  */
-export function createAuthController({ authService, env, tokenService }) {
+export function createAuthController({
+  authService,
+  env,
+  tokenService,
+  googleAuthService,
+  googleOAuthClient,
+  oauthStateService,
+}) {
   const cookieBase = () => ({
     httpOnly: true,
     secure: env.COOKIE_SECURE,
@@ -46,6 +57,30 @@ export function createAuthController({ authService, env, tokenService }) {
       userAgent: req.get('user-agent')?.slice(0, 256),
       ip: req.ip,
     };
+  }
+
+  function assertGoogleOAuthReady() {
+    if (!env.GOOGLE_OAUTH_ENABLED) {
+      throw new AppError(503, 'Google sign-in is disabled', {
+        code: 'GOOGLE_OAUTH_DISABLED',
+        expose: true,
+      });
+    }
+    if (!googleOAuthClient?.isConfigured) {
+      throw new AppError(503, 'Google sign-in is not configured', {
+        code: 'GOOGLE_OAUTH_DISABLED',
+        expose: true,
+      });
+    }
+  }
+
+  /**
+   * @param {Record<string, string>} params
+   */
+  function frontendLoginRedirectUrl(params) {
+    const base = String(env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+    const qs = new URLSearchParams(params);
+    return `${base}/login?${qs.toString()}`;
   }
 
   return {
@@ -115,7 +150,6 @@ export function createAuthController({ authService, env, tokenService }) {
         });
       } catch (err) {
         recordAuthRefresh({ ok: false });
-        // Always clear cookies on any refresh failure so the client stops replaying a bad token.
         clearAuthCookies(res);
         req.log?.warn(
           {
@@ -174,9 +208,6 @@ export function createAuthController({ authService, env, tokenService }) {
     },
 
     /**
-     * Returns the current access token for clients that use Socket.IO `auth: { token }` because
-     * some browsers or proxies do not forward cookies on the engine.io handshake the same
-     * way as `fetch` with `credentials: "include"`.
      * @param {import('express').Request} req
      * @param {import('express').Response} res
      */
@@ -188,10 +219,6 @@ export function createAuthController({ authService, env, tokenService }) {
       res.status(200).json({ data: { token } });
     },
 
-    /**
-     * Short-lived Socket.IO credential (`typ: socket_admission`) bound to refresh session `sid`.
-     * Prefer over `/socket-handshake` so reconnect can mint fresh tickets without pinning access JWTs.
-     */
     async socketAdmission(req, res) {
       const admission = await tokenService.signSocketAdmissionToken(
         req.user.id,
@@ -204,6 +231,87 @@ export function createAuthController({ authService, env, tokenService }) {
           expiresIn: env.JWT_SOCKET_ADMISSION_EXPIRY,
         },
       });
+    },
+
+    /**
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async googleStart(req, res) {
+      assertGoogleOAuthReady();
+      const next = safeNextPath(typeof req.query.next === 'string' ? req.query.next : '/');
+      const state = await oauthStateService.signOAuthState(next);
+      const url = googleOAuthClient.getAuthorizationUrl(state);
+      req.log?.info({ event: 'auth_google_start', next }, 'auth_event');
+      res.redirect(302, url);
+    },
+
+    /**
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async googleCallback(req, res) {
+      const nextFallback = safeNextPath(typeof req.query.next === 'string' ? req.query.next : '/');
+
+      if (req.query.error === 'access_denied') {
+        req.log?.info({ event: 'auth_google_failure', reason: 'google_cancelled' }, 'auth_event');
+        res.redirect(
+          302,
+          frontendLoginRedirectUrl({ error: 'google_cancelled', next: nextFallback }),
+        );
+        return;
+      }
+
+      try {
+        assertGoogleOAuthReady();
+        const code = typeof req.query.code === 'string' ? req.query.code : '';
+        const state = typeof req.query.state === 'string' ? req.query.state : '';
+        if (!code || !state) {
+          throw new AppError(400, 'Google sign-in failed', {
+            code: 'GOOGLE_OAUTH_FAILED',
+            expose: true,
+          });
+        }
+
+        const { next } = await oauthStateService.verifyOAuthState(state);
+        const profile = await googleOAuthClient.exchangeCodeForProfile(code);
+        const user = await googleAuthService.resolveGoogleUser(profile, requestMeta(req));
+        const ticket = await googleAuthService.createCompletionTicket(user, env);
+
+        req.log?.info(
+          { event: 'auth_google_callback_ticket', userId: String(user._id) },
+          'auth_event',
+        );
+
+        res.redirect(
+          302,
+          frontendLoginRedirectUrl({ oauth_ticket: ticket, next }),
+        );
+      } catch (err) {
+        const reason = err instanceof AppError && err.code ? String(err.code) : 'GOOGLE_OAUTH_FAILED';
+        req.log?.warn({ event: 'auth_google_failure', reason }, 'auth_event');
+        res.redirect(302, frontendLoginRedirectUrl({ error: reason, next: nextFallback }));
+      }
+    },
+
+    /**
+     * @param {import('express').Request} req
+     * @param {import('express').Response} res
+     */
+    async oauthComplete(req, res) {
+      assertGoogleOAuthReady();
+      const ticket = req.body.ticket;
+      const user = await googleAuthService.consumeCompletionTicket(ticket);
+      const result = await authService.completeAuthSession(
+        { _id: user._id, roles: user.roles },
+        requestMeta(req),
+      );
+      setAuthCookies(res, result.accessToken, result.refreshToken);
+      req.log?.info(
+        { event: 'auth_google_callback_success', userId: result.user._id },
+        'auth_event',
+      );
+      res.status(200).json({ data: { user: result.user } });
     },
   };
 }

@@ -23,8 +23,33 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: true,
       select: false,
+      required() {
+        return !this.googleId;
+      },
+    },
+    googleId: {
+      type: String,
+      trim: true,
+      sparse: true,
+      unique: true,
+      index: true,
+    },
+    authProviders: {
+      type: [String],
+      default: ['local'],
+      validate: [
+        (v) =>
+          Array.isArray(v) &&
+          v.length > 0 &&
+          v.every((p) => typeof p === 'string' && (p === 'local' || p === 'google')),
+        'auth_providers_invalid',
+      ],
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      maxlength: 2048,
     },
     roles: {
       type: [String],
