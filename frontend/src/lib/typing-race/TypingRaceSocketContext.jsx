@@ -22,7 +22,33 @@ const TypingRaceContext = createContext(null);
 
 const DEV = process.env.NODE_ENV !== "production";
 
-const TYPING_ROOM_STORAGE_KEY = "playgrounds:typing-race:last-room-code";
+const TYPING_ROOM_STORAGE_KEY = "playground:typing-race:last-room-code";
+const TYPING_ROOM_STORAGE_KEY_LEGACY = "playgrounds:typing-race:last-room-code";
+
+function readStoredTypingRoomCode() {
+  if (typeof sessionStorage === "undefined") {
+    return "";
+  }
+  const fromNew = sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY);
+  if (fromNew) {
+    return fromNew;
+  }
+  const legacy = sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY_LEGACY);
+  if (legacy) {
+    sessionStorage.setItem(TYPING_ROOM_STORAGE_KEY, legacy);
+    sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY_LEGACY);
+  }
+  return legacy ?? "";
+}
+
+function writeStoredTypingRoomCode(digits) {
+  sessionStorage.setItem(TYPING_ROOM_STORAGE_KEY, digits);
+}
+
+function clearStoredTypingRoomCode() {
+  sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
+  sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY_LEGACY);
+}
 
 /**
  * Maps socket / ack errors to copy suitable for UI toasts and inline alerts.
@@ -108,7 +134,7 @@ export function TypingRaceProvider({ children }) {
       if (typeof rc === "string" && typeof sessionStorage !== "undefined") {
         const digits = rc.replace(/\D/g, "");
         if (digits.length >= 4) {
-          sessionStorage.setItem(TYPING_ROOM_STORAGE_KEY, digits);
+          writeStoredTypingRoomCode(digits);
         }
       }
       setRoom(r);
@@ -196,11 +222,11 @@ export function TypingRaceProvider({ children }) {
     const tryRejoinStoredRoom = (targetSocket) => {
         const s = targetSocket ?? socket;
         if (cancelled || !s?.connected || typeof sessionStorage === "undefined") return;
-        const digits = String(sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY) ?? "").replace(/\D/g, "");
+        const digits = String(readStoredTypingRoomCode()).replace(/\D/g, "");
         if (digits.length < 4) return;
         s.timeout(ACK_TIMEOUT_MS).emit("typing_join_room", { roomCode: digits }, (err, res) => {
           if (err || !res?.ok || !res?.data?.room) {
-            sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
+            clearStoredTypingRoomCode();
             return;
           }
           applyRoom(res.data.room);
@@ -402,7 +428,7 @@ export function TypingRaceProvider({ children }) {
     const result = await emitAck("typing_leave_room", {});
     setRoom(null);
     if (typeof sessionStorage !== "undefined") {
-      sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
+      clearStoredTypingRoomCode();
     }
     return result;
   }, [emitAck]);

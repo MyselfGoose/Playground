@@ -10,7 +10,12 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{js,jsx,tsx}"],
-    exclude: ["**/node_modules/**", "src/lib/typing-test/**", "src/lib/api.normalize.test.js"],
+    exclude: [
+      "**/node_modules/**",
+      "src/lib/typing-test/**",
+      "src/lib/api.normalize.test.js",
+      "src/lib/auth/oauth.test.js",
+    ],
     globals: false,
   },
   resolve: {

@@ -1,36 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { GAMES } from "../../lib/games.js";
+import {
+  getComingSoonGames,
+  getGameCardGradient,
+  getGameHref,
+  getPlayableGames,
+} from "../../lib/games.js";
 import { motion } from "framer-motion";
 import { Button } from "../../components/Button.jsx";
 
 export default function GamesPage() {
-  const playableGames = GAMES.filter(g =>
-    ["name-place-animal-thing", "typing-race", "taboo", "cards-against-humanity", "hangman"].includes(g.id),
-  );
-  const comingSoonGames = GAMES.filter(
-    g => !["name-place-animal-thing", "typing-race", "taboo", "cards-against-humanity", "hangman"].includes(g.id),
-  );
-
-  const getGameLink = (gameId) => {
-    if (gameId === "name-place-animal-thing") return "/games/npat";
-    if (gameId === "typing-race") return "/games/typing-race";
-    if (gameId === "taboo") return "/games/taboo";
-    if (gameId === "cards-against-humanity") return "/games/cah";
-    if (gameId === "hangman") return "/games/hangman";
-    return "/games";
-  };
-
-  const getGameColor = (idx) => {
-    const colors = [
-      "from-pastel-mint to-accent-mint",
-      "from-pastel-sky to-accent-sky",
-      "from-pastel-peach to-primary",
-      "from-pastel-lavender to-accent-purple",
-    ];
-    return colors[idx % colors.length];
-  };
+  const playableGames = getPlayableGames();
+  const comingSoonGames = getComingSoonGames();
 
   return (
     <div className="w-full min-h-screen flex flex-col bg-background">
@@ -64,8 +46,8 @@ export default function GamesPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {playableGames.map((game, idx) => {
-              const colorClass = getGameColor(idx);
-              const link = getGameLink(game.id);
+              const colorClass = getGameCardGradient(idx);
+              const link = getGameHref(game.id);
 
               return (
                 <motion.div

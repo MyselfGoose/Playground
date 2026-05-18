@@ -18,7 +18,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
-## API URL (Playgrounds)
+## API URL (Playground)
 
 - **Local:** By default the app calls `http://localhost:4000` for REST (see `src/lib/api.js`).
 - **Production (recommended — mobile-safe cookies):** Use the same-origin REST proxy (see `frontend/.env.example`):

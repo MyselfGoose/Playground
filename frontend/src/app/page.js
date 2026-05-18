@@ -1,21 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "../components/Button.jsx";
-
-const GAMES = [
-  { id: "npat", name: "Name Place Animal Thing", emoji: "🌍", color: "from-accent-mint to-accent-sky" },
-  { id: "typing", name: "Typing Race", emoji: "⌨️", color: "from-accent-sky to-accent-purple" },
-  { id: "taboo", name: "Taboo", emoji: "🎯", color: "from-accent-pink to-primary" },
-];
+import {
+  getGameCardGradient,
+  getGameHref,
+  getPlayableGames,
+} from "../lib/games.js";
 
 export default function HomePage() {
   const router = useRouter();
   const reduce = useReducedMotion();
+  const playableGames = getPlayableGames();
 
   return (
-    <div className="w-full min-h-screen flex flex-col">
+    <motion.div
+      className="w-full min-h-screen flex flex-col"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.35 }}
+    >
       {/* HERO SECTION - BOLD AND LARGE */}
       <section className="relative flex-1 flex flex-col items-center justify-center px-4 py-20 sm:px-6 sm:py-32 overflow-hidden">
         {/* Animated background orbs */}
@@ -113,63 +119,71 @@ export default function HomePage() {
 
       {/* GAMES SECTION - SHOWCASE */}
       <section className="bg-gradient-to-b from-transparent via-muted-bright/10 to-background px-4 py-20 sm:px-6 sm:py-32">
-        <div className="mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, margin: "-100px" }}
-            className="text-center mb-16"
-          >
+        <motion.div
+          className="mx-auto max-w-6xl"
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.45 }}
+        >
+          <div className="text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-black text-foreground mb-4">Pick Your Game</h2>
-            <p className="text-lg text-foreground/60">Three ways to have fun with friends</p>
-          </motion.div>
+            <p className="text-lg text-foreground/60">Five multiplayer games — no install required</p>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {GAMES.map((game, idx) => (
-              <motion.div
-                key={game.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.15 }}
-                whileHover={{ y: -12, scale: 1.02 }}
-                onClick={() => router.push("/games")}
-                className={`relative group cursor-pointer rounded-[var(--radius-2xl)] bg-gradient-to-br ${game.color} p-8 sm:p-12 min-h-64 flex flex-col items-center justify-center text-center shadow-[var(--shadow-md)] ring-2 ring-white/40 overflow-hidden`}
-              >
-                {/* Glow effect on hover */}
-                <motion.div
-                  className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all duration-300 rounded-[var(--radius-2xl)]"
-                  aria-hidden
-                />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {playableGames.map((game, idx) => {
+              const colorClass = getGameCardGradient(idx);
+              const href = getGameHref(game.id);
 
-                {/* Content */}
+              return (
                 <motion.div
-                  className="relative z-10"
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  key={game.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.12 }}
+                  whileHover={{ y: -12, scale: 1.02 }}
+                  className="group"
                 >
-                  <motion.div
-                    className="text-6xl sm:text-7xl mb-4 inline-block group-hover:scale-125 transition-transform"
-                    whileHover={{ rotate: 12 }}
+                  <Link
+                    href={href}
+                    className={`relative block rounded-[var(--radius-2xl)] bg-gradient-to-br ${colorClass} p-8 sm:p-12 min-h-64 flex flex-col items-center justify-center text-center shadow-[var(--shadow-md)] ring-2 ring-white/40 overflow-hidden`}
                   >
-                    {game.emoji}
-                  </motion.div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-foreground mb-2">
-                    {game.name}
-                  </h3>
-                </motion.div>
+                    <motion.div
+                      className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all duration-300 rounded-[var(--radius-2xl)]"
+                      aria-hidden
+                    />
 
-                {/* Decorative dots bottom right */}
-                <motion.div
-                  className="absolute bottom-4 right-4 flex gap-1"
-                  initial={{ opacity: 0.5 }}
-                  whileHover={{ opacity: 1 }}
-                >
-                  <div className="w-2 h-2 rounded-full bg-white/40" />
-                  <div className="w-2 h-2 rounded-full bg-white/40" />
-                  <div className="w-2 h-2 rounded-full bg-white/40" />
+                    <div className="relative z-10">
+                      <motion.div
+                        className="text-6xl sm:text-7xl mb-4 inline-block group-hover:scale-125 transition-transform"
+                        whileHover={{ rotate: 12 }}
+                        aria-hidden
+                      >
+                        {game.emoji}
+                      </motion.div>
+                      <h3 className="text-2xl sm:text-3xl font-black text-foreground mb-2">
+                        {game.title}
+                      </h3>
+                      <p className="text-sm sm:text-base text-foreground/75 leading-relaxed max-w-xs mx-auto">
+                        {game.description}
+                      </p>
+                    </div>
+
+                    <motion.div
+                      className="absolute bottom-4 right-4 flex gap-1"
+                      initial={{ opacity: 0.5 }}
+                      aria-hidden
+                    >
+                      <motion.div className="w-2 h-2 rounded-full bg-white/40" />
+                      <motion.div className="w-2 h-2 rounded-full bg-white/40" />
+                      <motion.div className="w-2 h-2 rounded-full bg-white/40" />
+                    </motion.div>
+                  </Link>
                 </motion.div>
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
 
           <motion.div
@@ -186,40 +200,8 @@ export default function HomePage() {
               Explore All Games
             </Button>
           </motion.div>
-        </div>
+        </motion.div>
       </section>
-
-      {/* STATS/FEATURE SECTION */}
-      <section className="px-4 py-20 sm:px-6 sm:py-32">
-        <div className="mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, margin: "-100px" }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center"
-          >
-            {[
-              { num: "3", label: "Games" },
-              { num: "∞", label: "Fun" },
-              { num: "📈", label: "Leaderboards" },
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="p-8 rounded-[var(--radius-xl)] bg-muted-bright/30 ring-1 ring-muted-bright/50"
-              >
-                <div className="text-4xl sm:text-5xl font-black text-primary mb-3">
-                  {item.num}
-                </div>
-                <p className="text-lg font-bold text-foreground">{item.label}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-    </div>
+    </motion.div>
   );
 }

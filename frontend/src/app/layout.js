@@ -15,7 +15,8 @@ const nunito = Nunito({
 
 export const metadata = {
   title: "Playground — Multi-game fun",
-  description: "A playful hub for typing races, trivia, hangman, and more.",
+  description:
+    "Playground — five multiplayer games in the browser: typing race, NPAT, Taboo, Cards Against Humanity, and Hangman.",
   viewport: {
     width: "device-width",
     initialScale: 1,
