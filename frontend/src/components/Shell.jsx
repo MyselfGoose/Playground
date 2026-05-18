@@ -8,7 +8,7 @@ export function Shell({ children }) {
     <>
       <Navbar />
       <SessionBanner />
-      <main className="relative flex flex-1 flex-col">{children}</main>
+      <main className="relative flex flex-1 flex-col pb-[env(safe-area-inset-bottom)]">{children}</main>
     </>
   );
 }

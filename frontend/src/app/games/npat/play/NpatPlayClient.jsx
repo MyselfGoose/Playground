@@ -10,6 +10,7 @@ import { EarlyFinishVote } from "../EarlyFinishVote.jsx";
 import { NpatEvaluatingPanel } from "../NpatEvaluatingPanel.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
+import { mapConnectionError } from "../../../../lib/errors/mapConnectionError.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -172,7 +173,7 @@ export function NpatPlayClient() {
         ) : (
           <p className="text-sm font-bold">
             {connectTimedOut
-              ? "Taking longer than expected… Check that the backend is running."
+              ? mapConnectionError("npat", null, { phase: "timeout" })
               : "Connecting to game server…"}
           </p>
         )}

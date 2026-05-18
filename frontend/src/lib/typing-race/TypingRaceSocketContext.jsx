@@ -16,15 +16,13 @@ import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { connectGameSocket } from "../socket/createGameSocket.js";
 import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 import { ackToResult, ACK_TIMEOUT_MS } from "../socket/socketUtils.js";
+import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 const TypingRaceContext = createContext(null);
 
 const DEV = process.env.NODE_ENV !== "production";
 
 const TYPING_ROOM_STORAGE_KEY = "playgrounds:typing-race:last-room-code";
-
-const NOT_CONNECTED_HELP =
-  "Could not reach the typing game server. Stay signed in — we will retry automatically — and set NEXT_PUBLIC_SOCKET_URL (or NEXT_PUBLIC_API_URL) to your Socket.IO / REST API origin (no trailing /api/v1).";
 
 /**
  * Maps socket / ack errors to copy suitable for UI toasts and inline alerts.
@@ -38,21 +36,18 @@ export function typingRaceUserFacingError(err) {
   const code = /** @type {any} */ (e).code;
   if (code === "NOT_CONNECTED") {
     const detail = /** @type {any} */ (e).connectDetail;
-    if (typeof detail === "string" && detail.trim()) {
-      return `${detail.trim()} If this persists, set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL to your API origin, and add your page origin to CORS_ORIGIN on the API.`;
-    }
-    return NOT_CONNECTED_HELP;
+    return mapConnectionError("typing-race", detail || e);
   }
   if (code === "ACK_TIMEOUT") {
-    return "The server did not respond in time. Check your connection and try again.";
+    return mapConnectionError("typing-race", e, { phase: "timeout" });
   }
   if (code === "EMIT_FAILED") {
-    return e.message || "Could not send the request.";
+    return mapConnectionError("typing-race", e.message || e);
   }
   if (code === "SOCKET_NOT_AUTHENTICATED") {
-    return e.message || "Waiting for the server connection…";
+    return mapConnectionError("typing-race", e, { phase: "reconnect" });
   }
-  return e.message || "Request failed.";
+  return mapConnectionError("typing-race", e.message || e);
 }
 
 /**
@@ -87,7 +82,7 @@ export function TypingRaceProvider({ children }) {
   const [connected, setConnected] = useState(false);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [socketError, setSocketError] = useState(
-    /** @type {string | null} */ (!getSocketBase() ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null),
+    /** @type {string | null} */ (!getSocketBase() ? connectionMessage("typing-race", "missing_socket_url") : null),
   );
   /** Plan F: explicit socket lifecycle for UX + emit gating. */
   const [socketLifecycle, setSocketLifecycle] = useState(
@@ -99,6 +94,7 @@ export function TypingRaceProvider({ children }) {
   const authenticatedRef = useRef(false);
   const lastConnectErrorRef = useRef(/** @type {string | null} */ (null));
   const eventRateRef = useRef({ tickAt: Date.now(), peerProgress: 0 });
+  const resyncDebounceRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
 
   const isConnecting = !connected && !socketError;
 
@@ -140,7 +136,7 @@ export function TypingRaceProvider({ children }) {
           const detail = lastConnectErrorRef.current || "The server did not accept the connection in time.";
           return {
             ok: false,
-            error: Object.assign(new Error(NOT_CONNECTED_HELP), {
+            error: Object.assign(new Error(mapConnectionError("typing-race", detail)), {
               code: "NOT_CONNECTED",
               connectDetail: detail,
             }),
@@ -197,17 +193,42 @@ export function TypingRaceProvider({ children }) {
     /** @type {(() => void) | null} */
     let socketCleanup = null;
 
-    const tryRejoinStoredRoom = () => {
-        if (cancelled || !socket?.connected || typeof sessionStorage === "undefined") return;
+    const tryRejoinStoredRoom = (targetSocket) => {
+        const s = targetSocket ?? socket;
+        if (cancelled || !s?.connected || typeof sessionStorage === "undefined") return;
         const digits = String(sessionStorage.getItem(TYPING_ROOM_STORAGE_KEY) ?? "").replace(/\D/g, "");
         if (digits.length < 4) return;
-        socket.timeout(ACK_TIMEOUT_MS).emit("typing_join_room", { roomCode: digits }, (err, res) => {
+        s.timeout(ACK_TIMEOUT_MS).emit("typing_join_room", { roomCode: digits }, (err, res) => {
           if (err || !res?.ok || !res?.data?.room) {
             sessionStorage.removeItem(TYPING_ROOM_STORAGE_KEY);
             return;
           }
           applyRoom(res.data.room);
         });
+      };
+
+      const resyncRoom = (targetSocket) => {
+        const s = targetSocket ?? socket;
+        if (cancelled || !s?.connected) return;
+        s.timeout(ACK_TIMEOUT_MS).emit("typing_get_room_state", {}, (err, res) => {
+          if (err || !res?.ok) {
+            tryRejoinStoredRoom(s);
+            return;
+          }
+          if (res?.data?.room) {
+            applyRoom(res.data.room);
+            return;
+          }
+          tryRejoinStoredRoom(s);
+        });
+      };
+
+      const scheduleResync = (targetSocket) => {
+        if (resyncDebounceRef.current) clearTimeout(resyncDebounceRef.current);
+        resyncDebounceRef.current = setTimeout(() => {
+          resyncDebounceRef.current = null;
+          resyncRoom(targetSocket);
+        }, 300);
       };
 
       const onRoom = (payload) => {
@@ -228,7 +249,7 @@ export function TypingRaceProvider({ children }) {
           setConnected(s.connected);
           setSocketError(null);
           setSocketLifecycle("AUTHENTICATED");
-          tryRejoinStoredRoom();
+          scheduleResync(s);
         },
         onDisconnect: () => {
           if (cancelled) return;
@@ -238,10 +259,9 @@ export function TypingRaceProvider({ children }) {
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
+          authenticatedRef.current = false;
           lastConnectErrorRef.current = msg;
-          setSocketError(
-            `${msg} If this persists, confirm the API allows this origin in CORS_ORIGIN and that cookies reach ${getSocketBase() || "your API host"}.`,
-          );
+          setSocketError(mapConnectionError("typing-race", msg));
           setConnected(false);
           setSocketLifecycle("FAILED");
         },
@@ -252,7 +272,7 @@ export function TypingRaceProvider({ children }) {
           setConnected(s.connected);
           setSocketError(null);
           setSocketLifecycle("AUTHENTICATED");
-          tryRejoinStoredRoom();
+          scheduleResync(s);
         },
         onReconnectFailed: () => {
           if (cancelled) return;
@@ -260,8 +280,8 @@ export function TypingRaceProvider({ children }) {
           setConnected(false);
           setSocketLifecycle("FAILED");
         },
-        onVisibilityResync: () => {
-          tryRejoinStoredRoom();
+        onVisibilityResync: (s) => {
+          scheduleResync(s);
         },
       });
       if (cancelled) {
@@ -329,8 +349,8 @@ export function TypingRaceProvider({ children }) {
       if (!cancelled) {
         const msg =
           e instanceof ApiError
-            ? e.user_message || e.message
-            : "Could not prepare multiplayer session. Sign in again and confirm the API is reachable.";
+            ? mapConnectionError("typing-race", e.user_message || e.message)
+            : mapConnectionError("typing-race", e);
         setSocketError(msg);
         setSocketLifecycle("FAILED");
       }
@@ -338,6 +358,10 @@ export function TypingRaceProvider({ children }) {
 
     return () => {
       cancelled = true;
+      if (resyncDebounceRef.current) {
+        clearTimeout(resyncDebounceRef.current);
+        resyncDebounceRef.current = null;
+      }
       authenticatedRef.current = false;
       socketCleanup?.();
       socketRef.current = null;

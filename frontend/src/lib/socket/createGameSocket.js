@@ -64,8 +64,10 @@ export function connectGameSocket(options) {
         .then((token) => {
           cb({ token });
         })
-        .catch(() => {
-          cb({ token: "" });
+        .catch((err) => {
+          const message =
+            err instanceof Error ? err.message : "Could not obtain admission token";
+          cb({ error: message });
         });
     },
     transports: ["polling", "websocket"],

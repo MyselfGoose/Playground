@@ -49,6 +49,16 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
     },
   });
 
+  register("typing_get_room_state", {
+    handler: async () => {
+      const room = registry.getRoomForSocket(socket);
+      if (!room) {
+        return { room: null };
+      }
+      return { room: room.toPublicSnapshot() };
+    },
+  });
+
   register("typing_leave_room", {
     handler: async () => {
       registry.leaveRoom(socket);

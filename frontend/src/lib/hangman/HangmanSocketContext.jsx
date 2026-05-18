@@ -6,6 +6,7 @@ import { useUser } from "../context/UserContext.jsx";
 import { connectGameSocket } from "../socket/createGameSocket.js";
 import { emitAck } from "../socket/socketUtils.js";
 import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
+import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 const HangmanContext = createContext(null);
 
@@ -15,7 +16,7 @@ export function HangmanProvider({ children }) {
   const [connectionState, setConnectionState] = useState("disconnected");
   const [syncState, setSyncState] = useState("joining");
   const [socketError, setSocketError] = useState(
-    !getSocketBase() ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL." : null,
+    !getSocketBase() ? connectionMessage("hangman", "missing_socket_url") : null,
   );
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
@@ -74,7 +75,7 @@ export function HangmanProvider({ children }) {
         onConnectError: (_s, msg) => {
           if (cancelled) return;
           setConnectionState("reconnecting");
-          setSocketError(msg);
+          setSocketError(mapConnectionError("hangman", msg));
           setSyncState("syncing");
         },
         onReconnect: (s) => {
@@ -104,7 +105,7 @@ export function HangmanProvider({ children }) {
       socket.on("session_resumed", onRoomPayload);
     } catch {
       if (!cancelled) {
-        setSocketError("Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL.");
+        setSocketError(connectionMessage("hangman", "missing_socket_url"));
       }
       return undefined;
     }

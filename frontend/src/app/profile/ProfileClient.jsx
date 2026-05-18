@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
 import { useMyStats } from "../../hooks/useLeaderboard.js";
+import { LoadingSkeleton } from "../../components/LoadingSkeleton.jsx";
 
 function StatCard({ label, value, icon, highlight = false }) {
   return (
@@ -47,7 +48,7 @@ export function ProfileClient() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data: stats, loading: statsLoading } = useMyStats();
+  const { data: stats, loading: statsLoading, error: statsError } = useMyStats();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -108,9 +109,20 @@ export function ProfileClient() {
         </div>
       </section>
 
+      {statsError ? (
+        <section className="px-4 sm:px-6">
+          <div className="mx-auto max-w-5xl rounded-[var(--radius-xl)] border border-error/20 bg-error/5 px-4 py-3 text-center text-sm font-bold text-error">
+            Could not load your stats. {statsError}
+          </div>
+        </section>
+      ) : null}
+
       {/* Main stats showcase */}
       <section className="px-4 py-12 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-5xl">
+          {statsLoading ? (
+            <LoadingSkeleton count={3} variant="card" />
+          ) : (
           <motion.div 
             initial={{ y: 20, opacity: 0 }} 
             animate={{ y: 0, opacity: 1 }} 
@@ -134,6 +146,7 @@ export function ProfileClient() {
               value={statsLoading ? "…" : String(totalGames)}
             />
           </motion.div>
+          )}
         </div>
       </section>
 

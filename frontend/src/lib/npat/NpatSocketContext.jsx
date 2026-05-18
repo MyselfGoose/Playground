@@ -9,13 +9,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { formatJoinCodeForServer } from "./roomCode.js";
 import { connectGameSocket } from "../socket/createGameSocket.js";
 import { emitAck } from "../socket/socketUtils.js";
 import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
+import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -23,27 +24,31 @@ const NpatContext = createContext(null);
 
 export function NpatProvider({ children }) {
   const { user, loading: authLoading } = useUser();
-  const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const [room, setRoom] = useState(/** @type {RoomSnapshot} */ (null));
   const [connected, setConnected] = useState(false);
   const [resumedCode, setResumedCode] = useState(/** @type {string | null} */ (null));
   const [socketError, setSocketErrorState] = useState(
-    /** @type {string | null} */ (
-      !getSocketBase()
-        ? "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL (e.g. http://localhost:4000)."
-        : null
-    ),
+    /** @type {string | null} */ (!getSocketBase() ? connectionMessage("npat", "missing_socket_url") : null),
   );
   const [socketErrorCode, setSocketErrorCode] = useState(
     /** @type {string | null} */ (!getSocketBase() ? "MISSING_SOCKET_URL" : null),
   );
   const socketRef = useRef(/** @type {import('socket.io-client').Socket | null} */ (null));
 
+  const roomVersionRef = useRef(0);
+
   const applyRoom = useCallback((r) => {
-    setRoom(r && typeof r === "object" ? r : null);
+    if (!r || typeof r !== "object") {
+      setRoom(null);
+      return;
+    }
+    const nextVersion = Number(r.stateVersion || 0);
+    const prevVersion = roomVersionRef.current;
+    if (nextVersion > 0 && nextVersion < prevVersion) return;
+    if (nextVersion > 0) roomVersionRef.current = nextVersion;
+    setRoom(r);
   }, []);
 
   // Route-scoped socket error: clear whenever the path changes so a stale error from /lobby
@@ -53,16 +58,6 @@ export function NpatProvider({ children }) {
     setSocketErrorCode((prev) => (prev === "MISSING_SOCKET_URL" ? prev : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
-
-  // Redirect unauthenticated users to login with a deep-link back to wherever they were.
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      const search = searchParams.toString();
-      const next = `${pathname}${search ? `?${search}` : ""}`;
-      router.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [authLoading, user, router, pathname, searchParams]);
 
   const resyncRoom = useCallback(
     (socket) => {
@@ -86,19 +81,24 @@ export function NpatProvider({ children }) {
       const { socket, cleanup: socketCleanup } = connectGameSocket({
         namespace: "/npat",
         gameTag: "npat",
-        onConnect: () => {
+        onConnect: (socket) => {
           if (cancelled) return;
           setConnected(true);
           setSocketErrorState(null);
           setSocketErrorCode(null);
+          resyncRoom(socket);
         },
         onDisconnect: () => {
           if (cancelled) return;
           setConnected(false);
         },
+        onReconnect: (socket) => {
+          if (cancelled) return;
+          resyncRoom(socket);
+        },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
-          setSocketErrorState(msg);
+          setSocketErrorState(mapConnectionError("npat", msg));
           setSocketErrorCode("CONNECT_ERROR");
           setConnected(false);
         },
@@ -154,9 +154,7 @@ export function NpatProvider({ children }) {
       });
     } catch {
       if (!cancelled) {
-        setSocketErrorState(
-          "Set NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL (e.g. http://localhost:4000).",
-        );
+        setSocketErrorState(connectionMessage("npat", "missing_socket_url"));
         setSocketErrorCode("MISSING_SOCKET_URL");
       }
       return undefined;
@@ -318,22 +316,6 @@ export function NpatProvider({ children }) {
       user?.id,
     ],
   );
-
-  if (authLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">
-        Loading…
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">
-        Redirecting to sign in…
-      </div>
-    );
-  }
 
   return <NpatContext.Provider value={value}>{children}</NpatContext.Provider>;
 }

@@ -10,6 +10,7 @@ import { LobbyPanel } from "../../../../components/LobbyPanel.jsx";
 import { Avatar } from "../../../../components/Avatar.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
+import { mapConnectionError } from "../../../../lib/errors/mapConnectionError.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -131,7 +132,7 @@ export function NpatLobbyClient() {
         ) : (
           <p className="text-sm font-bold">
             {connectTimedOut
-              ? "Taking longer than expected… Check that the backend is running and reachable."
+              ? mapConnectionError("npat", null, { phase: "timeout" })
               : "Connecting to game server…"}
           </p>
         )}

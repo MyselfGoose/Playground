@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLeaderboard, useMyStats } from "../../hooks/useLeaderboard.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { Avatar } from "../../components/Avatar.jsx";
+import { LoadingSkeleton } from "../../components/LoadingSkeleton.jsx";
 
 const BOARDS = [
   {
@@ -206,7 +207,7 @@ export default function LeaderboardPage() {
   return (
     <div className="w-full min-h-screen flex flex-col">
       {/* Fixed Header with Board Selector */}
-      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-muted-bright/30 py-6">
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-muted-bright/30 py-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Board tabs - horizontal scroll */}
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 mb-6">
@@ -268,8 +269,14 @@ export default function LeaderboardPage() {
           </div>
         ) : null}
 
+        {myStats.error ? (
+          <div className="mb-6 rounded-[var(--radius-xl)] border border-error/20 bg-error/5 px-4 py-3 text-center text-sm font-bold text-error">
+            Could not load your stats. {myStats.error}
+          </div>
+        ) : null}
+
         {loading && entries.length === 0 ? (
-          <div className="flex items-center justify-center py-24 text-muted text-lg font-bold">Loading rankings…</div>
+          <LoadingSkeleton count={6} variant="list" />
         ) : error ? (
           <div className="rounded-[var(--radius-2xl)] bg-error/5 px-6 py-8 text-center text-sm font-bold text-error border border-error/20">{error}</div>
         ) : entries.length === 0 ? (

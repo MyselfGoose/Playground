@@ -112,7 +112,7 @@ export function createGoogleAuthService(deps = {}) {
      */
     async createCompletionTicket(user, env) {
       const jti = newJti();
-      const ttlMs = parseDurationToMs(env.OAUTH_TICKET_EXPIRY ?? '60s');
+      const ttlMs = parseDurationToMs(env.OAUTH_TICKET_EXPIRY ?? '180s');
       const expiresAt = new Date(Date.now() + ttlMs);
       await completionTickets.create({
         jti,

@@ -36,6 +36,7 @@ function GoogleCompleteContent() {
   );
   const [submitPending, setSubmitPending] = useState(false);
   const sessionStartedRef = useRef(false);
+  const sessionRetriedRef = useRef(false);
   const signupLoadedRef = useRef(false);
 
   const redirectToApp = useCallback(() => {
@@ -62,6 +63,33 @@ function GoogleCompleteContent() {
         await completeOAuth(oauthTicket);
         redirectToApp();
       } catch (err) {
+        const code = err instanceof ApiError ? err.code : undefined;
+        if (
+          code === "OAUTH_TICKET_INVALID" &&
+          oauthTicket &&
+          !sessionRetriedRef.current
+        ) {
+          sessionRetriedRef.current = true;
+          sessionStartedRef.current = false;
+          await new Promise((r) => setTimeout(r, 400));
+          sessionStartedRef.current = true;
+          try {
+            await completeOAuth(oauthTicket);
+            redirectToApp();
+            return;
+          } catch (retryErr) {
+            sessionStartedRef.current = false;
+            const message =
+              retryErr instanceof ApiError
+                ? retryErr.message
+                : retryErr instanceof Error
+                  ? retryErr.message
+                  : "Google sign-in could not be completed";
+            setError(message);
+            setPhase("error");
+            return;
+          }
+        }
         sessionStartedRef.current = false;
         const message =
           err instanceof ApiError

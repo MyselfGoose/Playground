@@ -1,27 +1,23 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useUser } from "../../../lib/context/UserContext.jsx";
+import { usePathname } from "next/navigation";
 import { HangmanProvider } from "../../../lib/hangman/HangmanSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
+import { AuthGate } from "../../../components/AuthGate.jsx";
 
 export default function HangmanLayout({ children }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user, loading } = useUser();
   const solo = pathname?.includes("/hangman/solo");
 
-  useEffect(() => {
-    if (solo || loading || user) return;
-    router.replace(`/login?next=${encodeURIComponent(pathname || "/games/hangman")}`);
-  }, [solo, loading, user, router, pathname]);
-
-  if (solo) return children;
-
-  if (!user) {
-    return <div className="flex min-h-[60vh] items-center justify-center text-foreground/60">Loading…</div>;
+  if (solo) {
+    return children;
   }
 
-  return <ErrorBoundary level="game"><HangmanProvider>{children}</HangmanProvider></ErrorBoundary>;
+  return (
+    <ErrorBoundary level="game">
+      <AuthGate loginNext="/games/hangman">
+        <HangmanProvider>{children}</HangmanProvider>
+      </AuthGate>
+    </ErrorBoundary>
+  );
 }

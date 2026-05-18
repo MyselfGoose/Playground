@@ -8,6 +8,7 @@ import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
 import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../lib/socket/useConnectionTimeout.js";
+import { mapConnectionError } from "../../../lib/errors/mapConnectionError.js";
 
 export default function NpatEntryPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function NpatEntryPage() {
       {!connected && !socketError ? (
         <p className="text-center text-sm font-bold text-muted">
           {connectTimedOut
-            ? "Taking longer than expected… Check that the backend is running and reachable."
+            ? mapConnectionError("npat", null, { phase: "timeout" })
             : "⏳ Connecting to game server…"}
         </p>
       ) : null}

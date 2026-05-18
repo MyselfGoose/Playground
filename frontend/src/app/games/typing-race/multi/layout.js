@@ -1,56 +1,29 @@
 "use client";
 
 import "./typing-multi.css";
-import { Suspense, useEffect } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { TypingRaceProvider } from "../../../../lib/typing-race/TypingRaceSocketContext.jsx";
-import { useUser } from "../../../../lib/context/UserContext.jsx";
 import { ErrorBoundary } from "../../../../components/ErrorBoundary.jsx";
-
-function MultiAuthShell({ children }) {
-  const { user, loading } = useUser();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    if (loading) {
-      return;
-    }
-    if (!user) {
-      const search = searchParams.toString();
-      const next = `${pathname}${search ? `?${search}` : ""}`;
-      router.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [loading, user, router, pathname, searchParams]);
-
-  if (!user) {
-    return (
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-16 text-center text-[var(--tt-ink-muted)]">
-        Redirecting to sign in…
-      </div>
-    );
-  }
-  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
-}
+import { AuthGate } from "../../../../components/AuthGate.jsx";
 
 export default function TypingMultiLayout({ children }) {
   return (
     <ErrorBoundary level="game">
-    <TypingRaceProvider>
-      {/* Full-bleed dark shell so the typing theme is not a narrow strip on the site canvas */}
-      <div className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased">
-        <Suspense
-          fallback={
-            <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-16 text-center text-[var(--tt-ink-muted)]">
-              Loading…
-            </div>
-          }
-        >
-          <MultiAuthShell>{children}</MultiAuthShell>
-        </Suspense>
-      </div>
-    </TypingRaceProvider>
+      <TypingRaceProvider>
+        <div className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased pb-[env(safe-area-inset-bottom)]">
+          <Suspense
+            fallback={
+              <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-16 text-center text-[var(--tt-ink-muted)]">
+                Loading…
+              </div>
+            }
+          >
+            <AuthGate loginNext="/games/typing-race/multi">
+              <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            </AuthGate>
+          </Suspense>
+        </div>
+      </TypingRaceProvider>
     </ErrorBoundary>
   );
 }

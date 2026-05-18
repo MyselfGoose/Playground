@@ -22,6 +22,8 @@ import { subscribeSessionInvalidated } from "../session/sessionInvalidation.js";
 const UserContext = createContext(null);
 
 const RECONCILE_DEBOUNCE_MS = 500;
+/** Only surface RECOVERING UI if reconcile exceeds this (routine nav reconcile stays invisible). */
+const RECOVERING_UI_DELAY_MS = 800;
 
 function avatarUrlFor(username) {
   const seed = encodeURIComponent(username || "player");
@@ -71,6 +73,9 @@ export function UserProvider({ children }) {
   const skipNavigationReconcileUntilRef = useRef(0);
   const lifecycleRef = useRef(lifecycle);
   const sessionErrorRef = useRef(sessionError);
+  const userRef = useRef(user);
+  const reconcileInFlightRef = useRef(false);
+  const recoveringUiTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
 
   useEffect(() => {
     lifecycleRef.current = lifecycle;
@@ -78,28 +83,74 @@ export function UserProvider({ children }) {
   useEffect(() => {
     sessionErrorRef.current = sessionError;
   }, [sessionError]);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
-  const runReconcile = useCallback(async (reason) => {
-    if (!mountedRef.current) return;
-    setLifecycle("RECOVERING");
-    try {
-      const me = await apiFetch("/api/v1/auth/me");
-      if (!mountedRef.current) return;
-      setUserState(mapUser(me?.data?.user));
-      invalidateDerivedCaches();
-      setSessionError(null);
-      setLifecycle("SYNCED");
-    } catch (e) {
-      if (!mountedRef.current) return;
-      if (e instanceof ApiError && e.status === 401) {
-        setUserState(null);
-        setLifecycle("SYNCED");
-      } else {
-        setSessionError(e instanceof Error ? e.message : "Could not reach the server");
-        setLifecycle("DEGRADED");
-      }
+  const clearRecoveringUiTimer = useCallback(() => {
+    if (recoveringUiTimerRef.current) {
+      clearTimeout(recoveringUiTimerRef.current);
+      recoveringUiTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * @param {string} [_reason]
+   * @param {{ forceVisible?: boolean }} [options]
+   */
+  const runReconcile = useCallback(
+    async (_reason, options = {}) => {
+      if (!mountedRef.current) return;
+
+      const forceVisible = options.forceVisible === true;
+      const hadUser = Boolean(userRef.current);
+      const wasHealthy =
+        lifecycleRef.current === "SYNCED" && !sessionErrorRef.current && hadUser;
+      const silent = !forceVisible && wasHealthy;
+
+      reconcileInFlightRef.current = true;
+      clearRecoveringUiTimer();
+
+      if (!silent) {
+        setLifecycle("RECOVERING");
+      } else {
+        recoveringUiTimerRef.current = setTimeout(() => {
+          if (mountedRef.current && reconcileInFlightRef.current) {
+            setLifecycle("RECOVERING");
+          }
+        }, RECOVERING_UI_DELAY_MS);
+      }
+
+      try {
+        const me = await apiFetch("/api/v1/auth/me");
+        if (!mountedRef.current) return;
+        setUserState(mapUser(me?.data?.user));
+        invalidateDerivedCaches();
+        setSessionError(null);
+        setLifecycle("SYNCED");
+      } catch (e) {
+        if (!mountedRef.current) return;
+        clearRecoveringUiTimer();
+        if (e instanceof ApiError && e.status === 401) {
+          setUserState(null);
+          setLifecycle("SYNCED");
+        } else {
+          setSessionError(
+            e instanceof ApiError && e.user_message
+              ? e.user_message
+              : e instanceof Error
+                ? e.message
+                : "Could not reach the server",
+          );
+          setLifecycle("DEGRADED");
+        }
+      } finally {
+        reconcileInFlightRef.current = false;
+        clearRecoveringUiTimer();
+      }
+    },
+    [clearRecoveringUiTimer],
+  );
 
   const scheduleReconcile = useCallback(
     (reason) => {
@@ -150,8 +201,9 @@ export function UserProvider({ children }) {
       mountedRef.current = false;
       ac.abort();
       if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+      clearRecoveringUiTimer();
     };
-  }, []);
+  }, [clearRecoveringUiTimer]);
 
   useEffect(() => {
     const unsub = subscribeReconcile(({ reason }) => {
@@ -227,7 +279,6 @@ export function UserProvider({ children }) {
 
   const confirmSessionAfterAuth = useCallback(async () => {
     skipNavigationReconcileUntilRef.current = Date.now() + 2000;
-    setLifecycle("RECOVERING");
     const me = await apiFetch("/api/v1/auth/me");
     const next = mapUser(me?.data?.user);
     if (!next) {

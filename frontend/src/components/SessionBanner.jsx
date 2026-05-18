@@ -1,32 +1,36 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "../lib/context/UserContext.jsx";
 
-const AUTH_PATHS = new Set(["/login", "/register"]);
+const HIDDEN_BANNER_PREFIXES = ["/login", "/register", "/auth/google"];
+
+function shouldHideBanner(pathname) {
+  return HIDDEN_BANNER_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
 
 /**
- * Global session recovery banner when REST is degraded or auth must be renewed.
+ * Shown only for real connection/auth problems — not routine background reconcile.
  */
 export function SessionBanner() {
   const pathname = usePathname();
   const { user, loading, sessionError, lifecycle, reconcileNow } = useUser();
 
-  if (loading || AUTH_PATHS.has(pathname)) return null;
+  if (loading || shouldHideBanner(pathname)) return null;
 
   const showDegraded = lifecycle === "DEGRADED" && Boolean(sessionError);
-  const showRecovering = lifecycle === "RECOVERING";
   const showSignedOutHint = !user && lifecycle === "SYNCED" && sessionError;
 
-  if (!showDegraded && !showRecovering && !showSignedOutHint) return null;
+  if (!showDegraded && !showSignedOutHint) return null;
 
-  const message =
-    sessionError ??
-    (showRecovering ? "Restoring your session…" : "Connection problem. Try again or sign in.");
+  const message = sessionError ?? "Connection problem. Try again or sign in.";
 
   return (
-    <div
+    <motion.div
       role="status"
       className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-center text-sm text-foreground"
     >
@@ -36,7 +40,7 @@ export function SessionBanner() {
           <button
             type="button"
             className="font-semibold underline underline-offset-2"
-            onClick={() => void reconcileNow()}
+            onClick={() => void reconcileNow("manual_retry", { forceVisible: true })}
           >
             Retry
           </button>
@@ -50,6 +54,6 @@ export function SessionBanner() {
           </Link>
         )}
       </span>
-    </div>
+    </motion.div>
   );
 }

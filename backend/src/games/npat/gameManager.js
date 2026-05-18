@@ -167,6 +167,9 @@ export class NpatRoomEngine {
 
     /** @type {string | null} User who caused the final countdown to start (first to finish all fields in solo). */
     this.countdownTriggeredByUserId = null;
+
+    /** Monotonic snapshot version for client stale-state guards. */
+    this.publicStateVersion = 0;
   }
 
   /**
@@ -310,6 +313,13 @@ export class NpatRoomEngine {
   }
 
   emit(event, payload) {
+    if (payload && typeof payload === "object" && payload.room && typeof payload.room === "object") {
+      this.publicStateVersion += 1;
+      payload = {
+        ...payload,
+        room: { ...payload.room, stateVersion: this.publicStateVersion },
+      };
+    }
     this.npatNs.to(this.code).emit(event, payload);
   }
 
@@ -1230,6 +1240,7 @@ export class NpatRoomEngine {
     }
     return {
       code: this.code,
+      stateVersion: this.publicStateVersion,
       mode: this.mode,
       state: this.state,
       roundPhase: this.roundPhase,
