@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* Warm Lobby — see ../audit/ui/design-system-roadmap.md */
+
 /* LIGHT MODE (DEFAULT) */
 :root {
   /* Neutrals - Light Mode */
@@ -38,7 +40,11 @@
   /* Semantics */
   --success: #4ecdc4;
   --warning: #ffd166;
-  --error: #ff6b5b;
+  --error: #dc2626;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-normal: 220ms;
   
   /* Radius */
   --radius-sm: 0.75rem;
@@ -91,7 +97,11 @@ html.dark {
   /* Semantics - Dark Mode */
   --success: #4fdcd1;
   --warning: #ffd966;
-  --error: #ff7d70;
+  --error: #f87171;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-normal: 220ms;
   
   /* Shadows - Dark Mode */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.5);
@@ -127,7 +137,9 @@ html.dark {
     --pastel-sky: #2a5a7a;
     --success: #4fdcd1;
     --warning: #ffd966;
-    --error: #ff7d70;
+    --error: #f87171;
+    --motion-fast: 120ms;
+    --motion-normal: 220ms;
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.5);
     --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.6);
     --shadow-md: 0 8px 16px -4px rgb(0 0 0 / 0.7);
@@ -161,7 +173,9 @@ html.light {
   --pastel-sky: #c5e8ff;
   --success: #4ecdc4;
   --warning: #ffd166;
-  --error: #ff6b5b;
+  --error: #dc2626;
+  --motion-fast: 120ms;
+  --motion-normal: 220ms;
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.08);
   --shadow-md: 0 8px 16px -4px rgb(0 0 0 / 0.12);

@@ -65,6 +65,8 @@ export function UserProvider({ children }) {
   const [user, setUserState] = useState(/** @type {AuthUser | null} */ (null));
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState(/** @type {string | null} */ (null));
+  /** One-shot copy when an authenticated session ends — not shown to guests. */
+  const [sessionNotice, setSessionNotice] = useState(/** @type {string | null} */ (null));
   const [lifecycle, setLifecycle] = useState(/** @type {SessionLifecycle} */ ("INIT"));
 
   const mountedRef = useRef(true);
@@ -73,6 +75,7 @@ export function UserProvider({ children }) {
   const skipNavigationReconcileUntilRef = useRef(0);
   const lifecycleRef = useRef(lifecycle);
   const sessionErrorRef = useRef(sessionError);
+  const sessionNoticeRef = useRef(sessionNotice);
   const userRef = useRef(user);
   const reconcileInFlightRef = useRef(false);
   const recoveringUiTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -83,6 +86,9 @@ export function UserProvider({ children }) {
   useEffect(() => {
     sessionErrorRef.current = sessionError;
   }, [sessionError]);
+  useEffect(() => {
+    sessionNoticeRef.current = sessionNotice;
+  }, [sessionNotice]);
   useEffect(() => {
     userRef.current = user;
   }, [user]);
@@ -103,6 +109,10 @@ export function UserProvider({ children }) {
       if (!mountedRef.current) return;
 
       const forceVisible = options.forceVisible === true;
+      if (!forceVisible && !userRef.current && !sessionErrorRef.current) {
+        return;
+      }
+
       const hadUser = Boolean(userRef.current);
       const wasHealthy =
         lifecycleRef.current === "SYNCED" && !sessionErrorRef.current && hadUser;
@@ -127,12 +137,14 @@ export function UserProvider({ children }) {
         setUserState(mapUser(me?.data?.user));
         invalidateDerivedCaches();
         setSessionError(null);
+        setSessionNotice(null);
         setLifecycle("SYNCED");
       } catch (e) {
         if (!mountedRef.current) return;
         clearRecoveringUiTimer();
         if (e instanceof ApiError && e.status === 401) {
           setUserState(null);
+          setSessionError(null);
           setLifecycle("SYNCED");
         } else {
           setSessionError(
@@ -181,6 +193,7 @@ export function UserProvider({ children }) {
         if (!mountedRef.current) return;
         if (e instanceof ApiError && e.status === 401) {
           setUserState(null);
+          setSessionError(null);
           setLifecycle("SYNCED");
         } else if (e instanceof ApiError && e.status >= 500) {
           setSessionError(e.user_message || e.message);
@@ -214,8 +227,12 @@ export function UserProvider({ children }) {
 
   useEffect(() => {
     return subscribeSessionInvalidated(() => {
+      const hadUser = Boolean(userRef.current);
       setUserState(null);
-      setSessionError("Your session ended. Please sign in again.");
+      setSessionError(null);
+      if (hadUser) {
+        setSessionNotice("Your session ended. Please sign in again.");
+      }
       setLifecycle("SYNCED");
     });
   }, []);
@@ -224,6 +241,9 @@ export function UserProvider({ children }) {
     if (typeof document === "undefined") return undefined;
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
+      const isGuest =
+        !userRef.current && !sessionErrorRef.current && !sessionNoticeRef.current;
+      if (isGuest) return;
       const hadIssue = lifecycleRef.current === "DEGRADED" || Boolean(sessionErrorRef.current);
       if (hadIssue) {
         void (async () => {
@@ -245,7 +265,12 @@ export function UserProvider({ children }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const onOnline = () => scheduleReconcile("online");
+    const onOnline = () => {
+      if (!userRef.current && !sessionErrorRef.current && !sessionNoticeRef.current) {
+        return;
+      }
+      scheduleReconcile("online");
+    };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [scheduleReconcile]);
@@ -253,8 +278,9 @@ export function UserProvider({ children }) {
   useEffect(() => {
     if (loading) return;
     if (Date.now() < skipNavigationReconcileUntilRef.current) return;
+    if (!user && !sessionError) return;
     scheduleReconcile("navigation");
-  }, [pathname, loading, scheduleReconcile]);
+  }, [pathname, loading, user, sessionError, scheduleReconcile]);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -268,6 +294,7 @@ export function UserProvider({ children }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setUserState(null);
+        setSessionError(null);
         setLifecycle("SYNCED");
         return null;
       }
@@ -291,6 +318,7 @@ export function UserProvider({ children }) {
     setUserState(next);
     invalidateDerivedCaches();
     setSessionError(null);
+    setSessionNotice(null);
     setLifecycle("SYNCED");
     return next;
   }, []);
@@ -349,7 +377,12 @@ export function UserProvider({ children }) {
     setUserState(null);
     invalidateDerivedCaches();
     setSessionError(null);
+    setSessionNotice(null);
     setLifecycle("SYNCED");
+  }, []);
+
+  const dismissSessionNotice = useCallback(() => {
+    setSessionNotice(null);
   }, []);
 
   const value = useMemo(
@@ -357,7 +390,9 @@ export function UserProvider({ children }) {
       user,
       loading,
       sessionError,
+      sessionNotice,
       lifecycle,
+      dismissSessionNotice,
       login,
       register,
       completeOAuth,
@@ -370,7 +405,9 @@ export function UserProvider({ children }) {
       user,
       loading,
       sessionError,
+      sessionNotice,
       lifecycle,
+      dismissSessionNotice,
       login,
       register,
       completeOAuth,

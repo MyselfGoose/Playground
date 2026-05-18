@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton.jsx";
+import { Button } from "../../components/Button.jsx";
+import { Input } from "../../components/ui/index.js";
 import {
   messageForGoogleOAuthError,
   safeNextPath,
@@ -20,8 +22,6 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const nextPath = safeNextPath(searchParams.get("next"));
 
@@ -71,14 +71,14 @@ function LoginForm() {
       />
 
       {/* Main content */}
-      <div className="relative w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
+      <motion.div
+        className="relative w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+      >
         {/* Left: Branding & Message */}
-        <motion.div
-          initial={{ opacity: 0, x: -40 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center md:text-left"
-        >
+        <div className="text-center md:text-left">
           <motion.div
             animate={{ rotate: [0, 5, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity }}
@@ -95,23 +95,18 @@ function LoginForm() {
             Sign in to jump back into the action. Climb the leaderboards, challenge friends, and compete for glory.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+          <motion.div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
             <Link
               href="/games"
-              className="px-6 py-3 rounded-full bg-muted-bright/50 text-foreground font-bold transition-all hover:bg-muted-bright/70 text-center"
+              className="px-6 py-3 rounded-xl bg-muted-bright/50 text-foreground font-bold transition-all hover:bg-muted-bright/70 text-center"
             >
               Browse games without signing in
             </Link>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
         {/* Right: Form */}
-        <motion.div
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          className="w-full"
-        >
+        <div className="w-full">
           <div className="bg-background/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-8 sm:p-10 shadow-[var(--shadow-md)] ring-2 ring-muted-bright/40">
             <h2 className="text-2xl font-extrabold text-foreground mb-2">Sign in</h2>
             <p className="text-sm text-foreground/60 mb-8">Enter your email and password to continue</p>
@@ -120,14 +115,14 @@ function LoginForm() {
               <GoogleSignInButton nextPath={nextPath} disabled={pending} />
             </div>
 
-            <motion.div className="relative mb-6">
-              <motion.div className="absolute inset-0 flex items-center" aria-hidden>
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center" aria-hidden>
                 <div className="w-full border-t border-muted-bright/40" />
-              </motion.div>
+              </div>
               <div className="relative flex justify-center text-xs uppercase tracking-wide">
                 <span className="bg-background px-3 text-foreground/50 font-bold">or</span>
               </div>
-            </motion.div>
+            </div>
 
             <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
               {error ? (
@@ -141,48 +136,33 @@ function LoginForm() {
                 </motion.div>
               ) : null}
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-2">Email address</label>
-                <motion.input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
-                  placeholder="you@example.com"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
-                  animate={emailFocused ? { scale: 1.02 } : { scale: 1 }}
-                />
-              </div>
+              <Input
+                label="Email address"
+                type="email"
+                name="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
 
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-2">Password</label>
-                <motion.input
-                  type="password"
-                  name="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--input-bg)] border-2 border-[var(--input-border)] text-foreground placeholder-[var(--input-placeholder)] outline-none transition-all focus:border-primary focus:shadow-[0_0_0_3px_rgba(255,107,91,0.15)]"
-                  animate={passwordFocused ? { scale: 1.02 } : { scale: 1 }}
-                />
-              </div>
+              <Input
+                label="Password"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
 
-              <motion.button
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={pending}
-                whileHover={!pending ? { scale: 1.02 } : {}}
-                whileTap={!pending ? { scale: 0.98 } : {}}
-                className="w-full px-6 py-4 rounded-[var(--radius-lg)] bg-primary text-white font-extrabold text-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[var(--shadow-play)] hover:shadow-lg"
+                className="w-full py-4 text-lg font-extrabold"
               >
                 {pending ? (
                   <span className="flex items-center justify-center gap-2">
@@ -192,7 +172,7 @@ function LoginForm() {
                 ) : (
                   "Sign in"
                 )}
-              </motion.button>
+              </Button>
             </form>
 
             <div className="mt-8 pt-8 border-t border-muted-bright/30">
@@ -204,8 +184,8 @@ function LoginForm() {
               </p>
             </div>
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
     </div>
   );
 }
