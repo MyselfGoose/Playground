@@ -20,7 +20,7 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 
 ## API URL (Playground)
 
-**Production deploy:** See [deploy-auth-checklist.md](../deploy-auth-checklist.md) for same-origin proxy, `COOKIE_DOMAIN`, `CORS_ORIGIN`, and mobile OAuth checks.
+**Production deploy:** See [deploy-auth-checklist.md](../deploy-auth-checklist.md) for same-origin proxy, `COOKIE_DOMAIN`, `CORS_ORIGIN`, and mobile OAuth checks. For multiplayer, keep the backend at **one replica** until shared socket state is configured — see [deploy-replica-limit.md](../deploy-replica-limit.md).
 
 - **Local:** By default the app calls `http://localhost:4000` for REST (see `src/lib/api.js`).
 - **Production (recommended — mobile-safe cookies):** Use the same-origin REST proxy (see `frontend/.env.example`):

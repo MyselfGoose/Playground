@@ -2,8 +2,10 @@ import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
   CAH_MAX_ROUNDS_LIMIT,
+  CAH_REVEALING_AUTO_ADVANCE_MS,
 } from './constants.js';
 import {
+  canAdvanceFromRevealing,
   createCahRoom,
   judgePickWinner,
   nextRound,
@@ -49,6 +51,41 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
   const socketToCode = new Map();
   const userToCode = new Map();
   const userToSocketIds = new Map();
+  /** @type {Map<string, NodeJS.Timeout>} */
+  const revealingTimers = new Map();
+
+  function clearRevealingTimer(code) {
+    const t = revealingTimers.get(code);
+    if (t) clearTimeout(t);
+    revealingTimers.delete(code);
+  }
+
+  async function advanceRoundInternal(room) {
+    clearRevealingTimer(room.code);
+    await nextRound(room);
+    if (room.game?.status === 'finished') {
+      try {
+        await persistCahGameResult(room, log);
+      } catch (err) {
+        log?.warn({ err, event: 'persist_cah_game_unhandled' }, 'cah');
+      }
+    }
+    bumpStateVersion(room);
+  }
+
+  function scheduleRevealingAutoAdvance(code) {
+    clearRevealingTimer(code);
+    const timeout = setTimeout(() => {
+      void (async () => {
+        const room = rooms.get(code);
+        if (!room?.game || room.game.status !== 'revealing') return;
+        await advanceRoundInternal(room);
+        emitRoom(code, 'revealing_auto_advance');
+      })();
+    }, CAH_REVEALING_AUTO_ADVANCE_MS);
+    timeout.unref?.();
+    revealingTimers.set(code, timeout);
+  }
 
   function bumpStateVersion(room) {
     room.stateVersion = Number(room.stateVersion || 0) + 1;
@@ -247,22 +284,19 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     } catch (err) {
       log?.warn({ err, event: 'persist_cah_round_unhandled' }, 'cah');
     }
+    if (room.game?.status === 'revealing') {
+      scheduleRevealingAutoAdvance(room.code);
+    }
     return room;
   }
 
   async function advanceRound(socket) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
-    if (room.hostId !== socket.data.userId) throw Object.assign(new Error('Only host can advance round'), { code: 'NOT_HOST' });
-    await nextRound(room);
-    if (room.game?.status === 'finished') {
-      try {
-        await persistCahGameResult(room, log);
-      } catch (err) {
-        log?.warn({ err, event: 'persist_cah_game_unhandled' }, 'cah');
-      }
+    if (!canAdvanceFromRevealing(room, socket.data.userId)) {
+      throw Object.assign(new Error('Cannot advance round now'), { code: 'NOT_ALLOWED' });
     }
-    bumpStateVersion(room);
+    await advanceRoundInternal(room);
     return room;
   }
 
@@ -273,6 +307,8 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
   }
 
   function shutdown() {
+    for (const t of revealingTimers.values()) clearTimeout(t);
+    revealingTimers.clear();
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();

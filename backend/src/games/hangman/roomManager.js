@@ -1,11 +1,17 @@
 import { DEFAULT_HANGMAN_DATASET_VERSION } from '../../config/hangmanDefaults.js';
 import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
 import { persistHangmanGameResult, persistHangmanRoundResult } from '../../services/hangmanStatsService.js';
-import { HANGMAN_LOBBY_COUNTDOWN_MS, HANGMAN_WORD_MAX, HANGMAN_WORD_MIN } from './constants.js';
+import {
+  HANGMAN_LOBBY_COUNTDOWN_MS,
+  HANGMAN_SETTER_PICK_TIMEOUT_MS,
+  HANGMAN_WORD_MAX,
+  HANGMAN_WORD_MIN,
+} from './constants.js';
 import {
   abortRoundSetterLeft,
   activePlayers,
   allPlayersReady,
+  autoAssignSetterWord,
   createHangmanRoom,
   guessLetter,
   nextRound,
@@ -129,7 +135,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   const userToCode = new Map();
   const userToSocketIds = new Map();
   const softDisconnectTimers = new Map();
-  /** @type {Map<string, { countdownTimeout?: NodeJS.Timeout, countdownInterval?: NodeJS.Timeout, turnTimeout?: NodeJS.Timeout }>} */
+  /** @type {Map<string, { countdownTimeout?: NodeJS.Timeout, countdownInterval?: NodeJS.Timeout, turnTimeout?: NodeJS.Timeout, setterPickTimeout?: NodeJS.Timeout }>} */
   const roomTimers = new Map();
   const SOFT_DISCONNECT_GRACE_MS = 7000;
 
@@ -185,7 +191,13 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (t.countdownInterval) clearInterval(t.countdownInterval);
     roomTimers.set(code, { ...t, countdownTimeout: undefined, countdownInterval: undefined });
     const next = roomTimers.get(code);
-    if (next && !next.countdownTimeout && !next.countdownInterval && !next.turnTimeout) {
+    if (
+      next &&
+      !next.countdownTimeout &&
+      !next.countdownInterval &&
+      !next.turnTimeout &&
+      !next.setterPickTimeout
+    ) {
       roomTimers.delete(code);
     }
   }
@@ -196,7 +208,30 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     clearTimeout(t.turnTimeout);
     roomTimers.set(code, { ...t, turnTimeout: undefined });
     const next = roomTimers.get(code);
-    if (next && !next.countdownTimeout && !next.countdownInterval && !next.turnTimeout) {
+    if (
+      next &&
+      !next.countdownTimeout &&
+      !next.countdownInterval &&
+      !next.turnTimeout &&
+      !next.setterPickTimeout
+    ) {
+      roomTimers.delete(code);
+    }
+  }
+
+  function clearSetterPickTimer(code) {
+    const t = roomTimers.get(code);
+    if (!t?.setterPickTimeout) return;
+    clearTimeout(t.setterPickTimeout);
+    roomTimers.set(code, { ...t, setterPickTimeout: undefined });
+    const next = roomTimers.get(code);
+    if (
+      next &&
+      !next.countdownTimeout &&
+      !next.countdownInterval &&
+      !next.turnTimeout &&
+      !next.setterPickTimeout
+    ) {
       roomTimers.delete(code);
     }
   }
@@ -207,7 +242,32 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (t.countdownTimeout) clearTimeout(t.countdownTimeout);
     if (t.countdownInterval) clearInterval(t.countdownInterval);
     if (t.turnTimeout) clearTimeout(t.turnTimeout);
+    if (t.setterPickTimeout) clearTimeout(t.setterPickTimeout);
     roomTimers.delete(code);
+  }
+
+  function scheduleSetterPickTimeout(room) {
+    const game = room.game;
+    if (!game || game.phase !== 'setter_pick') {
+      clearSetterPickTimer(room.code);
+      return;
+    }
+
+    clearSetterPickTimer(room.code);
+    const code = room.code;
+    const setterPickTimeout = setTimeout(() => {
+      void (async () => {
+        const r = rooms.get(code);
+        if (!r?.game || r.game.phase !== 'setter_pick') return;
+        const ok = await autoAssignSetterWord(r);
+        if (!ok) return;
+        bumpStateVersion(r);
+        emitRoom(code, 'setter_timeout');
+        syncLobbyOrTurnTimers(r);
+      })();
+    }, HANGMAN_SETTER_PICK_TIMEOUT_MS);
+    const prev = roomTimers.get(code) ?? {};
+    roomTimers.set(code, { ...prev, setterPickTimeout });
   }
 
   function cancelLobbyCountdown(room, emit = true) {
@@ -259,7 +319,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
         startGame(r);
         bumpStateVersion(r);
         emitRoom(room.code, 'game_started');
-        scheduleTurnTimeout(r);
+        syncLobbyOrTurnTimers(r);
       } catch (err) {
         log.warn({ err, code: room.code }, 'hangman_countdown_start_failed');
         bumpStateVersion(r);
@@ -303,10 +363,16 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   function syncLobbyOrTurnTimers(room) {
     if (!room.game) {
       scheduleLobbyCountdown(room);
+      clearSetterPickTimer(room.code);
+    } else if (room.game.phase === 'setter_pick') {
+      clearTurnTimer(room.code);
+      scheduleSetterPickTimeout(room);
     } else if (room.game.phase === 'guessing') {
+      clearSetterPickTimer(room.code);
       scheduleTurnTimeout(room);
     } else {
       clearTurnTimer(room.code);
+      clearSetterPickTimer(room.code);
     }
   }
 
@@ -421,6 +487,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
             }
           }, SOFT_DISCONNECT_GRACE_MS);
           timer.unref?.();
+          // RC-05: timer cleared on reconnect via trackUserSocket; re-check sockets before marking disconnected.
           softDisconnectTimers.set(userId, timer);
           return;
         }
@@ -475,7 +542,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     setterSubmitWord(room, socket.data.userId, word);
     bumpStateVersion(room);
-    scheduleTurnTimeout(room);
+    syncLobbyOrTurnTimers(room);
     return room;
   }
 
@@ -522,6 +589,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     persistCurrentRound(room, log);
     nextRound(room, socket.data.userId);
     bumpStateVersion(room);
+    syncLobbyOrTurnTimers(room);
     persistMultiGameEnd(room, log);
     return room;
   }

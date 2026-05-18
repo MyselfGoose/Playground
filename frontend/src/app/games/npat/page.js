@@ -216,7 +216,7 @@ export default function NpatEntryPage() {
               const result = await joinRoom(joinCode);
               setJoining(false);
               if (!result.ok) {
-                setJoinError(result.error?.message ?? "Could not join room");
+                setJoinError(mapConnectionError("npat", result.error));
                 return;
               }
               const code = result.data?.room?.code;

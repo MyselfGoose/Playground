@@ -66,6 +66,7 @@ export function MultiRaceRoomView({ roomCode }) {
           return;
         }
         const errCode = /** @type {any} */ (r.error)?.code;
+        // Defense-in-depth until multi-replica + sticky sessions; see deploy-replica-limit.md.
         if (errCode === "ROOM_NOT_FOUND" && !isRetry) {
           await new Promise((resolve) => setTimeout(resolve, 450));
           if (!cancelled) {

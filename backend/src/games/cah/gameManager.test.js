@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { CahBlackCard } from '../../models/CahBlackCard.js';
 import { CahWhiteCard } from '../../models/CahWhiteCard.js';
 import {
+  canAdvanceFromRevealing,
   createCahRoom,
   judgePickWinner,
   nextRound,
@@ -83,6 +84,30 @@ test('CAH round lifecycle with 3-player judge flow', async (t) => {
   assert.equal(room.game.status, 'submitting');
   assert.equal(room.game.roundIndex, 2);
   assert.equal(room.game.judgeUserId, 'u3');
+});
+
+test('judge can advance from revealing when host is disconnected', async () => {
+  const room = createThreePlayerRoom();
+  room.game = {
+    gameSessionId: 'sess-1',
+    status: 'revealing',
+    roundIndex: 1,
+    judgeUserId: 'u2',
+    blackCard: { sourceId: 1, text: 'Prompt', pick: 1, pack: 'Base' },
+    submissions: [],
+    winnerUserId: 'u3',
+    winnerSubmissionId: 's1',
+    revealOrder: ['s1'],
+    revealComplete: true,
+    roundHistory: [],
+  };
+  room.players.find((p) => p.userId === 'u1').connected = false;
+
+  assert.equal(canAdvanceFromRevealing(room, 'u1'), false);
+  assert.equal(canAdvanceFromRevealing(room, 'u2'), true);
+
+  const snap = snapshotFor(room, 'u2');
+  assert.equal(snap.permissions.canNextRound, true);
 });
 
 test('snapshot hides submissions from non-judge during judging', () => {

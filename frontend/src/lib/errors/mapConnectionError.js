@@ -43,6 +43,33 @@ const RECONNECTING = {
   generic: "Reconnecting…",
 };
 
+const ROOM_ERROR_MESSAGES = {
+  ROOM_EXPIRED: "This game room is no longer available. Start or join a new one.",
+  ROOM_NOT_FOUND: "We could not find that room. Check the code or create a new game.",
+};
+
+/**
+ * @param {unknown} err
+ * @returns {string | null}
+ */
+function resolveErrorCode(err) {
+  if (err && typeof err === "object") {
+    if ("code" in err && typeof /** @type {{ code: unknown }} */ (err).code === "string") {
+      return /** @type {{ code: string }} */ (err).code;
+    }
+    if (
+      "error" in err &&
+      err.error &&
+      typeof err.error === "object" &&
+      "code" in err.error &&
+      typeof /** @type {{ error: { code: unknown } }} */ (err).error.code === "string"
+    ) {
+      return /** @type {{ error: { code: string } }} */ (err).error.code;
+    }
+  }
+  return null;
+}
+
 /**
  * @param {GameContext} game
  * @param {'missing_socket_url'} kind
@@ -63,6 +90,11 @@ export function mapConnectionError(game, err, options = {}) {
   }
   if (options.phase === "reconnect") {
     return RECONNECTING[game] ?? RECONNECTING.generic;
+  }
+
+  const code = resolveErrorCode(err);
+  if (code && code in ROOM_ERROR_MESSAGES) {
+    return ROOM_ERROR_MESSAGES[/** @type {keyof typeof ROOM_ERROR_MESSAGES} */ (code)];
   }
 
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";

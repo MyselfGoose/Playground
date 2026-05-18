@@ -28,14 +28,22 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
 
     installHandlers({ socket, registry, env, logger });
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', async (reason) => {
       logger.info(
         { event: 'npat_disconnect', reason, userId, socketId: socket.id },
         'npat_socket',
       );
-      registry.leaveRoom(socket);
+      try {
+        await registry.leaveRoom(socket);
+      } catch (err) {
+        logger.warn(
+          { err, event: 'npat_disconnect_leave_failed', userId, socketId: socket.id },
+          'npat_socket',
+        );
+      }
     });
 
+    // attachActiveRoomForUser runs before session_resumed so reconnect always sees consistent room state.
     // Opportunistically reattach to any active room the user belongs to. If this succeeds we
     // notify the client with `session_resumed` so it can navigate without user action.
     try {

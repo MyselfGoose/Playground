@@ -47,7 +47,7 @@ export function NpatResultClient() {
         setJoinPhase("ready");
       } else {
         setJoinPhase("failed");
-        setJoinError(result.error?.message ?? "Could not load results");
+        setJoinError(mapConnectionError("npat", result.error));
       }
     })();
 

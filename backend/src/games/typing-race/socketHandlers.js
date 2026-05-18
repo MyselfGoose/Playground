@@ -34,6 +34,7 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
   }
 
   register("typing_create_room", {
+    // createRoom/joinRoom are synchronous; ack returns only after the room is in the registry.
     handler: async () => {
       registry.leaveRoom(socket);
       const { room, code } = registry.createRoom(socket, userId, username);

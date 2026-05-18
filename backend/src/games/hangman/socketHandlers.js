@@ -114,6 +114,7 @@ export function installHangmanHandlers({ socket, registry, logger }) {
     return { room: registry.snapshotForSocket(socket) };
   });
 
+  // TODO(Phase 10): differentiate play_again vs return_to_lobby (both reset lobby today).
   register(socket, logger, 'return_to_lobby', null, async () => {
     const room = registry.returnToLobby(socket);
     registry.emitRoom(room.code, 'returned_to_lobby');

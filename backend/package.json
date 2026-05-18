@@ -13,7 +13,7 @@
     "db:validate:cah": "node scripts/validateCahImport.js",
     "db:import:hangman": "node scripts/importHangmanWords.js",
     "db:backfill:hangman-stats": "node scripts/backfillHangmanUserStats.js",
-    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/games/hangman/*.test.js src/services/*.test.js src/repositories/*.test.js src/utils/safeNextPath.test.js"
+    "test": "node --test src/games/typing-race/*.test.js src/games/cah/*.test.js src/games/hangman/*.test.js src/games/taboo/*.test.js src/games/npat/*.test.js src/services/*.test.js src/repositories/*.test.js src/utils/safeNextPath.test.js"
   },
   "keywords": [],
   "author": "",

@@ -3,6 +3,37 @@ import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
 import { NpatRoomEngine } from './gameManager.js';
 import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
 
+export const NPAT_RECENTLY_EXPIRED_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Resolve join error when no in-memory engine exists (room never existed vs recently deleted).
+ *
+ * @param {string} roomCode
+ * @param {Map<string, number>} recentlyExpiredCodes
+ * @param {number} [now]
+ * @param {number} [ttlMs]
+ * @returns {{ code: 'ROOM_EXPIRED' | 'ROOM_NOT_FOUND', message: string }}
+ */
+export function npatMissingEngineJoinError(
+  roomCode,
+  recentlyExpiredCodes,
+  now = Date.now(),
+  ttlMs = NPAT_RECENTLY_EXPIRED_TTL_MS,
+) {
+  for (const [code, expiredAt] of recentlyExpiredCodes) {
+    if (now - expiredAt > ttlMs) {
+      recentlyExpiredCodes.delete(code);
+    }
+  }
+  if (recentlyExpiredCodes.has(roomCode)) {
+    return {
+      code: 'ROOM_EXPIRED',
+      message: 'This game room is no longer available',
+    };
+  }
+  return { code: 'ROOM_NOT_FOUND', message: 'Room not found' };
+}
+
 /**
  * @param {number} len
  */
@@ -89,9 +120,19 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
    */
   const pendingDelete = new Map();
   const ROOM_GRACE_MS = 60_000;
+  /** @type {Map<string, number>} */
+  const recentlyExpiredCodes = new Map();
 
   const hydrate = keyedSingleflight();
   const roomLock = keyedSerialQueue();
+
+  /**
+   * @param {string} code
+   */
+  function markRoomRecentlyExpired(code) {
+    recentlyExpiredCodes.set(code, Date.now());
+    npatMissingEngineJoinError(code, recentlyExpiredCodes);
+  }
 
   /**
    * Cancel any scheduled delete for `code`. Called on every new join/create/attach.
@@ -272,8 +313,9 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
   async function joinRoom(code, userId, username, socket) {
     const engine = await loadEngine(code);
     if (!engine) {
-      const err = new Error('Room not found');
-      /** @type {any} */ (err).code = 'ROOM_NOT_FOUND';
+      const { code: errCode, message } = npatMissingEngineJoinError(code, recentlyExpiredCodes);
+      const err = new Error(message);
+      /** @type {any} */ (err).code = errCode;
       throw err;
     }
 
@@ -352,7 +394,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
    *
    * @param {import('socket.io').Socket} socket
    */
-  function leaveRoomExplicit(socket) {
+  async function leaveRoomExplicit(socket) {
     const userId = /** @type {string} */ (socket.data.userId);
     const code = socketToRoom.get(socket.id);
     if (!code) {
@@ -366,7 +408,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       return;
     }
 
-    void roomLock.run(code, async () => {
+    return roomLock.run(code, async () => {
       const eng = engines.get(code);
       if (!eng) {
         return;
@@ -376,6 +418,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         cancelPendingDelete(code);
         eng.destroy();
         engines.delete(code);
+        markRoomRecentlyExpired(code);
         void npatRoomRepository.deleteByCode(code).catch(() => {});
         return;
       }
@@ -395,7 +438,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     });
   }
 
-  function leaveRoom(socket) {
+  async function leaveRoom(socket) {
     const code = socketToRoom.get(socket.id);
     if (!code) return;
     const engine = engines.get(code);
@@ -405,7 +448,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     if (!engine) return;
 
     // Serialize room-state mutation; cleanup below may follow.
-    void roomLock.run(code, async () => {
+    return roomLock.run(code, async () => {
       const uid = engine.clearSocket(socket.id);
       if (uid) {
         engine.reassignHostIfNeeded(uid);
@@ -469,6 +512,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         );
         engine.destroy();
         engines.delete(code);
+        markRoomRecentlyExpired(code);
         void npatRoomRepository.deleteByCode(code).catch(() => {});
       });
     }, ROOM_GRACE_MS);

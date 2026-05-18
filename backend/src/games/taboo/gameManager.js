@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const TURN_READY_DELAY_MS = 3000;
 const NEXT_ROUND_DELAY_MS = 10000;
+/** Resolve in-progress review if voting does not finish in time. */
+export const TABOO_REVIEW_TIMEOUT_MS = 15_000;
 
 class TabooError extends Error {
   constructor(message, code = "TABOO_ERROR") {
@@ -206,6 +208,25 @@ export function createGameManager() {
     return "round_completed";
   }
 
+  function finalizeReviewOutcome(room, review, outcome, meta = {}) {
+    const notFair = meta.notFairCount ?? 0;
+    const fair = meta.fairCount ?? 0;
+    if (outcome === "reverted") room.game.scores[review.penalizedTeam] += 1;
+    review.status = "resolved";
+    review.outcome = outcome;
+    recordHistory(room.game, {
+      action: "review_resolved",
+      team: review.penalizedTeam || null,
+      playerId: null,
+      playerName: null,
+      outcome,
+      fairCount: fair,
+      notFairCount: notFair,
+      timedOut: meta.timedOut ?? false,
+    });
+    return true;
+  }
+
   function resolveReview(room) {
     const review = room.game?.review;
     if (!review || review.status !== "in_progress") return false;
@@ -224,11 +245,27 @@ export function createGameManager() {
     const notFair = eligible.filter((pid) => votes[pid] === "not_fair").length;
     const fair = eligible.length - notFair;
     const outcome = notFair > fair ? "reverted" : "upheld";
-    if (outcome === "reverted") room.game.scores[review.penalizedTeam] += 1;
-    review.status = "resolved";
-    review.outcome = outcome;
-    recordHistory(room.game, { action: "review_resolved", team: review.penalizedTeam || null, playerId: null, playerName: null, outcome, fairCount: fair, notFairCount: notFair });
-    return true;
+    return finalizeReviewOutcome(room, review, outcome, { fairCount: fair, notFairCount: notFair });
+  }
+
+  function resolveReviewOnTimeout(room) {
+    const review = room.game?.review;
+    if (!review || review.status !== "in_progress") return false;
+    const connected = new Set(connectedPlayerIds(room));
+    review.eligiblePlayerIds = (Array.isArray(review.eligiblePlayerIds) ? review.eligiblePlayerIds : []).filter((pid) => connected.has(pid));
+    const eligible = review.eligiblePlayerIds;
+    if (!eligible.length) {
+      return finalizeReviewOutcome(room, review, "upheld", { timedOut: true });
+    }
+    const votes = review.votes || {};
+    const cast = eligible.filter((pid) => votes[pid] === "fair" || votes[pid] === "not_fair");
+    if (!cast.length) {
+      return finalizeReviewOutcome(room, review, "upheld", { timedOut: true });
+    }
+    const notFair = cast.filter((pid) => votes[pid] === "not_fair").length;
+    const fair = cast.length - notFair;
+    const outcome = notFair > fair ? "reverted" : "upheld";
+    return finalizeReviewOutcome(room, review, outcome, { fairCount: fair, notFairCount: notFair, timedOut: true });
   }
 
   function applyAction(room, userId, action, payload = {}) {
@@ -306,6 +343,7 @@ export function createGameManager() {
       game.turnEndsAt = null;
       game.review.status = "in_progress";
       game.review.pausedRemainingMs = remainingMs;
+      game.review.reviewEndsAt = nowMs() + TABOO_REVIEW_TIMEOUT_MS;
       game.review.votes = {};
       game.review.eligiblePlayerIds = connectedPlayerIds(room);
       recordHistory(game, { action: "review_requested", team: player.team, playerId: userId, playerName: player.username, eligibleCount: game.review.eligiblePlayerIds.length });
@@ -347,6 +385,13 @@ export function createGameManager() {
     const game = room.game;
     if (!game || game.status === "finished") return null;
     const now = nowMs();
+    if (
+      game.review?.status === "in_progress" &&
+      typeof game.review.reviewEndsAt === "number" &&
+      game.review.reviewEndsAt <= now
+    ) {
+      if (resolveReviewOnTimeout(room)) return "review_resolved";
+    }
     if (game.review?.status === "in_progress" && resolveReview(room)) {
       return "review_resolved";
     }
@@ -412,12 +457,20 @@ export function createGameManager() {
     const me = room.players.find((p) => p.userId === userId) ?? null;
     const review = game?.review;
     const reviewPaused = review?.status === "in_progress" || review?.status === "resolved";
-    const countdownEndsAt = reviewPaused ? null : (game?.turnEndsAt ?? game?.phaseEndsAt ?? null);
-    const secondsRemaining = reviewPaused
-      ? Math.max(0, Math.ceil((review?.pausedRemainingMs || 0) / 1000))
-      : countdownEndsAt
-        ? Math.max(0, Math.ceil((countdownEndsAt - nowMs()) / 1000))
-        : 0;
+    const countdownEndsAt =
+      review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
+        ? review.reviewEndsAt
+        : reviewPaused
+          ? null
+          : (game?.turnEndsAt ?? game?.phaseEndsAt ?? null);
+    const secondsRemaining =
+      review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
+        ? Math.max(0, Math.ceil((review.reviewEndsAt - nowMs()) / 1000))
+        : reviewPaused && review?.status === "resolved"
+          ? Math.max(0, Math.ceil((review?.pausedRemainingMs || 0) / 1000))
+          : countdownEndsAt
+            ? Math.max(0, Math.ceil((countdownEndsAt - nowMs()) / 1000))
+            : 0;
     const hideCard = !game || game.status !== "turn_in_progress" || role === "spectator" || role === "teammate_guesser";
     const reviewSnapshot = review ? {
       id: review.id || null,
@@ -460,7 +513,10 @@ export function createGameManager() {
         scores: { ...game.scores },
         turnStartsAt: game.turnStartsAt,
         turnEndsAt: game.turnEndsAt,
-        phaseEndsAt: game.phaseEndsAt,
+        phaseEndsAt:
+          review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
+            ? review.reviewEndsAt
+            : game.phaseEndsAt,
         roundEndsAt: reviewPaused ? null : game.turnEndsAt,
         secondsRemaining,
         viewerRole: role,

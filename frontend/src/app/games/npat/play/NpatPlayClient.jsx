@@ -62,7 +62,7 @@ export function NpatPlayClient() {
         setJoinPhase("ready");
       } else {
         setJoinPhase("failed");
-        setJoinError(result.error?.message ?? "Could not join room");
+        setJoinError(mapConnectionError("npat", result.error));
       }
     })();
 

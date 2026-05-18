@@ -6,6 +6,8 @@ export const HANGMAN_WORD_MAX = 24;
 export const HANGMAN_MAX_WRONG = 6;
 export const HANGMAN_LOBBY_COUNTDOWN_MS = 5000;
 export const HANGMAN_TURN_TIMEOUT_MS = 25_000;
+/** Auto-pick a random word if setter does not submit in time (setter_pick phase). */
+export const HANGMAN_SETTER_PICK_TIMEOUT_MS = 90_000;
 /** Points per correct letter guess on your turn. */
 export const HANGMAN_POINTS_LETTER_CORRECT = 10;
 /** Setter bonus when guessers complete the word before hangman fills. */

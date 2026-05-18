@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
 import { HANGMAN_MAX_WRONG } from './constants.js';
 import {
+  autoAssignSetterWord,
   createHangmanRoom,
   guessLetter,
   maskWord,
@@ -64,4 +66,21 @@ test('six wrong guesses ends round as lost', () => {
   assert.equal(room.game.phase, 'round_end');
   assert.equal(room.game.lastOutcome, 'lost');
   assert.equal(room.game.wrongGuessCount, HANGMAN_MAX_WRONG);
+});
+
+test('autoAssignSetterWord submits random word and starts guessing', async (t) => {
+  const origRandom = hangmanWordRepository.randomWord;
+  hangmanWordRepository.randomWord = async () => ({ word: 'tiger' });
+  t.after(() => {
+    hangmanWordRepository.randomWord = origRandom;
+  });
+
+  const room = createHangmanRoom('h1', 'Host', {});
+  room.players[0].ready = true;
+  room.players.push({ userId: 'g1', username: 'Guest', ready: true, connected: true });
+  startGame(room);
+  const ok = await autoAssignSetterWord(room);
+  assert.equal(ok, true);
+  assert.equal(room.game?.phase, 'guessing');
+  assert.equal(room.game?.secretWord, 'tiger');
 });

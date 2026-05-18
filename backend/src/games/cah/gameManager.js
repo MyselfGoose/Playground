@@ -178,6 +178,21 @@ export async function reconcileRoomAfterMembershipChange(room) {
   }
 }
 
+export function canAdvanceFromRevealing(room, userId) {
+  const game = room.game;
+  if (!game || game.status !== 'revealing') return false;
+  if (!room.players.some((p) => p.userId === userId)) return false;
+  const host = room.players.find((p) => p.userId === room.hostId);
+  if (room.hostId === userId) {
+    return Boolean(host && host.connected !== false);
+  }
+  const hostDisconnected = !host || host.connected === false;
+  if (!hostDisconnected) return false;
+  if (game.judgeUserId !== userId) return false;
+  const judge = room.players.find((p) => p.userId === game.judgeUserId);
+  return Boolean(judge && judge.connected !== false);
+}
+
 function viewerPermissions(room, userId) {
   const inRoom = room.players.some((p) => p.userId === userId);
   const me = room.players.find((p) => p.userId === userId);
@@ -194,7 +209,7 @@ function viewerPermissions(room, userId) {
       me?.connected !== false &&
       !submitted,
     canJudgePickWinner: inRoom && status === 'judging' && isJudge(room, userId),
-    canNextRound: inRoom && room.hostId === userId && status === 'revealing',
+    canNextRound: canAdvanceFromRevealing(room, userId),
   };
 }
 

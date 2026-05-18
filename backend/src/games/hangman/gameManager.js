@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { DEFAULT_HANGMAN_DATASET_VERSION } from '../../config/hangmanDefaults.js';
+import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
 import {
   HANGMAN_MAX_WRONG,
   HANGMAN_MIN_PLAYERS,
@@ -219,6 +221,26 @@ export function setterSubmitWord(room, userId, rawWord) {
   game.abortedReason = null;
   initTurnState(game, room, setter);
   game.phase = 'guessing';
+}
+
+/**
+ * Pick a random word for the current setter and start guessing (setter timeout path).
+ * @param {import('./gameManager.js').HangmanRoom} room
+ * @returns {Promise<boolean>} false if phase/word bank prevented assignment
+ */
+export async function autoAssignSetterWord(room) {
+  const game = room.game;
+  if (!game || game.phase !== 'setter_pick') return false;
+  const setterId = currentSetterId(game);
+  if (!setterId) return false;
+  const picked = await hangmanWordRepository.randomWord({
+    datasetVersion: game.datasetVersion ?? DEFAULT_HANGMAN_DATASET_VERSION,
+    minLength: game.minWordLength,
+    maxLength: game.maxWordLength,
+  });
+  if (!picked?.word) return false;
+  setterSubmitWord(room, setterId, picked.word);
+  return true;
 }
 
 /** @deprecated Use setterSetPreview + setterSubmitWord */
