@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 **/node_modules/
 jspm_packages/
-
+audit
 # Package manager stores / caches (keep Yarn Berry tracked files if you use them)
 .pnpm-store/
 **/.pnpm-store/
