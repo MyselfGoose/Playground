@@ -62,6 +62,14 @@ export const PLAYABLE_GAME_IDS = [
   "hangman",
 ];
 
+/**
+ * @param {string} gameId
+ * @returns {Game | undefined}
+ */
+export function getGameById(gameId) {
+  return GAMES.find((g) => g.id === gameId);
+}
+
 /** @returns {Game[]} */
 export function getPlayableGames() {
   return GAMES.filter((g) => PLAYABLE_GAME_IDS.includes(g.id));

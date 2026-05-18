@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
@@ -50,21 +51,7 @@ function RegisterForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 sm:px-6 relative overflow-hidden">
-      {/* Animated background orbs */}
-      <motion.div
-        aria-hidden
-        className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-br from-accent-mint/30 to-accent-sky/30 blur-3xl"
-        animate={{ y: [0, 30, 0], x: [0, -20, 0] }}
-        transition={{ duration: 8, repeat: Infinity }}
-      />
-      <motion.div
-        aria-hidden
-        className="absolute -bottom-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-tl from-accent-lemon/20 to-accent-pink/20 blur-3xl"
-        animate={{ y: [0, -30, 0], x: [0, 20, 0] }}
-        transition={{ duration: 10, repeat: Infinity }}
-      />
-
+    <motion.div className="min-h-screen flex items-center justify-center px-4 py-12 sm:px-6">
       {/* Main content */}
       <div className="relative w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         {/* Left: Form */}
@@ -197,14 +184,14 @@ function RegisterForm() {
           transition={{ duration: 0.6 }}
           className="text-center md:text-left md:order-1"
         >
-          <motion.div
-            animate={{ rotate: [0, -5, 5, 0] }}
-            transition={{ duration: 4, repeat: Infinity }}
-            className="inline-block text-5xl sm:text-6xl mb-6"
-          >
-            🎉
-          </motion.div>
-          
+          <Image
+            src="/brand/playground-mark.svg"
+            alt=""
+            width={56}
+            height={56}
+            className="mb-6 inline-block h-14 w-14"
+          />
+
           <h1 className="text-4xl sm:text-5xl font-black text-foreground mb-4 leading-tight">
             Ready to <span className="text-primary">compete</span>?
           </h1>
@@ -229,7 +216,7 @@ function RegisterForm() {
           </ul>
         </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

@@ -9,6 +9,7 @@ import {
 } from "../../lib/games.js";
 import { motion } from "framer-motion";
 import { Button } from "../../components/Button.jsx";
+import { PageHeader } from "../../components/PageHeader.jsx";
 
 export default function GamesPage() {
   const playableGames = getPlayableGames();
@@ -18,18 +19,11 @@ export default function GamesPage() {
     <div className="w-full min-h-screen flex flex-col bg-background">
       {/* HEADER */}
       <section className="px-4 py-16 sm:px-6 sm:py-24 bg-gradient-to-b from-muted-bright/20 to-transparent">
-        <motion.div
-          className="mx-auto max-w-5xl text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tighter text-foreground mb-4">
-            Pick Your Game
-          </h1>
-          <p className="text-lg sm:text-xl text-foreground/70 max-w-2xl mx-auto">
-            Choose from our collection of multiplayer games. Each one is designed for laughs, competition, and epic moments with friends.
-          </p>
-        </motion.div>
+        <PageHeader
+          title="Pick Your Game"
+          description="Choose from our collection of multiplayer games. Each one is designed for laughs, competition, and epic moments with friends."
+          align="center"
+        />
       </section>
 
       {/* PLAYABLE GAMES - FEATURED */}

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ApiError } from "../../lib/api.js";
@@ -55,21 +56,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 sm:px-6 relative overflow-hidden">
-      {/* Animated background orbs */}
-      <motion.div
-        aria-hidden
-        className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-pink/30 blur-3xl"
-        animate={{ y: [0, 30, 0], x: [0, 20, 0] }}
-        transition={{ duration: 8, repeat: Infinity }}
-      />
-      <motion.div
-        aria-hidden
-        className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-tr from-accent-mint/20 to-accent-sky/20 blur-3xl"
-        animate={{ y: [0, -30, 0], x: [0, -20, 0] }}
-        transition={{ duration: 10, repeat: Infinity }}
-      />
-
+    <motion.div className="min-h-screen flex items-center justify-center px-4 py-12 sm:px-6">
       {/* Main content */}
       <motion.div
         className="relative w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center"
@@ -79,14 +66,14 @@ function LoginForm() {
       >
         {/* Left: Branding & Message */}
         <div className="text-center md:text-left">
-          <motion.div
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 4, repeat: Infinity }}
-            className="inline-block text-5xl sm:text-6xl mb-6"
-          >
-            🎮
-          </motion.div>
-          
+          <Image
+            src="/brand/playground-mark.svg"
+            alt=""
+            width={56}
+            height={56}
+            className="mb-6 inline-block h-14 w-14"
+          />
+
           <h1 className="text-4xl sm:text-5xl font-black text-foreground mb-4 leading-tight">
             Welcome back to the <span className="text-primary">Playground</span>
           </h1>
@@ -186,7 +173,7 @@ function LoginForm() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 

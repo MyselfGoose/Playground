@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "../components/Button.jsx";
 import {
   getGameCardGradient,
@@ -12,7 +12,6 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
-  const reduce = useReducedMotion();
   const playableGames = getPlayableGames();
 
   return (
@@ -23,39 +22,7 @@ export default function HomePage() {
       transition={{ duration: 0.35 }}
     >
       {/* HERO SECTION - BOLD AND LARGE */}
-      <section className="relative flex-1 flex flex-col items-center justify-center px-4 py-20 sm:px-6 sm:py-32 overflow-hidden">
-        {/* Animated background orbs */}
-        {!reduce ? (
-          <>
-            <motion.div
-              aria-hidden
-              className="absolute top-20 -left-40 w-80 h-80 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 blur-3xl"
-              animate={{
-                y: [0, 40, 0],
-                scale: [1, 1.15, 1],
-              }}
-              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              aria-hidden
-              className="absolute bottom-20 -right-40 w-96 h-96 rounded-full bg-gradient-to-tl from-accent-purple/25 to-accent-pink/25 blur-3xl"
-              animate={{
-                y: [0, -40, 0],
-                x: [0, 20, 0],
-              }}
-              transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              aria-hidden
-              className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full bg-gradient-to-br from-accent-lemon/20 to-transparent blur-3xl"
-              animate={{
-                scale: [0.8, 1.2, 0.8],
-              }}
-              transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
-            />
-          </>
-        ) : null}
-
+      <section className="relative flex-1 flex flex-col items-center justify-center px-4 py-20 sm:px-6 sm:py-32">
         <motion.div
           className="relative z-10 text-center max-w-3xl"
           initial={{ opacity: 0, scale: 0.9 }}
