@@ -6,7 +6,6 @@ import {
   hangmanRandomWordSchema,
   hangmanSetReadySchema,
   hangmanSetterWordSchema,
-  hangmanUpdateSettingsSchema,
 } from './schemas.js';
 
 function deliverAck(ack, payload) {
@@ -84,27 +83,22 @@ export function installHangmanHandlers({ socket, registry, logger }) {
     return { room: registry.snapshotForSocket(socket) };
   });
 
-  register(socket, logger, 'update_settings', hangmanUpdateSettingsSchema, async (data) => {
-    const room = registry.updateSettings(socket, data);
-    registry.emitRoom(room.code, 'settings_updated');
-    return { room: registry.snapshotForSocket(socket) };
-  });
-
-  register(socket, logger, 'start_game', null, async () => {
-    const room = await registry.startRoomGame(socket);
-    registry.emitRoom(room.code, 'game_started');
-    return { room: registry.snapshotForSocket(socket) };
-  });
-
   register(socket, logger, 'setter_submit_word', hangmanSetterWordSchema, async (data) => {
     const room = registry.submitSetterWord(socket, data.word);
     registry.emitRoom(room.code, 'word_set');
     return { room: registry.snapshotForSocket(socket) };
   });
 
+  register(socket, logger, 'setter_randomize_preview', hangmanRandomWordSchema, async (data) => {
+    const room = await registry.randomizePreview(socket, data);
+    registry.emitRoom(room.code, 'word_preview');
+    return { room: registry.snapshotForSocket(socket) };
+  });
+
+  /** @deprecated Use setter_randomize_preview */
   register(socket, logger, 'setter_request_random_word', hangmanRandomWordSchema, async (data) => {
-    const room = await registry.requestRandomWord(socket, data);
-    registry.emitRoom(room.code, 'random_word');
+    const room = await registry.randomizePreview(socket, data);
+    registry.emitRoom(room.code, 'word_preview');
     return { room: registry.snapshotForSocket(socket) };
   });
 
@@ -117,6 +111,18 @@ export function installHangmanHandlers({ socket, registry, logger }) {
   register(socket, logger, 'next_round', null, async () => {
     const room = await registry.advanceRound(socket);
     registry.emitRoom(room.code, room.game?.phase === 'game_end' ? 'game_finished' : 'next_round');
+    return { room: registry.snapshotForSocket(socket) };
+  });
+
+  register(socket, logger, 'return_to_lobby', null, async () => {
+    const room = registry.returnToLobby(socket);
+    registry.emitRoom(room.code, 'returned_to_lobby');
+    return { room: registry.snapshotForSocket(socket) };
+  });
+
+  register(socket, logger, 'play_again', null, async () => {
+    const room = registry.playAgain(socket);
+    registry.emitRoom(room.code, 'play_again');
     return { room: registry.snapshotForSocket(socket) };
   });
 

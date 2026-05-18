@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "../../../../lib/api.js";
 import { Button } from "../../../../components/Button.jsx";
-import { HangmanSvg } from "../components/HangmanSvg.jsx";
+import { HangmanFigure } from "../components/HangmanFigure.jsx";
+import { HANGMAN_MAX_WRONG } from "../constants.js";
 import { LetterKeyboard } from "../components/LetterKeyboard.jsx";
 
 async function fetchRandomWord() {
@@ -27,7 +28,7 @@ export default function HangmanSoloPage() {
   const [status, setStatus] = useState("playing");
   const submittedResultRef = useRef(false);
 
-  const maxWrong = 7;
+  const maxWrong = HANGMAN_MAX_WRONG;
   const guessedSet = useMemo(() => new Set(guessed), [guessed]);
 
   const masked = useMemo(() => {
@@ -130,7 +131,7 @@ export default function HangmanSoloPage() {
             </p>
           ) : null}
         </div>
-        <HangmanSvg stage={wrong.length} maxStage={maxWrong} className="h-40 w-32 text-foreground" />
+        <HangmanFigure wrongCount={wrong.length} className="h-40 w-32 text-foreground" />
       </div>
 
       <LetterKeyboard guessed={guessed} wrong={wrong} disabled={loading || status !== "playing"} onLetter={onLetter} />

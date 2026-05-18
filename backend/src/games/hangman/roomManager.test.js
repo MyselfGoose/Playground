@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { startGame } from './gameManager.js';
 import { createHangmanRoomManager } from './roomManager.js';
 
 function makeSocket(id, userId, username) {
@@ -28,7 +29,7 @@ test('soft disconnect does not immediately drop game or rotate host', async () =
   await manager.joinRoom(guest, room.code);
   manager.setReady(host, true);
   manager.setReady(guest, true);
-  await manager.startRoomGame(host);
+  startGame(room);
   assert.equal(room.game?.phase, 'setter_pick');
   assert.equal(room.hostId, 'u1');
 

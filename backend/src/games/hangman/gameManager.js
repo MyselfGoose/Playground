@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import {
-  HANGMAN_DEFAULT_MAX_WRONG,
+  HANGMAN_MAX_WRONG,
   HANGMAN_MIN_PLAYERS,
   HANGMAN_POINTS_EFFICIENCY_POOL,
-  HANGMAN_POINTS_LETTER_FIRST,
+  HANGMAN_POINTS_LETTER_CORRECT,
   HANGMAN_POINTS_SETTER_COMPLETE,
+  HANGMAN_TURN_TIMEOUT_MS,
   HANGMAN_WORD_MAX,
   HANGMAN_WORD_MIN,
 } from './constants.js';
@@ -61,24 +62,20 @@ export function maskWord(secret, guessedSet) {
 }
 
 export function createHangmanRoom(hostId, hostName, settings = {}) {
+  let minLen = Number(settings.minWordLength ?? HANGMAN_WORD_MIN) || HANGMAN_WORD_MIN;
+  let maxLen = Number(settings.maxWordLength ?? HANGMAN_WORD_MAX) || HANGMAN_WORD_MAX;
+  if (minLen > maxLen) [minLen, maxLen] = [maxLen, minLen];
+
   return {
     code: randomCode(),
     hostId,
     settings: {
-      maxWrongGuesses: Math.min(
-        12,
-        Math.max(4, Number(settings.maxWrongGuesses ?? HANGMAN_DEFAULT_MAX_WRONG) || HANGMAN_DEFAULT_MAX_WRONG),
-      ),
-      minWordLength: Math.min(
-        HANGMAN_WORD_MAX,
-        Math.max(HANGMAN_WORD_MIN, Number(settings.minWordLength ?? HANGMAN_WORD_MIN) || HANGMAN_WORD_MIN),
-      ),
-      maxWordLength: Math.min(
-        HANGMAN_WORD_MAX,
-        Math.max(HANGMAN_WORD_MIN, Number(settings.maxWordLength ?? HANGMAN_WORD_MAX) || HANGMAN_WORD_MAX),
-      ),
+      maxWrongGuesses: HANGMAN_MAX_WRONG,
+      minWordLength: Math.min(HANGMAN_WORD_MAX, Math.max(HANGMAN_WORD_MIN, minLen)),
+      maxWordLength: Math.min(HANGMAN_WORD_MAX, Math.max(HANGMAN_WORD_MIN, maxLen)),
       datasetVersion: sanitizeDatasetVersion(settings.datasetVersion),
     },
+    lobby: { countdownEndsAt: null },
     players: [{ userId: hostId, username: hostName, ready: false, connected: true }],
     game: null,
     stateVersion: 1,
@@ -86,6 +83,43 @@ export function createHangmanRoom(hostId, hostName, settings = {}) {
     updatedAt: Date.now(),
     socketIds: new Set(),
   };
+}
+
+export function buildGuesserOrder(room, setterId) {
+  return activePlayers(room)
+    .map((p) => p.userId)
+    .filter((id) => id !== setterId);
+}
+
+function advanceTurn(game) {
+  const order = game.guesserOrder ?? [];
+  if (!order.length) {
+    game.currentTurnUserId = null;
+    return;
+  }
+  game.turnIndex = (Number(game.turnIndex ?? 0) + 1) % order.length;
+  game.currentTurnUserId = order[game.turnIndex];
+  game.turnEndsAt = Date.now() + HANGMAN_TURN_TIMEOUT_MS;
+}
+
+function initTurnState(game, room, setterId) {
+  game.guesserOrder = buildGuesserOrder(room, setterId);
+  game.turnIndex = 0;
+  game.currentTurnUserId = game.guesserOrder[0] ?? null;
+  game.turnEndsAt = game.currentTurnUserId ? Date.now() + HANGMAN_TURN_TIMEOUT_MS : null;
+}
+
+/** Skip to next guesser (AFK / timeout). */
+export function skipTurn(room) {
+  const game = room.game;
+  if (!game || game.phase !== 'guessing') return false;
+  advanceTurn(game);
+  return true;
+}
+
+export function allPlayersReady(room) {
+  const active = activePlayers(room);
+  return active.length >= HANGMAN_MIN_PLAYERS && active.every((p) => p.ready);
 }
 
 export function startGame(room) {
@@ -100,27 +134,59 @@ export function startGame(room) {
   const setterOrder = active.map((p) => p.userId);
   const scores = emptyScores(setterOrder);
 
+  room.lobby = { countdownEndsAt: null };
   room.game = {
     phase: 'setter_pick',
     roundNumber: 1,
     setterOrder,
     setterCursor: 0,
     sessionId: crypto.randomUUID(),
-    maxWrongGuesses: room.settings.maxWrongGuesses,
+    maxWrongGuesses: HANGMAN_MAX_WRONG,
     minWordLength: room.settings.minWordLength,
     maxWordLength: room.settings.maxWordLength,
     datasetVersion: room.settings.datasetVersion,
     secretWord: null,
+    wordPreview: null,
     guessedLetters: [],
     wrongLetters: [],
     wrongGuessCount: 0,
     scores,
     playerMetrics: emptyPlayerMetrics(setterOrder),
     lettersFirstThisRound: {},
+    guesserOrder: [],
+    turnIndex: 0,
+    currentTurnUserId: null,
+    turnEndsAt: null,
     lastOutcome: null,
     revealedWord: null,
     abortedReason: null,
   };
+}
+
+export function resetToLobby(room) {
+  room.game = null;
+  room.lobby = { countdownEndsAt: null };
+  for (const p of room.players) {
+    p.ready = false;
+  }
+}
+
+export function setterSetPreview(room, userId, rawWord) {
+  const game = room.game;
+  if (!game || game.phase !== 'setter_pick') {
+    throw Object.assign(new Error('Cannot preview word now'), { code: 'INVALID_PHASE' });
+  }
+  if (currentSetterId(game) !== userId) {
+    throw Object.assign(new Error('Only the word setter can preview'), { code: 'NOT_SETTER' });
+  }
+  const word = normalizeHangmanWord(rawWord);
+  if (!word) {
+    throw Object.assign(new Error('Invalid word'), { code: 'INVALID_WORD' });
+  }
+  if (word.length < game.minWordLength || word.length > game.maxWordLength) {
+    throw Object.assign(new Error('Word length out of range'), { code: 'WORD_LENGTH' });
+  }
+  game.wordPreview = word;
 }
 
 export function setterSubmitWord(room, userId, rawWord) {
@@ -132,15 +198,18 @@ export function setterSubmitWord(room, userId, rawWord) {
   if (setter !== userId) {
     throw Object.assign(new Error('Only the word setter can submit'), { code: 'NOT_SETTER' });
   }
-  const word = normalizeHangmanWord(rawWord);
+
+  const fromArg = rawWord != null && String(rawWord).trim() ? normalizeHangmanWord(rawWord) : null;
+  const word = fromArg ?? game.wordPreview;
   if (!word) {
-    throw Object.assign(new Error('Invalid word'), { code: 'INVALID_WORD' });
+    throw Object.assign(new Error('Choose a word first'), { code: 'NO_WORD_PREVIEW' });
   }
   if (word.length < game.minWordLength || word.length > game.maxWordLength) {
     throw Object.assign(new Error('Word length out of range'), { code: 'WORD_LENGTH' });
   }
 
   game.secretWord = word;
+  game.wordPreview = null;
   game.guessedLetters = [];
   game.wrongLetters = [];
   game.wrongGuessCount = 0;
@@ -148,21 +217,13 @@ export function setterSubmitWord(room, userId, rawWord) {
   game.lastOutcome = null;
   game.revealedWord = null;
   game.abortedReason = null;
+  initTurnState(game, room, setter);
   game.phase = 'guessing';
 }
 
-/** Apply server-chosen random word (already normalized). */
+/** @deprecated Use setterSetPreview + setterSubmitWord */
 export function setterApplyServerWord(room, userId, word) {
-  const game = room.game;
-  if (!game || game.phase !== 'setter_pick') {
-    throw Object.assign(new Error('Cannot set random word now'), { code: 'INVALID_PHASE' });
-  }
-  if (currentSetterId(game) !== userId) {
-    throw Object.assign(new Error('Only the word setter can pick'), { code: 'NOT_SETTER' });
-  }
-  if (!word || !normalizeHangmanWord(word)) {
-    throw Object.assign(new Error('No word available'), { code: 'WORD_BANK_EMPTY' });
-  }
+  setterSetPreview(room, userId, word);
   setterSubmitWord(room, userId, word);
 }
 
@@ -175,6 +236,10 @@ export function guessLetter(room, userId, rawLetter) {
   if (setter === userId) {
     throw Object.assign(new Error('Setter cannot guess'), { code: 'SETTER_CANNOT_GUESS' });
   }
+  if (game.currentTurnUserId !== userId) {
+    throw Object.assign(new Error('Not your turn'), { code: 'NOT_YOUR_TURN' });
+  }
+
   const ch = String(rawLetter ?? '')
     .trim()
     .toLowerCase()[0];
@@ -192,15 +257,18 @@ export function guessLetter(room, userId, rawLetter) {
     throw Object.assign(new Error('Letter already guessed'), { code: 'ALREADY_GUESSED' });
   }
 
+  if (!game.playerMetrics[userId]) {
+    game.playerMetrics[userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+  }
+
   if (secret.includes(ch)) {
     game.guessedLetters = [...game.guessedLetters, ch].sort();
     guessed.add(ch);
-    if (!game.lettersFirstThisRound[userId]) game.lettersFirstThisRound[userId] = 0;
-    game.lettersFirstThisRound[userId] += 1;
-    if (!game.playerMetrics[userId]) game.playerMetrics[userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
+    game.lettersFirstThisRound[userId] = (game.lettersFirstThisRound[userId] ?? 0) + 1;
     game.playerMetrics[userId].correctLetters += 1;
     game.playerMetrics[userId].lettersFirst += 1;
-    game.scores[userId] = (game.scores[userId] ?? 0) + HANGMAN_POINTS_LETTER_FIRST;
+    game.scores[userId] = (game.scores[userId] ?? 0) + HANGMAN_POINTS_LETTER_CORRECT;
+    game.turnEndsAt = Date.now() + HANGMAN_TURN_TIMEOUT_MS;
 
     if (allLettersRevealed(secret, guessed)) {
       game.scores[setter] = (game.scores[setter] ?? 0) + HANGMAN_POINTS_SETTER_COMPLETE;
@@ -209,10 +277,11 @@ export function guessLetter(room, userId, rawLetter) {
   } else {
     game.wrongLetters = [...game.wrongLetters, ch].sort();
     game.wrongGuessCount += 1;
-    if (!game.playerMetrics[userId]) game.playerMetrics[userId] = { correctLetters: 0, wrongGuesses: 0, lettersFirst: 0 };
     game.playerMetrics[userId].wrongGuesses += 1;
     if (game.wrongGuessCount >= game.maxWrongGuesses) {
       finishRound(room, 'lost');
+    } else {
+      advanceTurn(game);
     }
   }
 }
@@ -245,17 +314,20 @@ function finishRound(room, outcome) {
   if (!game) return;
   game.lastOutcome = outcome;
   game.revealedWord = game.secretWord;
+  game.currentTurnUserId = null;
+  game.turnEndsAt = null;
   applyEfficiencyBonus(game);
   game.phase = 'round_end';
 }
 
-/** Called when setter leaves mid-round — expose partial progress. */
 export function abortRoundSetterLeft(room, reason = 'setter_disconnected') {
   const game = room.game;
   if (!game || !['setter_pick', 'guessing'].includes(game.phase)) return;
   game.lastOutcome = 'aborted';
   game.abortedReason = reason;
-  game.revealedWord = game.secretWord;
+  game.revealedWord = game.secretWord ?? game.wordPreview;
+  game.currentTurnUserId = null;
+  game.turnEndsAt = null;
   game.phase = 'round_end';
 }
 
@@ -272,12 +344,15 @@ export function nextRound(room, hostUserId) {
   if (game.setterCursor >= game.setterOrder.length) {
     game.phase = 'game_end';
     game.secretWord = null;
+    game.wordPreview = null;
+    game.currentTurnUserId = null;
     return;
   }
 
   game.roundNumber += 1;
   game.phase = 'setter_pick';
   game.secretWord = null;
+  game.wordPreview = null;
   game.guessedLetters = [];
   game.wrongLetters = [];
   game.wrongGuessCount = 0;
@@ -285,23 +360,29 @@ export function nextRound(room, hostUserId) {
   game.lastOutcome = null;
   game.revealedWord = null;
   game.abortedReason = null;
+  game.guesserOrder = [];
+  game.turnIndex = 0;
+  game.currentTurnUserId = null;
+  game.turnEndsAt = null;
 }
 
 export function reconcileRoomAfterMembershipChange(room) {
   const game = room.game;
-  if (!game || ['lobby', 'game_end'].includes(game.phase)) return;
+  if (!game || game.phase === 'game_end') return;
 
   const active = activePlayers(room);
   const activeIds = new Set(active.map((p) => p.userId));
 
   if (active.length < HANGMAN_MIN_PLAYERS) {
     room.game = null;
+    room.lobby = { countdownEndsAt: null };
     return;
   }
 
   game.setterOrder = game.setterOrder.filter((id) => activeIds.has(id));
   if (!game.setterOrder.length) {
     room.game = null;
+    room.lobby = { countdownEndsAt: null };
     return;
   }
 
@@ -312,6 +393,22 @@ export function reconcileRoomAfterMembershipChange(room) {
   const setter = currentSetterId(game);
   if (setter && !activeIds.has(setter)) {
     abortRoundSetterLeft(room, 'setter_left');
+  }
+
+  if (game.phase === 'guessing') {
+    game.guesserOrder = (game.guesserOrder ?? []).filter((id) => activeIds.has(id));
+    if (!game.guesserOrder.length) {
+      game.guesserOrder = buildGuesserOrder(room, setter);
+    }
+    if (game.currentTurnUserId && !activeIds.has(game.currentTurnUserId)) {
+      if (game.guesserOrder.length) {
+        game.turnIndex = 0;
+        game.currentTurnUserId = game.guesserOrder[0];
+        game.turnEndsAt = Date.now() + HANGMAN_TURN_TIMEOUT_MS;
+      } else {
+        game.currentTurnUserId = null;
+      }
+    }
   }
 
   for (const uid of Object.keys(game.scores)) {
@@ -335,24 +432,33 @@ export function viewerPermissions(room, viewerUserId) {
   const status = game?.phase ?? 'lobby';
   const setterId = game ? currentSetterId(game) : null;
   const active = activePlayers(room);
-  const canStartFromLobby = inRoom && inLobby && room.hostId === viewerUserId && active.length >= HANGMAN_MIN_PLAYERS && active.every((p) => p.ready);
+  const isMyTurn = game?.phase === 'guessing' && game.currentTurnUserId === viewerUserId;
+
   return {
     canJoin: true,
-    canSetReady: inRoom && inLobby,
-    canUpdateSettings: inRoom && room.hostId === viewerUserId && inLobby,
-    canStart: canStartFromLobby,
+    canSetReady: inRoom && inLobby && !room.lobby?.countdownEndsAt,
     canSubmitWord: inRoom && status === 'setter_pick' && setterId === viewerUserId,
-    canRequestRandomWord: inRoom && status === 'setter_pick' && setterId === viewerUserId,
-    canGuess: inRoom && status === 'guessing' && setterId !== viewerUserId,
+    canRandomizePreview: inRoom && status === 'setter_pick' && setterId === viewerUserId,
+    canGuess: inRoom && isMyTurn,
     canNextRound: inRoom && room.hostId === viewerUserId && status === 'round_end',
+    canPlayAgain: inRoom && status === 'game_end',
+    canReturnToLobby: inRoom && (status === 'game_end' || status === 'round_end'),
   };
 }
 
 export function snapshotFor(room, viewerUserId) {
+  const now = Date.now();
   const base = {
     code: room.code,
     hostId: room.hostId,
     settings: room.settings,
+    lobby: {
+      countdownEndsAt: room.lobby?.countdownEndsAt ?? null,
+      countdownSecondsRemaining:
+        room.lobby?.countdownEndsAt && room.lobby.countdownEndsAt > now
+          ? Math.max(0, Math.ceil((room.lobby.countdownEndsAt - now) / 1000))
+          : 0,
+    },
     players: room.players.map((p) => ({
       userId: p.userId,
       username: p.username,
@@ -377,6 +483,8 @@ export function snapshotFor(room, viewerUserId) {
     masked = maskWord(game.secretWord, guessedSet);
   }
 
+  const previewLen = game.wordPreview?.length ?? 0;
+
   base.game = {
     phase: game.phase,
     roundNumber: game.roundNumber,
@@ -392,8 +500,15 @@ export function snapshotFor(room, viewerUserId) {
     lastOutcome: game.lastOutcome,
     revealedWord: ['round_end', 'game_end'].includes(game.phase) ? game.revealedWord : null,
     abortedReason: game.abortedReason,
+    wordPreview: isSetter && game.phase === 'setter_pick' ? game.wordPreview : null,
+    previewLength: game.phase === 'setter_pick' && !isSetter ? previewLen : 0,
     secretPreviewForSetter: game.phase === 'guessing' && isSetter ? game.secretWord : null,
     hangmanStage: Math.min(game.wrongGuessCount, game.maxWrongGuesses),
+    currentTurnUserId: game.currentTurnUserId,
+    turnEndsAt: game.turnEndsAt,
+    turnSecondsRemaining:
+      game.turnEndsAt && game.turnEndsAt > now ? Math.max(0, Math.ceil((game.turnEndsAt - now) / 1000)) : 0,
+    isMyTurn: game.phase === 'guessing' && game.currentTurnUserId === viewerUserId,
   };
 
   return base;
