@@ -35,13 +35,20 @@ export function SessionBanner() {
 
   if (!showDegraded && !showSessionEnded) return null;
 
+  const loginHref = `/login?next=${encodeURIComponent(pathname)}`;
+
   const message = showSessionEnded
-    ? sessionNotice
-    : (sessionError ?? "Connection problem. Try again or sign in.");
+    ? "You were signed out. Sign in again to continue."
+    : user
+      ? "We're having trouble staying connected. Try again in a moment."
+      : "We can't reach the server right now. Check your connection or sign in.";
+
+  const bannerRole = showSessionEnded ? "alert" : "status";
 
   return (
     <div
-      role="status"
+      role={bannerRole}
+      aria-live={showSessionEnded ? "assertive" : "polite"}
       className="pointer-events-auto fixed inset-x-0 top-16 z-40 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-center text-sm text-foreground shadow-sm backdrop-blur-sm"
     >
       <span>{message}</span>
@@ -65,7 +72,7 @@ export function SessionBanner() {
               Dismiss
             </button>
             <Link
-              href={`/login?next=${encodeURIComponent(pathname)}`}
+              href={loginHref}
               className="font-semibold underline underline-offset-2"
             >
               Sign in
@@ -74,7 +81,7 @@ export function SessionBanner() {
         ) : null}
         {showDegraded && !user ? (
           <Link
-            href={`/login?next=${encodeURIComponent(pathname)}`}
+            href={loginHref}
             className="font-semibold underline underline-offset-2"
           >
             Sign in

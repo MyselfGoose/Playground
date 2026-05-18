@@ -5,6 +5,12 @@
 
 /** @type {WeakMap<import("socket.io-client").Socket, number>} */
 const lastRecoveryAt = new WeakMap();
+
+/**
+ * Debounce window for refresh + admission recovery after handshake failure (BUG-S03).
+ * Rapid failures within this window are dropped to avoid refresh/admission storms.
+ * A subsequent failure after the window elapses may run recovery again (intentional).
+ */
 const DEBOUNCE_MS = 400;
 
 /**

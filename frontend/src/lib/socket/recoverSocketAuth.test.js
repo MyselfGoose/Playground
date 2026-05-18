@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { recoverSocketAuthAfterHandshakeFailure } from "./recoverSocketAuth.js";
 
 describe("recoverSocketAuthAfterHandshakeFailure", () => {
@@ -26,5 +26,30 @@ describe("recoverSocketAuthAfterHandshakeFailure", () => {
     await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
     expect(disconnect).toHaveBeenCalled();
     expect(connect).toHaveBeenCalled();
+  });
+
+  describe("debounce window", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("runs recovery only once within DEBOUNCE_MS, then again after the window", async () => {
+      const apiFetch = vi.fn().mockResolvedValue({});
+      const admission = vi.fn().mockResolvedValue("tok");
+      const socket = { connected: false, connect: vi.fn(), auth: {} };
+
+      const first = recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
+      const second = recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
+      await Promise.all([first, second]);
+      expect(apiFetch).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(400);
+      await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
+      expect(apiFetch).toHaveBeenCalledTimes(2);
+    });
   });
 });

@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../lib/context/UserContext.jsx";
+import { useTheme } from "../lib/theme/ThemeContext.jsx";
 import { Avatar } from "./Avatar.jsx";
 
 const links = [
@@ -21,48 +22,7 @@ export function Navbar() {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    const html = document.documentElement;
-    const saved = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-    if (saved === "light") {
-      html.classList.add("light");
-      html.classList.remove("dark");
-      setIsDark(false);
-    } else if (saved === "dark") {
-      html.classList.add("dark");
-      html.classList.remove("light");
-      setIsDark(true);
-    } else if (prefersDark) {
-      html.classList.add("dark");
-      html.classList.remove("light");
-      setIsDark(true);
-    } else {
-      html.classList.add("light");
-      html.classList.remove("dark");
-      setIsDark(false);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const html = document.documentElement;
-    const currentDark = html.classList.contains("dark");
-
-    if (currentDark) {
-      html.classList.remove("dark");
-      html.classList.add("light");
-      localStorage.setItem("theme", "light");
-      setIsDark(false);
-    } else {
-      html.classList.remove("light");
-      html.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-      setIsDark(true);
-    }
-  };
+  const { isDark, toggleTheme, ready: themeReady } = useTheme();
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted-bright/30 shadow-sm pt-[env(safe-area-inset-top)]">
@@ -158,9 +118,18 @@ export function Navbar() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright"
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              themeReady
+                ? isDark
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+                : "Switch theme"
+            }
+            suppressHydrationWarning
           >
-            <span className="text-lg">{isDark ? "☀️" : "🌙"}</span>
+            <span className="text-lg" suppressHydrationWarning>
+              {themeReady ? (isDark ? "☀️" : "🌙") : "🌙"}
+            </span>
           </motion.button>
 
           <button
