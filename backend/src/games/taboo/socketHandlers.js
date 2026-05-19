@@ -106,6 +106,12 @@ export function installTabooHandlers({ socket, registry, logger }) {
     return { room: registry.snapshotFor(socket) };
   });
 
+  register(socket, logger, "hold_turn_start", null, async () => {
+    const { room, reason } = registry.applyAction(socket, "hold_turn_start", {});
+    registry.emitRoom(room.code, reason);
+    return { room: registry.snapshotFor(socket) };
+  });
+
   register(socket, logger, "submit_guess", tabooSubmitGuessSchema, async (data) => {
     const { room, reason } = registry.applyAction(socket, "submit_guess", data);
     registry.emitRoom(room.code, reason);

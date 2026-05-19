@@ -22,17 +22,24 @@ export function TabooProvider({ children }) {
     !getSocketBase() ? "MISSING_SOCKET_URL" : null,
   );
   const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
   const applyRoomSnapshot = useCallback((incomingRoom) => {
     if (!incomingRoom || typeof incomingRoom !== "object") return;
+    const sn = /** @type {{ serverNow?: number }} */ (incomingRoom).serverNow;
+    if (typeof sn === "number") {
+      setServerOffsetMs(sn - Date.now());
+    }
     const nextVersion = Number(incomingRoom.stateVersion || 0);
     const prevVersion = Number(roomVersionRef.current || 0);
     if (nextVersion < prevVersion) return;
     roomVersionRef.current = nextVersion;
     setRoom(incomingRoom);
   }, []);
+
+  const serverNow = useCallback(() => Date.now() + serverOffsetMs, [serverOffsetMs]);
 
   const resyncRoom = useCallback(
     (socket) => {
@@ -115,6 +122,7 @@ export function TabooProvider({ children }) {
       setReconnectedAt(null);
       setRoom(null);
       roomVersionRef.current = 0;
+      setServerOffsetMs(0);
       setCategories([]);
     };
   }, [loading, user?.id, applyRoomSnapshot, resyncRoom]);
@@ -160,6 +168,8 @@ export function TabooProvider({ children }) {
     socketError,
     socketErrorCode,
     reconnectedAt,
+    serverOffsetMs,
+    serverNow,
     localUserId: user?.id ?? null,
     localUsername: user?.username ?? "",
     categories,
@@ -170,8 +180,10 @@ export function TabooProvider({ children }) {
     setReady: (ready) => send("set_ready", { ready }),
     changeTeam: (team) => send("change_team", { team }),
     setCategories: (categoryMode, categoryIds) => send("set_categories", { categoryMode, categoryIds }),
+    /** TD-18: Game starts via setReady → maybeStartIfReady; host start_game is unused by UI. */
     startGame: () => send("start_game", {}),
     startTurn: () => send("start_turn", {}),
+    holdTurnStart: () => send("hold_turn_start", {}),
     submitGuess: (guess) => send("submit_guess", { guess }),
     skipCard: () => send("skip_card", {}),
     tabooCalled: () => send("taboo_called", {}),
@@ -180,7 +192,7 @@ export function TabooProvider({ children }) {
     reviewVote: (vote) => send("review_vote", { vote }),
     reviewContinue: () => send("review_continue", {}),
     retryConnection,
-  }), [room, connectionState, socketError, socketErrorCode, reconnectedAt, retryConnection, user?.id, user?.username, categories, createRoom, joinRoom, leaveRoom, getCategories, send]);
+  }), [room, connectionState, socketError, socketErrorCode, reconnectedAt, serverOffsetMs, serverNow, retryConnection, user?.id, user?.username, categories, createRoom, joinRoom, leaveRoom, getCategories, send]);
 
   return <TabooContext.Provider value={value}>{children}</TabooContext.Provider>;
 }

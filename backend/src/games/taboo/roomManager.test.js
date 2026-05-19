@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { SNAPSHOT_HISTORY_MAX } from "./gameManager.js";
 import { createTabooRoomManager } from "./roomManager.js";
 
 function makeSocket(id, userId, username) {
@@ -224,4 +225,94 @@ test("hard leave with another active socket keeps player in room", async () => {
   manager.leaveRoom(guestA, { hardLeave: true });
   assert.equal(room.players.some((p) => p.userId === "u2"), true);
   assert.equal(room.players.find((p) => p.userId === "u2")?.connected, true);
+});
+
+test("snapshot caps history at SNAPSHOT_HISTORY_MAX and includes serverNow", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const host = makeSocket("s1", "u1", "host");
+  const guest = makeSocket("s2", "u2", "guest");
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+  const room = manager.createRoom(host, "u1", "host", {});
+  manager.joinRoom(room.code, guest, "u2", "guest");
+  manager.changeTeam(guest, "B");
+  manager.setReady(host, true);
+  manager.setReady(guest, true);
+
+  for (let i = 0; i < SNAPSHOT_HISTORY_MAX + 10; i += 1) {
+    room.game.history.push({ action: "test_fill", at: Date.now(), team: null, playerId: null, playerName: null });
+  }
+  assert.ok(room.game.history.length > SNAPSHOT_HISTORY_MAX);
+
+  const snap = manager.snapshotFor(host);
+  assert.equal(snap.game.history.length, SNAPSHOT_HISTORY_MAX);
+  assert.equal(typeof snap.serverNow, "number");
+  assert.ok(snap.settings.autoStartTurn);
+});
+
+test("turn auto-starts after countdown when autoStartTurn enabled", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const host = makeSocket("s1", "u1", "host");
+  const guest = makeSocket("s2", "u2", "guest");
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+  const room = manager.createRoom(host, "u1", "host", {});
+  manager.joinRoom(room.code, guest, "u2", "guest");
+  manager.changeTeam(guest, "B");
+  manager.setReady(host, true);
+  manager.setReady(guest, true);
+  assert.equal(room.game.status, "waiting_to_start_turn");
+  assert.ok(typeof room.game.phaseEndsAt === "number");
+
+  room.game.phaseEndsAt = Date.now() - 1;
+  const updates = manager.tick();
+  assert.ok(updates.some((u) => u.reason === "turn_started"));
+  assert.equal(room.game.status, "turn_in_progress");
+});
+
+test("hold_turn_start prevents auto-start until manual start_turn", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const host = makeSocket("s1", "u1", "host");
+  const guest = makeSocket("s2", "u2", "guest");
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+  const room = manager.createRoom(host, "u1", "host", {});
+  manager.joinRoom(room.code, guest, "u2", "guest");
+  manager.changeTeam(guest, "B");
+  manager.setReady(host, true);
+  manager.setReady(guest, true);
+
+  manager.applyAction(host, "hold_turn_start", {});
+  assert.equal(room.game.turnStartHeld, true);
+  room.game.phaseEndsAt = Date.now() - 1;
+  manager.tick();
+  assert.equal(room.game.status, "waiting_to_start_turn");
+
+  manager.applyAction(host, "start_turn", {});
+  assert.equal(room.game.status, "turn_in_progress");
+});
+
+test("autoStartTurn false requires manual start_turn", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const host = makeSocket("s1", "u1", "host");
+  const guest = makeSocket("s2", "u2", "guest");
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+  const room = manager.createRoom(host, "u1", "host", { autoStartTurn: false });
+  manager.joinRoom(room.code, guest, "u2", "guest");
+  manager.changeTeam(guest, "B");
+  manager.setReady(host, true);
+  manager.setReady(guest, true);
+  assert.equal(room.settings.autoStartTurn, false);
+  assert.equal(room.game.phaseEndsAt, null);
+
+  manager.tick();
+  assert.equal(room.game.status, "waiting_to_start_turn");
+
+  manager.applyAction(host, "start_turn", {});
+  assert.equal(room.game.status, "turn_in_progress");
 });

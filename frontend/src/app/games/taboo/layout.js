@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { TabooProvider } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
 import { AuthGate } from "../../../components/AuthGate.jsx";
@@ -11,7 +12,9 @@ export default function TabooLayout({ children }) {
       <AuthGate loginNext="/games/taboo">
         <TabooProvider>
           <TabooConnectionBanner />
-          {children}
+          <Suspense fallback={<div className="px-4 py-20 text-center font-semibold text-foreground/60">Loading…</div>}>
+            {children}
+          </Suspense>
         </TabooProvider>
       </AuthGate>
     </ErrorBoundary>

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const tabooCreateRoomSchema = z.object({
   roundCount: z.number().int().min(1).max(10).optional(),
   roundDurationSeconds: z.number().int().min(30).max(180).optional(),
+  autoStartTurn: z.boolean().optional(),
   categoryMode: z.enum(["all", "single"]).optional(),
   categoryIds: z.array(z.number().int().positive()).optional(),
 });

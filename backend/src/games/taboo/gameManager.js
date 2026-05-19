@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const TURN_READY_DELAY_MS = 3000;
 const NEXT_ROUND_DELAY_MS = 10000;
+/** Max history entries included per snapshot (TD-11). */
+export const SNAPSHOT_HISTORY_MAX = 40;
 /** Resolve in-progress review if voting does not finish in time. */
 export const TABOO_REVIEW_TIMEOUT_MS = 15_000;
 
@@ -120,7 +122,40 @@ function drawNextCard(room) {
   return game.currentCard;
 }
 
+function autoStartTurnEnabled(room) {
+  return room.settings?.autoStartTurn !== false;
+}
+
 export function createGameManager() {
+  function scheduleTurnAutoStart(room) {
+    const game = room.game;
+    if (!game || game.status !== "waiting_to_start_turn") return;
+    if (!autoStartTurnEnabled(room) || game.turnStartHeld) {
+      game.phaseEndsAt = null;
+      return;
+    }
+    game.phaseEndsAt = nowMs() + TURN_READY_DELAY_MS;
+  }
+
+  function beginTurn(room, userId) {
+    const game = room.game;
+    if (!game || game.status !== "waiting_to_start_turn") {
+      throw new TabooError("Turn not ready.", "TURN_NOT_READY");
+    }
+    const player = room.players.find((p) => p.userId === userId);
+    if (!player) throw new TabooError("Player not in room.", "PLAYER_NOT_FOUND");
+    if (game.activeTurn?.playerId !== userId) {
+      throw new TabooError("Only clue giver can start turn.", "NOT_CLUE_GIVER");
+    }
+    game.status = "turn_in_progress";
+    game.turnStartsAt = nowMs();
+    game.turnEndsAt = nowMs() + room.settings.roundDurationSeconds * 1000;
+    game.phaseEndsAt = null;
+    game.turnStartHeld = false;
+    recordHistory(game, { action: "turn_started", team: game.activeTeam, playerId: userId, playerName: player.username });
+    return "turn_started";
+  }
+
   function initializeGame(room) {
     if (room.players.length < 2) throw new TabooError("At least two players are required.", "NOT_ENOUGH_PLAYERS");
     if (!room.players.some((p) => p.team === "A") || !room.players.some((p) => p.team === "B")) {
@@ -152,8 +187,10 @@ export function createGameManager() {
       review: null,
       history: [],
       lastTurnSummary: null,
+      turnStartHeld: false,
     };
     recordHistory(room.game, { action: "game_started", team: null, playerId: null, playerName: null });
+    scheduleTurnAutoStart(room);
   }
 
   function recordHistory(game, entry) {
@@ -275,14 +312,17 @@ export function createGameManager() {
     if (!game || game.status === "finished") throw new TabooError("Game is not active.", "GAME_NOT_ACTIVE");
 
     if (action === "start_turn") {
+      return beginTurn(room, userId);
+    }
+
+    if (action === "hold_turn_start") {
       if (game.status !== "waiting_to_start_turn") throw new TabooError("Turn not ready.", "TURN_NOT_READY");
-      if (game.activeTurn?.playerId !== userId) throw new TabooError("Only clue giver can start turn.", "NOT_CLUE_GIVER");
-      game.status = "turn_in_progress";
-      game.turnStartsAt = nowMs();
-      game.turnEndsAt = nowMs() + room.settings.roundDurationSeconds * 1000;
+      if (game.activeTurn?.playerId !== userId) throw new TabooError("Only clue giver can hold turn start.", "NOT_CLUE_GIVER");
+      if (!autoStartTurnEnabled(room)) throw new TabooError("Auto-start is disabled.", "AUTO_START_DISABLED");
+      game.turnStartHeld = true;
       game.phaseEndsAt = null;
-      recordHistory(game, { action: "turn_started", team: game.activeTeam, playerId: userId, playerName: player.username });
-      return "turn_started";
+      recordHistory(game, { action: "turn_start_held", team: game.activeTeam, playerId: userId, playerName: player.username });
+      return "turn_start_held";
     }
 
     if (action === "submit_guess") {
@@ -401,6 +441,16 @@ export function createGameManager() {
         recordHistory(game, { action: "turn_skipped_disconnected", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
         return advancePostTurn(room, "turn_skipped_disconnected");
       }
+      if (
+        autoStartTurnEnabled(room) &&
+        !game.turnStartHeld &&
+        typeof game.phaseEndsAt === "number" &&
+        game.phaseEndsAt <= now &&
+        game.activeTurn?.playerId
+      ) {
+        beginTurn(room, game.activeTurn.playerId);
+        return "turn_started";
+      }
     }
     if (game.status === "turn_in_progress") {
       const clueGiverConnected = room.players.some((p) => p.userId === game.activeTurn?.playerId && p.connected !== false);
@@ -415,10 +465,11 @@ export function createGameManager() {
     }
     if (game.status === "between_turns" && typeof game.phaseEndsAt === "number" && game.phaseEndsAt <= now) {
       game.status = "waiting_to_start_turn";
-      game.phaseEndsAt = null;
       game.turnStartsAt = null;
       game.turnEndsAt = null;
+      game.turnStartHeld = false;
       recordHistory(game, { action: "next_turn_ready", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
+      scheduleTurnAutoStart(room);
       return "next_turn_ready";
     }
     if (game.status === "between_rounds" && typeof game.phaseEndsAt === "number" && game.phaseEndsAt <= now) {
@@ -433,10 +484,11 @@ export function createGameManager() {
       game.activeTurn = game.turnOrder[0];
       game.activeTeam = game.activeTurn.team;
       game.status = "waiting_to_start_turn";
-      game.phaseEndsAt = null;
       game.turnStartsAt = null;
       game.turnEndsAt = null;
+      game.turnStartHeld = false;
       recordHistory(game, { action: "round_started", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null, roundNumber: game.roundNumber });
+      scheduleTurnAutoStart(room);
       return "round_started";
     }
     return null;
@@ -503,6 +555,7 @@ export function createGameManager() {
       settings: room.settings,
       game: game ? {
         status: game.status,
+        turnStartHeld: Boolean(game.turnStartHeld),
         startedAt: game.startedAt,
         endedAt: game.endedAt,
         roundNumber: game.roundNumber,
@@ -522,6 +575,11 @@ export function createGameManager() {
         viewerRole: role,
         permissions: {
           canStartTurn: role === "clue_giver" && game.status === "waiting_to_start_turn",
+          canHoldTurnStart:
+            role === "clue_giver" &&
+            game.status === "waiting_to_start_turn" &&
+            autoStartTurnEnabled(room) &&
+            !game.turnStartHeld,
           canSubmitGuess: role === "teammate_guesser" && game.status === "turn_in_progress" && !reviewPaused,
           canSkipCard: role === "clue_giver" && game.status === "turn_in_progress" && !reviewPaused,
           canCallTaboo: role === "opponent_observer" && game.status === "turn_in_progress" && !game.currentCardMeta?.tabooUsed && !reviewPaused,
@@ -534,9 +592,10 @@ export function createGameManager() {
         cardVisibleToViewer: !hideCard,
         tabooUsedForCard: !!game.currentCardMeta?.tabooUsed,
         lastTurnSummary: game.lastTurnSummary || null,
-        history: game.history,
+        history: game.history.slice(-SNAPSHOT_HISTORY_MAX),
         review: reviewSnapshot,
       } : null,
+      serverNow: nowMs(),
     };
   }
 
