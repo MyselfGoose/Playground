@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { Button } from "../Button.jsx";
+import { PartyCode } from "../party/PartyCode.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
 import { MultiRaceTrack } from "./MultiRaceTrack.jsx";
@@ -19,7 +20,6 @@ export function MultiRaceRoomView({ roomCode }) {
   const {
     room,
     connected,
-    socketError,
     joinRoom,
     leaveRoom,
     setReady,
@@ -27,12 +27,12 @@ export function MultiRaceRoomView({ roomCode }) {
     finishRace,
     forceEnd,
     resetLobby,
+    kickPlayer,
     serverNow,
     typingRaceUserFacingError,
   } = useTypingRace();
   const [joinErr, setJoinErr] = useState(/** @type {string | null} */ (null));
   const [busy, setBusy] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
   /** Local snapshot the moment you complete the passage (before server ack). */
   const [raceLocalStats, setRaceLocalStats] = useState(
     /** @type {{ wpm: number; rawWpm: number; accuracy: number; errorCount: number; elapsedSec: number } | null} */ (null),
@@ -67,7 +67,7 @@ export function MultiRaceRoomView({ roomCode }) {
           return;
         }
         const errCode = /** @type {any} */ (r.error)?.code;
-        // Defense-in-depth until multi-replica + sticky sessions; see deploy-replica-limit.md.
+        // BUG-007 / multi-replica: one retry until sticky sessions or shared room store (see backend EVENTS.md).
         if (errCode === "ROOM_NOT_FOUND" && !isRetry) {
           await new Promise((resolve) => setTimeout(resolve, 450));
           if (!cancelled) {
@@ -93,6 +93,7 @@ export function MultiRaceRoomView({ roomCode }) {
   const rc = room?.raceConfig;
   const selfPlayer = players.find((p) => p.userId === selfId);
   const selfFinished = selfPlayer?.finishedAtMs != null;
+  const displayCode = String(roomCode ?? "").replace(/\D/g, "");
 
   useEffect(() => {
     if (phase !== "racing") {
@@ -128,31 +129,22 @@ export function MultiRaceRoomView({ roomCode }) {
     [finishRace],
   );
 
-  const copyRoomCode = useCallback(() => {
-    navigator.clipboard?.writeText(roomCode).then(() => {
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    });
-  }, [roomCode]);
+  const handleKick = useCallback(
+    async (targetUserId) => {
+      if (!window.confirm("Remove this player from the room?")) {
+        return;
+      }
+      setBusy(true);
+      const r = await kickPlayer(targetUserId);
+      setBusy(false);
+      if (!r.ok) {
+        alert(typingRaceUserFacingError(r.error));
+      }
+    },
+    [kickPlayer, typingRaceUserFacingError],
+  );
 
   /* ---------- loading / error states ---------- */
-
-  if (!connected && !joinErr) {
-    return (
-      <div className="multi-phase-enter mx-auto w-full max-w-2xl flex-1 px-4 py-16 text-center text-[var(--tt-ink-muted)]">
-        {socketError ? (
-          <>
-            <p className="text-red-400">{socketError}</p>
-            <Button type="button" className="mt-6" onClick={() => router.push("/games/typing-race/multi")}>
-              Back
-            </Button>
-          </>
-        ) : (
-          <div className="multi-spinner mx-auto" />
-        )}
-      </div>
-    );
-  }
 
   if (joinErr) {
     return (
@@ -165,11 +157,14 @@ export function MultiRaceRoomView({ roomCode }) {
     );
   }
 
-  if (!room || room.roomCode !== roomCode) {
+  if (!room || String(room.roomCode).replace(/\D/g, "") !== displayCode) {
     return (
-      <div className="multi-phase-enter mx-auto w-full max-w-2xl flex-1 px-4 py-16 text-center text-[var(--tt-ink-muted)]">
-        <div className="multi-spinner mx-auto mb-4" />
-        <p>Joining room&hellip;</p>
+      <div
+        className="multi-phase-enter mx-auto w-full max-w-2xl flex-1 px-4 py-16"
+        aria-busy="true"
+        aria-label="Joining room"
+      >
+        <div className="multi-spinner mx-auto" aria-hidden />
       </div>
     );
   }
@@ -178,23 +173,8 @@ export function MultiRaceRoomView({ roomCode }) {
 
   return (
     <div className="multi-phase-enter mx-auto w-full max-w-3xl flex-1 px-4 py-6">
-      {/* Header bar — always visible */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="multi-room-code-badge"
-            onClick={copyRoomCode}
-            title="Copy room code"
-          >
-            <span className="multi-room-code-label">Room</span>
-            <span className="multi-room-code-digits">{roomCode}</span>
-            <span className="multi-room-code-copy">{codeCopied ? "\u2713" : "\u2398"}</span>
-          </button>
-          {codeCopied && (
-            <span className="text-xs font-medium text-[var(--tt-accent)] multi-phase-enter">Copied!</span>
-          )}
-        </div>
+        <PartyCode code={displayCode} gameSlug="typing-race" size="sm" />
         <button
           type="button"
           className="rounded-md px-3 py-1.5 text-xs font-medium text-[var(--tt-ink-muted)] transition hover:bg-[var(--tt-bg-elevated)] hover:text-[var(--tt-ink)]"
@@ -207,7 +187,6 @@ export function MultiRaceRoomView({ roomCode }) {
         </button>
       </div>
 
-      {/* ====== LOBBY ====== */}
       {phase === "lobby" && (
         <div className="multi-phase-enter mt-6 space-y-6">
           <div className="text-center">
@@ -215,21 +194,15 @@ export function MultiRaceRoomView({ roomCode }) {
               Waiting for players
             </p>
             <p className="mt-1 text-xs text-[var(--tt-ink-faint)]">
-              Share the room code to invite friends
+              Share the invite link or room code
             </p>
           </div>
 
           <ul className="space-y-2">
             {players.map((p) => (
-              <li
-                key={p.userId}
-                className="multi-player-card"
-              >
+              <li key={p.userId} className="multi-player-card">
                 <div className="flex items-center gap-2.5">
-                  <span
-                    className="multi-player-dot"
-                    style={{ backgroundColor: p.color }}
-                  />
+                  <span className="multi-player-dot" style={{ backgroundColor: p.color }} />
                   <span className="font-medium text-[var(--tt-ink)]" style={{ color: p.color }}>
                     {p.displayName}
                   </span>
@@ -237,9 +210,21 @@ export function MultiRaceRoomView({ roomCode }) {
                     <span className="multi-badge multi-badge--host">host</span>
                   )}
                 </div>
-                <span className={`multi-badge ${p.ready ? "multi-badge--ready" : "multi-badge--waiting"}`}>
-                  {p.ready ? "Ready" : "Not ready"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`multi-badge ${p.ready ? "multi-badge--ready" : "multi-badge--waiting"}`}>
+                    {p.ready ? "Ready" : "Not ready"}
+                  </span>
+                  {isHost && p.userId !== selfId && (
+                    <button
+                      type="button"
+                      className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400/90 hover:bg-red-500/10 hover:text-red-300"
+                      disabled={busy}
+                      onClick={() => void handleKick(p.userId)}
+                    >
+                      Kick
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -278,17 +263,12 @@ export function MultiRaceRoomView({ roomCode }) {
         </div>
       )}
 
-      {/* ====== COUNTDOWN ====== */}
       {phase === "countdown" && room.raceStartAtMs != null && (
         <div className="multi-phase-enter">
-          <MultiRaceCountdown
-            raceStartAtMs={room.raceStartAtMs}
-            serverNow={serverNow}
-          />
+          <MultiRaceCountdown raceStartAtMs={room.raceStartAtMs} serverNow={serverNow} />
         </div>
       )}
 
-      {/* ====== RACING ====== */}
       {phase === "racing" && rc && (
         <div className="multi-phase-enter mt-4">
           <MultiRaceTrack players={players} selfId={selfId} />
@@ -329,7 +309,6 @@ export function MultiRaceRoomView({ roomCode }) {
         </div>
       )}
 
-      {/* ====== FINISHED / RESULTS ====== */}
       {phase === "finished" && (
         <div className="multi-phase-enter mt-6">
           <div className="text-center">
@@ -354,31 +333,37 @@ export function MultiRaceRoomView({ roomCode }) {
             ))}
           </div>
 
+          {!isHost && (
+            <p className="mt-6 text-center text-sm text-[var(--tt-ink-muted)]">
+              Waiting for host to start another race
+            </p>
+          )}
+
           <ResultActions
             className="mt-8"
             linkClassName="text-[var(--tt-accent)] hover:underline"
-            playAgainLabel={isHost ? "Play again" : "Back to lobby"}
+            playAgainLabel={isHost ? "Run it back" : undefined}
             onPlayAgain={
               isHost
                 ? async () => {
                     setBusy(true);
-                    await resetLobby();
+                    const r = await resetLobby();
                     setBusy(false);
+                    if (!r.ok) {
+                      alert(typingRaceUserFacingError(r.error));
+                    }
                   }
                 : undefined
             }
-            playAgainHref={isHost ? undefined : "/games/typing-race/multi"}
             playAgainDisabled={busy}
             secondaryHref={isHost ? "/games/typing-race/multi" : undefined}
-            secondaryLabel={isHost ? "Back to lobby" : undefined}
+            secondaryLabel={isHost ? "Leave room" : undefined}
           />
         </div>
       )}
     </div>
   );
 }
-
-/* ---------- Sub-components ---------- */
 
 function SelfFinishCard({ player, localStats, raceStartAtMs }) {
   if (!player && !localStats) return null;
@@ -472,10 +457,7 @@ function ResultCard({ player, position, isSelf, isWinner, raceStartAtMs }) {
         <span className={`multi-result-rank ${isWinner ? "multi-result-rank--gold" : ""}`}>
           {isDnf ? "DNF" : p.rank != null ? `#${p.rank}` : "\u2014"}
         </span>
-        <span
-          className="multi-player-dot"
-          style={{ backgroundColor: p.color }}
-        />
+        <span className="multi-player-dot" style={{ backgroundColor: p.color }} />
         <span className="font-medium text-[var(--tt-ink)]">
           {p.displayName}
           {isSelf && <span className="ml-1.5 text-[10px] text-[var(--tt-ink-muted)]">(you)</span>}
@@ -484,9 +466,7 @@ function ResultCard({ player, position, isSelf, isWinner, raceStartAtMs }) {
       <div className="flex items-center gap-4 text-right">
         <StatMini label="WPM" value={Math.round(p.wpm ?? 0)} highlight />
         <StatMini label="Errors" value={p.errorLen ?? 0} />
-        {elapsed != null && (
-          <StatMini label="Time" value={`${elapsed.toFixed(1)}s`} />
-        )}
+        {elapsed != null && <StatMini label="Time" value={`${elapsed.toFixed(1)}s`} />}
       </div>
     </div>
   );
@@ -496,7 +476,9 @@ function StatMini({ label, value, highlight }) {
   return (
     <div className="min-w-[3rem]">
       <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--tt-ink-faint)]">{label}</p>
-      <p className={`font-mono text-sm tabular-nums leading-tight ${highlight ? "text-[var(--tt-ink-strong)]" : "text-[var(--tt-ink)]"}`}>
+      <p
+        className={`font-mono text-sm tabular-nums leading-tight ${highlight ? "text-[var(--tt-ink-strong)]" : "text-[var(--tt-ink)]"}`}
+      >
         {value}
       </p>
     </div>

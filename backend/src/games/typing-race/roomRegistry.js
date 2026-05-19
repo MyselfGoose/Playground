@@ -113,6 +113,65 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
    * @param {string} userId
    * @param {string} username
    */
+  /**
+   * Host removes a player from the lobby (hard leave + optional disconnected row).
+   * @param {import('socket.io').Socket} socket
+   * @param {string} targetUserId
+   */
+  function kickPlayer(socket, targetUserId) {
+    const room = getRoomForSocket(socket);
+    if (!room) {
+      const err = new Error("Not in a room");
+      /** @type {any} */ (err).code = "NOT_IN_ROOM";
+      throw err;
+    }
+    const hostId = /** @type {string} */ (socket.data.userId);
+    if (hostId !== room.hostUserId) {
+      const err = new Error("Only host can kick");
+      /** @type {any} */ (err).code = "FORBIDDEN";
+      throw err;
+    }
+    if (room.phase !== "lobby") {
+      const err = new Error("Can only kick in lobby");
+      /** @type {any} */ (err).code = "BAD_PHASE";
+      throw err;
+    }
+    if (targetUserId === hostId) {
+      const err = new Error("Cannot kick yourself");
+      /** @type {any} */ (err).code = "VALIDATION_ERROR";
+      throw err;
+    }
+    if (!room.players.has(targetUserId)) {
+      const err = new Error("Player not in room");
+      /** @type {any} */ (err).code = "VALIDATION_ERROR";
+      throw err;
+    }
+
+    const roomCode = room.roomCode;
+    for (const [sid, code] of socketToRoom) {
+      if (code !== roomCode) {
+        continue;
+      }
+      const targetSocket = typingNs.sockets.get(sid);
+      if (targetSocket?.data?.userId !== targetUserId) {
+        continue;
+      }
+      socketToRoom.delete(sid);
+      targetSocket.leave(roomCode);
+      targetSocket.emit("typing_kicked", { roomCode });
+      room.removeSocket(targetSocket, { hardLeave: true });
+    }
+    if (room.players.has(targetUserId)) {
+      room.kickUser(targetUserId);
+    }
+    room.emitRoom();
+    if (room.players.size === 0) {
+      room.destroy();
+      rooms.delete(roomCode);
+    }
+    return room;
+  }
+
   function joinRoom(code, socket, userId, username) {
     const digits = String(code ?? "").replace(/\D/g, "");
     if (digits.length !== TYPING_RACE_ROOM_CODE_LEN) {
@@ -164,6 +223,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     getRoomForSocket,
     createRoom,
     joinRoom,
+    kickPlayer,
     shutdown,
   };
 }

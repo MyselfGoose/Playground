@@ -388,6 +388,16 @@ export function TypingRaceProvider({ children }) {
       });
       socket.on("typing_player_finished", onRoom);
       socket.on("typing_race_finished", onRoom);
+
+      const onKicked = () => {
+        if (cancelled) {
+          return;
+        }
+        clearStoredTypingRoomCode();
+        setRoom(null);
+        router.push("/games/typing-race/multi");
+      };
+      socket.on("typing_kicked", onKicked);
     } catch (e) {
       if (!cancelled) {
         const mapped =
@@ -414,7 +424,7 @@ export function TypingRaceProvider({ children }) {
       setRoom(null);
       setSocketLifecycle("DISCONNECTED");
     };
-  }, [authLoading, userId, applyRoom]);
+  }, [authLoading, userId, applyRoom, router]);
 
   const serverNow = useCallback(
     () => Date.now() + serverOffsetMs,
@@ -483,8 +493,19 @@ export function TypingRaceProvider({ children }) {
   }, [emitAck]);
 
   const resetLobby = useCallback(async () => {
-    return emitAck("typing_reset_lobby", {});
-  }, [emitAck]);
+    const result = await emitAck("typing_reset_lobby", {});
+    if (result.ok && result.data?.room) {
+      applyRoom(result.data.room);
+    }
+    return result;
+  }, [emitAck, applyRoom]);
+
+  const kickPlayer = useCallback(
+    async (targetUserId) => {
+      return emitAck("typing_kick_player", { targetUserId });
+    },
+    [emitAck],
+  );
 
   const retryConnection = useCallback(() => {
     socketRef.current?.connect();
@@ -512,6 +533,7 @@ export function TypingRaceProvider({ children }) {
       reportSoloComplete,
       forceEnd,
       resetLobby,
+      kickPlayer,
       retryConnection,
       router,
     }),
@@ -536,6 +558,7 @@ export function TypingRaceProvider({ children }) {
       reportSoloComplete,
       forceEnd,
       resetLobby,
+      kickPlayer,
       router,
     ],
   );

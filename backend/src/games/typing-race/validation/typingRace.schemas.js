@@ -13,6 +13,10 @@ export const typingSetReadySchema = z.object({
   ready: z.boolean(),
 });
 
+export const typingKickPlayerSchema = z.object({
+  targetUserId: z.string().min(1),
+});
+
 export const typingProgressSchema = z.object({
   cursorDisplay: z.number().int().min(0).max(200_000),
   cursor: z.number().int().min(0).max(200_000),

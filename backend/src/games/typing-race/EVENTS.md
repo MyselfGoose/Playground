@@ -15,12 +15,14 @@ All client→server events use an **ack** callback: `{ ok: true, data }` or `{ o
 | `typing_finish` | `{}` | Client finished passage. |
 | `typing_force_end` | `{}` | Host only; ends race early. |
 | `typing_reset_lobby` | `{}` | Host only; back to lobby for replay. |
+| `typing_kick_player` | `{ targetUserId: string }` | Host only; lobby only; hard-removes target. |
 
 ## Server → client
 
 | Event | Payload |
 |-------|---------|
 | `typing_room_updated` | `{ room }` |
+| `typing_kicked` | `{ roomCode }` | Sent to the kicked socket before room leave. |
 | `typing_countdown_started` | `{ room }` |
 | `typing_race_started` | `{ room }` |
 | `typing_peer_progress` | `{ roomCode, userId, cursorDisplay, wpm, progress01, serverTs }` |
@@ -54,6 +56,12 @@ Rooms live in an **in-memory** registry inside each Node process (`roomRegistry.
 4. Cross-site cookies: use appropriate `SameSite` / HTTPS so the access token cookie reaches the socket handshake (`typingRaceSocket.js` reads the same cookie as NPAT).
 
 **Horizontal scaling (future):** add `@socket.io/redis-adapter` (or similar) for multi-node fan-out **and** move room state to Redis or another shared store; until then, treat typing-race as single-instance.
+
+## Idempotent join
+
+- **Same socket, same room:** `joinRoom` skips `leaveRoom` when `socketToRoom.get(socket.id)` already equals the target code (`alreadyInThisRoom`). Re-calling `typing_join_room` after `typing_create_room` on one connection must not destroy a solo lobby.
+- **Soft disconnect, new socket:** `onSocketDisconnect` uses `hardLeave: false` in lobby so the player row stays; `typing_join_room` with the same `userId` reattaches without `ROOM_NOT_FOUND`.
+- **Multi-replica:** Without sticky sessions, create and join may hit different processes → `ROOM_NOT_FOUND`. Frontend may retry once after a short delay (see BUG-007).
 
 ## Client join quirk (mitigated)
 

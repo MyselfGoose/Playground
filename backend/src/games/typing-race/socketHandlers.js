@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   typingJoinRoomSchema,
+  typingKickPlayerSchema,
   typingProgressSchema,
   typingSetReadySchema,
 } from "./validation/typingRace.schemas.js";
@@ -165,6 +166,14 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
     handler: async () => {
       const room = requireRoom();
       room.resetLobby(userId);
+      return { room: room.toPublicSnapshot() };
+    },
+  });
+
+  register("typing_kick_player", {
+    schema: typingKickPlayerSchema,
+    handler: async ({ data }) => {
+      const room = registry.kickPlayer(socket, data.targetUserId);
       return { room: room.toPublicSnapshot() };
     },
   });

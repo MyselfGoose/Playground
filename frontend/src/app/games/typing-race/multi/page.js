@@ -1,18 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useTypingRace } from "../../../../lib/typing-race/TypingRaceSocketContext.jsx";
+import { normalizePartyCode } from "../../../../lib/party/buildInviteUrl.js";
 import { Button } from "../../../../components/Button.jsx";
 
 export default function TypingMultiHubPage() {
   const router = useRouter();
-  const { createRoom, joinRoom, connected, socketError, typingRaceUserFacingError } =
-    useTypingRace();
+  const searchParams = useSearchParams();
+  const { createRoom, joinRoom, connected, typingRaceUserFacingError } = useTypingRace();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(/** @type {string | null} */ (null));
+
+  useEffect(() => {
+    const invite = searchParams.get("code");
+    if (!invite) {
+      return;
+    }
+    const digits = normalizePartyCode(invite).replace(/\D/g, "").slice(0, 6);
+    if (digits.length === 6) {
+      setCode(digits);
+    }
+  }, [searchParams]);
 
   return (
     <div className="multi-phase-enter mx-auto w-full max-w-2xl flex-1 px-4 py-12">
@@ -22,9 +34,7 @@ export default function TypingMultiHubPage() {
       <h1 className="mt-2 text-center font-sans text-2xl font-bold text-[var(--tt-ink-strong)]">
         Typing race
       </h1>
-      {(socketError || err) && (
-        <p className="mt-2 text-center text-sm text-red-400">{err ?? socketError}</p>
-      )}
+      {err && <p className="mt-2 text-center text-sm text-red-400">{err}</p>}
 
       <div className="mt-10 space-y-6">
         <Button
