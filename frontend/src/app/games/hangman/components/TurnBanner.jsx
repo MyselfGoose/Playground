@@ -20,6 +20,8 @@ export function TurnBanner({ activeUsername, isMyTurn, secondsRemaining }) {
           : "border-foreground/10 bg-muted-bright/20"
       }`}
       role="status"
+      aria-live="polite"
+      aria-atomic="true"
     >
       <Avatar username={activeUsername} size="sm" />
       <div className="min-w-0 flex-1">

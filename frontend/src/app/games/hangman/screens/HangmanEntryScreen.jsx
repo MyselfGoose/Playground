@@ -1,25 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../../../../components/Button.jsx";
+import { PageHeader } from "../../../../components/PageHeader.jsx";
+import { Card } from "../../../../components/ui/Card.jsx";
+import { GameRulesDrawer } from "../../../../components/game/GameRulesDrawer.jsx";
 import { HangmanShell } from "../components/HangmanShell.jsx";
 import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
 import { normalizePartyCode } from "../../../../lib/party/buildInviteUrl.js";
-import { GameRulesDrawer } from "../../../../components/game/GameRulesDrawer.jsx";
 
 export function HangmanEntryScreen() {
   const searchParams = useSearchParams();
   const inviteCodeParam = searchParams.get("code") ?? "";
   const normalizedInvite = inviteCodeParam ? normalizePartyCode(inviteCodeParam).slice(0, 4) : "";
 
-  const { connected, connectionState, socketError, isSyncing } = useHangmanRoom("entry");
+  const { connected, socketError } = useHangmanRoom("entry");
   const { error, createLobby, joinLobby } = useHangmanActions();
   const [joinCode, setJoinCode] = useState(normalizedInvite);
   const joinInputRef = useRef(/** @type {HTMLInputElement | null} */ (null));
+  const createSectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   useEffect(() => {
     if (!normalizedInvite) return;
@@ -34,25 +37,34 @@ export function HangmanEntryScreen() {
 
   const hasInviteLink = normalizedInvite.length > 0;
 
+  function scrollToCreate() {
+    createSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <HangmanShell>
       <GameRulesDrawer gameId="hangman" title="How to play Hangman">
-        <p>Take turns setting a word and guessing letters one at a time.</p>
-        <p>Wrong guesses add to the figure — guess the word before the drawing is complete.</p>
-        <p>Ready up in the lobby when everyone has joined; the host can start when all players are ready.</p>
+        <p>Take turns setting a secret word and guessing letters one at a time.</p>
+        <p>
+          Each round, one player is the <strong>setter</strong> and picks a word; everyone else guesses.
+          The setter role rotates each round.
+        </p>
+        <p>Wrong guesses add to the figure — guess the word before six wrong letters.</p>
+        <p>Ready up in the lobby when everyone has joined; all ready starts a short countdown.</p>
       </GameRulesDrawer>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
-        <motion.header
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-[32px] border border-foreground/10 bg-gradient-to-br from-background via-muted-bright/30 to-pastel-sky/30 p-8 shadow-[var(--shadow-card)] text-center sm:text-left"
-        >
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">Party word game</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight text-foreground sm:text-6xl">Hangman</h1>
-          <p className="mx-auto mt-4 max-w-xl text-base font-semibold text-foreground/70 sm:mx-0">
-            Take turns setting secret words and guessing letters. Six strikes and you are out.
-          </p>
-        </motion.header>
+        <PageHeader gameId="hangman" align="left" />
+
+        <div className="flex flex-wrap gap-3">
+          <Button variant="primary" className="rounded-full px-6" disabled={!connected} onClick={scrollToCreate}>
+            Play with friends
+          </Button>
+          <Link href="/games/hangman/solo">
+            <Button variant="secondary" className="rounded-full">
+              Solo practice
+            </Button>
+          </Link>
+        </div>
 
         {(socketError || error) && (
           <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">
@@ -60,13 +72,8 @@ export function HangmanEntryScreen() {
           </p>
         )}
 
-        <motion.div className="grid gap-5 sm:grid-cols-2">
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="rounded-[28px] border border-foreground/10 bg-background/95 p-6 shadow-[var(--shadow-card)]"
-          >
+        <motion.div ref={createSectionRef} className="grid gap-5 sm:grid-cols-2">
+          <Card variant="elevated">
             <h2 className="text-2xl font-black text-foreground">Create lobby</h2>
             <p className="mt-2 text-sm font-semibold text-foreground/60">Start a room and invite friends.</p>
             <Button
@@ -77,14 +84,9 @@ export function HangmanEntryScreen() {
             >
               Create lobby
             </Button>
-          </motion.section>
+          </Card>
 
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="rounded-[28px] border border-foreground/10 bg-background/95 p-6 shadow-[var(--shadow-card)]"
-          >
+          <Card variant="elevated">
             <h2 className="text-2xl font-black text-foreground">Join lobby</h2>
             {hasInviteLink ? (
               <p className="mt-2 text-sm font-semibold text-primary">Invite link detected — code filled in below.</p>
@@ -111,18 +113,13 @@ export function HangmanEntryScreen() {
             >
               Join lobby
             </Button>
-          </motion.section>
+          </Card>
         </motion.div>
 
-        <div className="flex flex-wrap items-center justify-center gap-4 sm:justify-start">
-          <Link href="/games/hangman/solo">
-            <Button variant="ghost">Solo practice</Button>
-          </Link>
-          <Link href="/games" className="text-sm font-bold text-foreground/55 hover:text-primary">
-            ← All games
-          </Link>
-        </div>
-        </div>
+        <Link href="/games" className="text-sm font-bold text-foreground/55 hover:text-primary">
+          ← All games
+        </Link>
+      </div>
     </HangmanShell>
   );
 }

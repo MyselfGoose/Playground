@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "../../../../lib/api.js";
 import { Button } from "../../../../components/Button.jsx";
+import { Card } from "../../../../components/ui/Card.jsx";
+import { PageHeader } from "../../../../components/PageHeader.jsx";
+import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 import { HangmanFigure } from "../components/HangmanFigure.jsx";
 import { HANGMAN_MAX_WRONG } from "../constants.js";
 import { LetterKeyboard } from "../components/LetterKeyboard.jsx";
@@ -30,6 +32,7 @@ export default function HangmanSoloPage() {
 
   const maxWrong = HANGMAN_MAX_WRONG;
   const guessedSet = useMemo(() => new Set(guessed), [guessed]);
+  const finished = status === "won" || status === "lost";
 
   const masked = useMemo(() => {
     if (!secret) return "";
@@ -104,21 +107,13 @@ export default function HangmanSoloPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase text-foreground/55">Solo Hangman</p>
-          <h1 className="text-3xl font-black text-foreground">Practice round</h1>
-        </div>
-        <Link href="/games/hangman" className="text-sm font-bold text-primary hover:underline">
-          Multiplayer →
-        </Link>
-      </div>
+      <PageHeader gameId="hangman" eyebrow="Solo" title="Practice round" align="left" />
 
       {error ? (
         <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">{error}</p>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-6 rounded-[28px] border border-foreground/10 bg-muted-bright/20 p-6">
+      <Card variant="elevated" className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <p className="font-mono text-2xl font-black tracking-[0.15em] text-foreground sm:text-3xl">{loading ? "…" : masked}</p>
           <p className="mt-2 text-sm font-semibold text-foreground/60">
@@ -132,30 +127,36 @@ export default function HangmanSoloPage() {
           ) : null}
         </div>
         <HangmanFigure wrongCount={wrong.length} className="h-40 w-32 text-foreground" />
-      </div>
+      </Card>
 
       <LetterKeyboard guessed={guessed} wrong={wrong} disabled={loading || status !== "playing"} onLetter={onLetter} />
 
-      <div className="flex flex-wrap gap-3">
-        <Button variant="primary" disabled={loading} onClick={() => void loadWord()}>
-          New word
-        </Button>
-        <Button
-          variant="secondary"
-          disabled={loading || !secret}
-          onClick={() => {
-            setGuessed([]);
-            setWrong([]);
-            setStatus("playing");
-            submittedResultRef.current = false;
-          }}
-        >
-          Restart same word
-        </Button>
-        <Link href="/games">
-          <Button variant="ghost">All games</Button>
-        </Link>
-      </div>
+      {finished ? (
+        <ResultActions
+          playAgainLabel="New word"
+          onPlayAgain={() => void loadWord()}
+          secondaryHref="/games/hangman"
+          secondaryLabel="Play with friends"
+        />
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          <Button variant="primary" disabled={loading} onClick={() => void loadWord()}>
+            New word
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={loading || !secret}
+            onClick={() => {
+              setGuessed([]);
+              setWrong([]);
+              setStatus("playing");
+              submittedResultRef.current = false;
+            }}
+          >
+            Restart same word
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

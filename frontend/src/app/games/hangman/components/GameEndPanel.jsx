@@ -26,10 +26,14 @@ export function GameEndPanel({ scoreRows, onPlayAgain, onReturnToLobby, onLeave,
         {scoreRows.map((row, i) => (
           <li
             key={row.uid}
-            className="flex justify-between rounded-xl bg-background/85 px-4 py-2.5 font-bold"
+            className={`flex justify-between rounded-xl px-4 py-2.5 font-bold transition-transform ${
+              i === 0
+                ? "scale-[1.02] bg-primary/20 ring-2 ring-primary/40"
+                : "bg-background/85"
+            }`}
           >
             <span>
-              #{i + 1} {row.name}
+              {i === 0 ? "🏆 " : null}#{i + 1} {row.name}
             </span>
             <span className="text-primary">{row.score.toFixed(0)}</span>
           </li>
@@ -46,15 +50,7 @@ export function GameEndPanel({ scoreRows, onPlayAgain, onReturnToLobby, onLeave,
           Leave
         </Button>
       </div>
-      <ResultActions
-        className="mt-6"
-        playAgainLabel="Play again"
-        onPlayAgain={onPlayAgain}
-        playAgainDisabled={busy}
-        secondaryLabel="Return to lobby"
-        onSecondary={onReturnToLobby}
-        secondaryDisabled={busy}
-      />
+      <ResultActions className="mt-6 border-t border-foreground/10 pt-6" />
     </motion.section>
   );
 }

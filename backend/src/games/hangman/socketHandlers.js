@@ -95,13 +95,6 @@ export function installHangmanHandlers({ socket, registry, logger }) {
     return { room: registry.snapshotForSocket(socket) };
   });
 
-  /** @deprecated Use setter_randomize_preview */
-  register(socket, logger, 'setter_request_random_word', hangmanRandomWordSchema, async (data) => {
-    const room = await registry.randomizePreview(socket, data);
-    registry.emitRoom(room.code, 'word_preview');
-    return { room: registry.snapshotForSocket(socket) };
-  });
-
   register(socket, logger, 'guess_letter', hangmanGuessLetterSchema, async (data) => {
     const room = registry.submitGuess(socket, data.letter);
     registry.emitRoom(room.code, 'guess');
@@ -114,7 +107,6 @@ export function installHangmanHandlers({ socket, registry, logger }) {
     return { room: registry.snapshotForSocket(socket) };
   });
 
-  // TODO(Phase 10): differentiate play_again vs return_to_lobby (both reset lobby today).
   register(socket, logger, 'return_to_lobby', null, async () => {
     const room = registry.returnToLobby(socket);
     registry.emitRoom(room.code, 'returned_to_lobby');

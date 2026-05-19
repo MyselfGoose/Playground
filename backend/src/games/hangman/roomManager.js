@@ -15,8 +15,9 @@ import {
   createHangmanRoom,
   guessLetter,
   nextRound,
+  playAgainSession,
   reconcileRoomAfterMembershipChange,
-  resetToLobby,
+  returnSessionToLobby,
   setterSetPreview,
   setterSubmitWord,
   skipTurn,
@@ -429,7 +430,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     trackUserSocket(socket.data.userId, socket.id);
     socket.join(normalized);
     reconcileRoomAfterMembershipChange(room);
-    if (room.lobby?.countdownEndsAt) {
+    if (!existing && room.lobby?.countdownEndsAt) {
       cancelLobbyCountdown(room);
     }
     bumpStateVersion(room);
@@ -597,14 +598,21 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   function returnToLobby(socket) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
-    resetToLobby(room);
+    returnSessionToLobby(room);
     clearRoomTimers(room.code);
     bumpStateVersion(room);
+    syncLobbyOrTurnTimers(room);
     return room;
   }
 
   function playAgain(socket) {
-    return returnToLobby(socket);
+    const room = getRoomForSocket(socket);
+    if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    playAgainSession(room);
+    clearRoomTimers(room.code);
+    bumpStateVersion(room);
+    syncLobbyOrTurnTimers(room);
+    return room;
   }
 
   function snapshotForSocket(socket) {

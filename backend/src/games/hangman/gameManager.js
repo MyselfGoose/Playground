@@ -7,6 +7,7 @@ import {
   HANGMAN_POINTS_EFFICIENCY_POOL,
   HANGMAN_POINTS_LETTER_CORRECT,
   HANGMAN_POINTS_SETTER_COMPLETE,
+  HANGMAN_SETTER_PICK_TIMEOUT_MS,
   HANGMAN_TURN_TIMEOUT_MS,
   HANGMAN_WORD_MAX,
   HANGMAN_WORD_MIN,
@@ -111,6 +112,14 @@ function initTurnState(game, room, setterId) {
   game.turnEndsAt = game.currentTurnUserId ? Date.now() + HANGMAN_TURN_TIMEOUT_MS : null;
 }
 
+function beginSetterPickPhase(game) {
+  game.setterEndsAt = Date.now() + HANGMAN_SETTER_PICK_TIMEOUT_MS;
+}
+
+function clearSetterPickPhase(game) {
+  game.setterEndsAt = null;
+}
+
 /** Skip to next guesser (AFK / timeout). */
 export function skipTurn(room) {
   const game = room.game;
@@ -162,7 +171,9 @@ export function startGame(room) {
     lastOutcome: null,
     revealedWord: null,
     abortedReason: null,
+    setterEndsAt: null,
   };
+  beginSetterPickPhase(room.game);
 }
 
 export function resetToLobby(room) {
@@ -170,6 +181,30 @@ export function resetToLobby(room) {
   room.lobby = { countdownEndsAt: null };
   for (const p of room.players) {
     p.ready = false;
+  }
+}
+
+/** End session and return to lobby; preserves lastScores on room.lobby for UI. */
+export function returnSessionToLobby(room) {
+  const lastScores =
+    room.game?.scores && Object.keys(room.game.scores).length
+      ? { ...room.game.scores }
+      : room.lobby?.lastScores ?? null;
+  resetToLobby(room);
+  if (lastScores) {
+    room.lobby.lastScores = lastScores;
+  }
+}
+
+/** After game_end: fresh series — clear game, auto-ready connected players, start lobby countdown. */
+export function playAgainSession(room) {
+  const game = room.game;
+  if (!game || game.phase !== 'game_end') {
+    throw Object.assign(new Error('Game not finished'), { code: 'INVALID_PHASE' });
+  }
+  resetToLobby(room);
+  for (const p of activePlayers(room)) {
+    p.ready = true;
   }
 }
 
@@ -219,6 +254,7 @@ export function setterSubmitWord(room, userId, rawWord) {
   game.lastOutcome = null;
   game.revealedWord = null;
   game.abortedReason = null;
+  clearSetterPickPhase(game);
   initTurnState(game, room, setter);
   game.phase = 'guessing';
 }
@@ -386,6 +422,7 @@ export function nextRound(room, hostUserId) {
   game.turnIndex = 0;
   game.currentTurnUserId = null;
   game.turnEndsAt = null;
+  beginSetterPickPhase(game);
 }
 
 export function reconcileRoomAfterMembershipChange(room) {
@@ -480,6 +517,8 @@ export function snapshotFor(room, viewerUserId) {
         room.lobby?.countdownEndsAt && room.lobby.countdownEndsAt > now
           ? Math.max(0, Math.ceil((room.lobby.countdownEndsAt - now) / 1000))
           : 0,
+      /** Final scores from last completed game when return_to_lobby was used. */
+      lastScores: room.lobby?.lastScores ? { ...room.lobby.lastScores } : null,
     },
     players: room.players.map((p) => ({
       userId: p.userId,
@@ -530,6 +569,11 @@ export function snapshotFor(room, viewerUserId) {
     turnEndsAt: game.turnEndsAt,
     turnSecondsRemaining:
       game.turnEndsAt && game.turnEndsAt > now ? Math.max(0, Math.ceil((game.turnEndsAt - now) / 1000)) : 0,
+    setterEndsAt: game.setterEndsAt ?? null,
+    setterSecondsRemaining:
+      game.setterEndsAt && game.setterEndsAt > now && game.phase === 'setter_pick'
+        ? Math.max(0, Math.ceil((game.setterEndsAt - now) / 1000))
+        : 0,
     isMyTurn: game.phase === 'guessing' && game.currentTurnUserId === viewerUserId,
   };
 

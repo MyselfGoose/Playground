@@ -7,9 +7,13 @@ import {
   createHangmanRoom,
   guessLetter,
   maskWord,
+  nextRound,
   normalizeHangmanWord,
+  playAgainSession,
+  returnSessionToLobby,
   setterSetPreview,
   setterSubmitWord,
+  snapshotFor,
   startGame,
 } from './gameManager.js';
 
@@ -83,4 +87,54 @@ test('autoAssignSetterWord submits random word and starts guessing', async (t) =
   assert.equal(ok, true);
   assert.equal(room.game?.phase, 'guessing');
   assert.equal(room.game?.secretWord, 'tiger');
+});
+
+test('startGame sets setter pick deadline', () => {
+  const room = createHangmanRoom('h1', 'Host', {});
+  room.players.push({ userId: 'g1', username: 'Guest', ready: true, connected: true });
+  room.players[0].ready = true;
+  startGame(room);
+  assert.ok(room.game.setterEndsAt > Date.now());
+  const snap = snapshotFor(room, 'h1');
+  assert.ok(snap.game.setterSecondsRemaining > 0);
+});
+
+function roomAtGameEnd() {
+  const room = createHangmanRoom('h1', 'Host', {});
+  room.players.push({ userId: 'g1', username: 'Guest', ready: true, connected: true });
+  room.players[0].ready = true;
+  startGame(room);
+  setterSubmitWord(room, 'h1', 'cats');
+  guessLetter(room, 'g1', 'c');
+  guessLetter(room, 'g1', 'a');
+  guessLetter(room, 'g1', 't');
+  guessLetter(room, 'g1', 's');
+  assert.equal(room.game.phase, 'round_end');
+  nextRound(room, 'h1');
+  setterSubmitWord(room, 'g1', 'frog');
+  guessLetter(room, 'h1', 'f');
+  guessLetter(room, 'h1', 'r');
+  guessLetter(room, 'h1', 'o');
+  guessLetter(room, 'h1', 'g');
+  assert.equal(room.game.phase, 'round_end');
+  nextRound(room, 'h1');
+  assert.equal(room.game.phase, 'game_end');
+  return room;
+}
+
+test('playAgainSession auto-readies connected players for countdown', () => {
+  const room = roomAtGameEnd();
+  playAgainSession(room);
+  assert.equal(room.game, null);
+  assert.equal(room.players.every((p) => p.ready), true);
+  assert.equal(room.lobby?.lastScores, undefined);
+});
+
+test('returnSessionToLobby clears game and preserves lastScores', () => {
+  const room = roomAtGameEnd();
+  const scores = { ...room.game.scores };
+  returnSessionToLobby(room);
+  assert.equal(room.game, null);
+  assert.equal(room.players.every((p) => !p.ready), true);
+  assert.deepEqual(room.lobby.lastScores, scores);
 });

@@ -11,7 +11,8 @@ import { useHangman } from "../../../../lib/hangman/HangmanSocketContext.jsx";
 export function useHangmanRoom(view) {
   const router = useRouter();
   const pathname = usePathname();
-  const { room, syncState, localUserId, connected, connectionState, socketError } = useHangman();
+  const { room, syncState, localUserId, connected, connectionState, socketError, reconnectedAt, roomNotice, clearRoomNotice } =
+    useHangman();
 
   const game = room?.game ?? null;
   const phase = game?.phase ?? null;
@@ -58,14 +59,12 @@ export function useHangmanRoom(view) {
         : "/games/hangman"
       : phase === "game_end"
         ? "/games/hangman/play"
-        : inLobby && !countdownActive
+        : inLobby
           ? "/games/hangman/lobby"
-          : inLobby && countdownActive
-            ? "/games/hangman/lobby"
-            : "/games/hangman/play";
+          : "/games/hangman/play";
     if (!targetRoute || pathname === targetRoute) return;
     router.replace(targetRoute);
-  }, [view, room?.code, phase, inLobby, countdownActive, syncState, pathname, router]);
+  }, [view, room?.code, phase, inLobby, syncState, pathname, router]);
 
   return {
     room,
@@ -85,5 +84,9 @@ export function useHangmanRoom(view) {
     socketError,
     syncState,
     isSyncing: syncState !== "ready",
+    reconnectedAt,
+    roomNotice,
+    clearRoomNotice,
+    lastScores: room?.lobby?.lastScores ?? null,
   };
 }

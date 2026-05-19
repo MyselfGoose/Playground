@@ -74,25 +74,9 @@ export function useHangmanActions() {
 
   const nextRound = useCallback(() => run(() => send("next_round", {})), [run, send]);
 
-  const playAgain = useCallback(
-    () =>
-      run(async () => {
-        const res = await send("play_again", {});
-        if (res.ok) router.push("/games/hangman/lobby");
-        return res;
-      }),
-    [run, send, router],
-  );
+  const playAgain = useCallback(() => run(() => send("play_again", {})), [run, send]);
 
-  const returnToLobby = useCallback(
-    () =>
-      run(async () => {
-        const res = await send("return_to_lobby", {});
-        if (res.ok) router.push("/games/hangman/lobby");
-        return res;
-      }),
-    [run, send, router],
-  );
+  const returnToLobby = useCallback(() => run(() => send("return_to_lobby", {})), [run, send]);
 
   return {
     error,

@@ -11,9 +11,10 @@ import { Button } from "../../../../components/Button.jsx";
  *   onRandomize: () => void,
  *   onSubmit: (word: string) => void,
  *   busy?: boolean,
+ *   secondsRemaining?: number,
  * }} props
  */
-export function WordPickerPanel({ preview, onRandomize, onSubmit, busy }) {
+export function WordPickerPanel({ preview, onRandomize, onSubmit, busy, secondsRemaining }) {
   const [manual, setManual] = useState("");
   const display = preview ?? manual;
   const canSubmit = Boolean(preview || (manual.trim().length >= 4 && /^[a-zA-Z]+$/.test(manual.trim())));
@@ -27,6 +28,9 @@ export function WordPickerPanel({ preview, onRandomize, onSubmit, busy }) {
       <p className="text-sm font-black uppercase tracking-wide text-foreground/60">You pick the word</p>
       <p className="mt-1 text-xs font-semibold text-foreground/55">
         Randomize until you like it, then submit when ready.
+        {typeof secondsRemaining === "number" && secondsRemaining > 0 ? (
+          <span className="mt-1 block font-black text-primary">{secondsRemaining}s to pick</span>
+        ) : null}
       </p>
 
       <motion.div

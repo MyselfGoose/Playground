@@ -22,6 +22,7 @@ export function HangmanProvider({ children }) {
     !getSocketBase() ? "MISSING_SOCKET_URL" : null,
   );
   const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
+  const [roomNotice, setRoomNotice] = useState(/** @type {string | null} */ (null));
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
   const roomCodeRef = useRef(null);
@@ -110,8 +111,29 @@ export function HangmanProvider({ children }) {
       const onRoomPayload = (payload) => {
         if (payload?.room) applyRoomSnapshot(payload.room);
       };
+      const onTurnSkipped = () => {
+        setRoomNotice("Turn skipped — time ran out");
+      };
+      const onSetterTimeout = () => {
+        setRoomNotice("Setter ran out of time — a random word was chosen");
+      };
       socket.on("room_update", onRoomPayload);
       socket.on("session_resumed", onRoomPayload);
+      socket.on("turn_skipped", onTurnSkipped);
+      socket.on("setter_timeout", onSetterTimeout);
+      socket.on("play_again", onRoomPayload);
+      socket.on("returned_to_lobby", onRoomPayload);
+
+      const prevCleanup = cleanup;
+      cleanup = () => {
+        socket.off("room_update", onRoomPayload);
+        socket.off("session_resumed", onRoomPayload);
+        socket.off("turn_skipped", onTurnSkipped);
+        socket.off("setter_timeout", onSetterTimeout);
+        socket.off("play_again", onRoomPayload);
+        socket.off("returned_to_lobby", onRoomPayload);
+        prevCleanup?.();
+      };
     } catch {
       if (!cancelled) {
         setSocketError(connectionMessage("hangman", "missing_socket_url"));
@@ -171,6 +193,8 @@ export function HangmanProvider({ children }) {
       socketError,
       socketErrorCode,
       reconnectedAt,
+      roomNotice,
+      clearRoomNotice: () => setRoomNotice(null),
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
       createRoom,
@@ -191,6 +215,7 @@ export function HangmanProvider({ children }) {
       socketError,
       socketErrorCode,
       reconnectedAt,
+      roomNotice,
       retryConnection,
       user?.id,
       user?.username,

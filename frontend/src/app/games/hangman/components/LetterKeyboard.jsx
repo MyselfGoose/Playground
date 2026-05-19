@@ -32,7 +32,7 @@ export function LetterKeyboard({ guessed, wrong, disabled, waiting, onLetter }) 
                 type="button"
                 disabled={locked || used}
                 onClick={() => onLetter(letter)}
-                className={`min-h-[44px] min-w-[2.25rem] rounded-xl px-2.5 py-2.5 text-sm font-black uppercase transition active:scale-95 sm:min-w-[2.5rem] ${
+                className={`min-h-[44px] min-w-[2.25rem] rounded-xl px-2.5 py-2.5 text-sm font-black uppercase transition motion-safe:active:scale-95 sm:min-w-[2.5rem] ${
                   used
                     ? isWrong
                       ? "bg-error/25 text-error ring-1 ring-error/40"

@@ -21,6 +21,7 @@ export function HangmanLobbyScreen() {
     connectedCount,
     localUserId,
     permissions,
+    lastScores,
   } = useHangmanRoom("lobby");
   const { error, setReady, leaveToMenu } = useHangmanActions();
 
@@ -54,6 +55,12 @@ export function HangmanLobbyScreen() {
       <AnimatePresence>
         {countdownActive ? <LobbyCountdownOverlay seconds={countdownSeconds} /> : null}
       </AnimatePresence>
+
+      {lastScores && Object.keys(lastScores).length > 0 ? (
+        <p className="mx-auto mb-4 max-w-lg rounded-xl border border-muted-bright/50 bg-muted-bright/20 px-4 py-3 text-center text-sm font-semibold text-foreground/70">
+          Previous game scores saved — ready up to start a new match.
+        </p>
+      ) : null}
 
       <PartyLobby
         gameSlug="hangman"
