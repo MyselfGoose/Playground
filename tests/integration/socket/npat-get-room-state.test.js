@@ -83,7 +83,44 @@ describe('NPAT get_room_state', () => {
     });
     assert.equal(state?.ok, true);
     assert.equal(state?.data?.room?.code, created.data.room.code);
+    assert.equal(state?.data?.room?.mode, 'free-for-all');
+    assert.equal(state?.data?.room?.state, 'WAITING');
 
+    const roomCode = created.data.room.code;
     socket.disconnect();
+
+    const socket2 = ioClient(`${stack.baseUrl}/npat`, {
+      path: '/socket.io',
+      auth: { token },
+      transports: ['websocket'],
+    });
+
+    const resumedPayload = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('reconnect timeout')), 10000);
+      socket2.once('connect', () => {
+        socket2.once('session_resumed', (payload) => {
+          clearTimeout(t);
+          resolve(payload);
+        });
+      });
+      socket2.once('connect_error', (e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+    });
+
+    assert.equal(resumedPayload?.room?.code, roomCode);
+    assert.equal(resumedPayload?.room?.state, 'WAITING');
+
+    const stateAfterReconnect = await new Promise((resolve, reject) => {
+      socket2.timeout(5000).emit('get_room_state', {}, (err, res) => {
+        if (err) reject(err);
+        else resolve(res);
+      });
+    });
+    assert.equal(stateAfterReconnect?.ok, true);
+    assert.equal(stateAfterReconnect?.data?.room?.code, roomCode);
+
+    socket2.disconnect();
   });
 });

@@ -23,15 +23,33 @@ function rowComplete(row) {
  */
 
 /**
+ * @param {Array<{ userId?: string, teamId?: string, connected?: boolean }>} players
+ * @param {Record<string, Record<string, string>>} submissions
+ * @param {string} teamId
+ * @param {string} field
+ */
+function teamHasField(players, submissions, teamId, field) {
+  for (const p of players) {
+    if (!p?.connected || p.teamId !== teamId) continue;
+    const uid = p.userId ?? "";
+    const value = uid ? submissions[uid]?.[field] : "";
+    if (typeof value === "string" && value.trim()) return true;
+  }
+  return false;
+}
+
+/**
  * @param {{
  *   canSubmit: boolean,
  *   mine: Record<string, string>,
  *   onSubmit: (field: string, value: string) => Promise<AckResult>,
- *   players?: Array<{ userId?: string, username?: string, connected?: boolean }>,
+ *   players?: Array<{ userId?: string, username?: string, connected?: boolean, teamId?: string }>,
  *   submissions?: Record<string, Record<string, string>>,
  *   localUserId?: string | null,
  *   roundPhase?: string,
  *   gameState?: string,
+ *   mode?: string,
+ *   teams?: Array<{ id: string, name: string }>,
  * }} props
  */
 export function RoundFields({
@@ -43,6 +61,8 @@ export function RoundFields({
   localUserId = null,
   roundPhase = "none",
   gameState = "",
+  mode = "",
+  teams = [],
 }) {
   const [drafts, setDrafts] = useState(() => ({ name: "", place: "", animal: "", thing: "" }));
   const [pending, setPending] = useState(
@@ -80,10 +100,54 @@ export function RoundFields({
     }
   }
 
-  const showPresence = gameState === "IN_ROUND" && (roundPhase === "collecting" || roundPhase === "countdown");
+  const showPresence =
+    mode !== "team" && gameState === "IN_ROUND" && (roundPhase === "collecting" || roundPhase === "countdown");
+
+  const showTeamGrid =
+    mode === "team" && gameState === "IN_ROUND" && teams.length > 0;
 
   return (
     <section className="space-y-3">
+      {showTeamGrid ? (
+        <div className="overflow-x-auto rounded-[var(--radius-xl)] border border-muted-bright/60 bg-muted-bright/20 p-3">
+          <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-foreground/55">Team progress</p>
+          <table className="w-full min-w-[16rem] border-collapse text-left text-sm">
+            <thead>
+              <tr>
+                <th className="pb-2 pr-3 font-bold text-foreground/60">Category</th>
+                {teams.map((t) => (
+                  <th key={t.id} className="pb-2 px-2 text-center font-bold text-foreground">
+                    {t.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FIELDS.map(({ key, label }) => (
+                <tr key={key} className="border-t border-foreground/10">
+                  <td className="py-2 pr-3 font-semibold text-foreground">{label}</td>
+                  {teams.map((t) => {
+                    const filled = teamHasField(players, submissions, t.id, key);
+                    return (
+                      <td key={t.id} className="py-2 px-2 text-center">
+                        <span
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${
+                            filled ? "bg-success/20 text-success" : "bg-foreground/10 text-foreground/45"
+                          }`}
+                          aria-label={`${t.name} ${label}: ${filled ? "filled" : "empty"}`}
+                        >
+                          {filled ? "✓" : "—"}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
       {showPresence && presence.length > 0 ? (
         <p
           className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold leading-snug text-foreground sm:text-sm"

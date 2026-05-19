@@ -163,8 +163,8 @@ export function installHandlers({ socket, registry, env, logger }) {
     schema: createRoomSchema,
     handler: async ({ data }) => {
       await registry.leaveRoomExplicit(socket);
-      const { mode } = data;
-      const { engine } = await registry.createRoom(mode, userId, username, socket);
+      const { mode, maxRounds } = data;
+      const { engine } = await registry.createRoom(mode, userId, username, socket, maxRounds);
       const room = engine.toPublicDto();
       engine.emit('room_update', { room });
       return { room };

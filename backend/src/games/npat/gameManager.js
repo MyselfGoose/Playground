@@ -4,7 +4,13 @@ import { evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvalua
 import { evaluateNpatFullGameWithStrictService } from '../../services/ai/npatEvaluationService.js';
 import { persistNpatResults } from '../../services/leaderboardStatsService.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
-import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
+import { DEFAULT_TEAMS, NPAT_DEFAULT_MAX_ROUNDS, NPAT_FIELDS } from './constants.js';
+import {
+  isFreeForAllMode,
+  normalizeNpatMode,
+  NPAT_MODE_TEAM,
+  resolveGameEvaluationSource,
+} from './npatModeUtils.js';
 
 /**
  * @typedef {{
@@ -53,12 +59,12 @@ function teamUnionComplete(players, submissions, teamId) {
 }
 
 /**
- * @param {'solo' | 'team'} mode
+ * @param {string} mode
  * @param {Map<string, RuntimePlayer>} players
  * @param {Map<string, Record<string, string>>} submissions
  */
 function completionTriggered(mode, players, submissions) {
-  if (mode === 'solo') {
+  if (isFreeForAllMode(mode)) {
     for (const uid of players.keys()) {
       if (playerHasAllSolo(submissions, uid)) return true;
     }
@@ -100,7 +106,8 @@ export class NpatRoomEngine {
   /**
    * @param {{
    *   code: string,
-   *   mode: 'solo' | 'team',
+   *   mode: 'free-for-all' | 'team',
+   *   maxRounds?: number,
    *   hostUserId: string,
    *   env: import('../../config/env.js').Env,
    *   logger: import('pino').Logger,
@@ -111,9 +118,10 @@ export class NpatRoomEngine {
  *   ) => Promise<void>,
    * }} params
    */
-  constructor({ code, mode, hostUserId, env, logger, npatNs, persist }) {
+  constructor({ code, mode, maxRounds, hostUserId, env, logger, npatNs, persist }) {
     this.code = code;
-    this.mode = mode;
+    this.mode = normalizeNpatMode(mode);
+    this.maxRounds = maxRounds ?? NPAT_DEFAULT_MAX_ROUNDS;
     this.hostUserId = hostUserId;
     this.env = env;
     this.logger = logger;
@@ -128,7 +136,7 @@ export class NpatRoomEngine {
     /** @type {Map<string, RuntimePlayer>} */
     this.players = new Map();
     /** @type {typeof DEFAULT_TEAMS} */
-    this.teams = mode === 'team' ? [...DEFAULT_TEAMS] : [];
+    this.teams = this.mode === NPAT_MODE_TEAM ? [...DEFAULT_TEAMS] : [];
 
     /** @type {string[]} */
     this.letterPool = [];
@@ -182,7 +190,8 @@ export class NpatRoomEngine {
   static hydrateFromDoc(doc, deps) {
     const engine = new NpatRoomEngine({
       code: doc.code,
-      mode: doc.mode,
+      mode: normalizeNpatMode(doc.mode),
+      maxRounds: doc.maxRounds ?? NPAT_DEFAULT_MAX_ROUNDS,
       hostUserId: String(doc.hostUserId),
       env: deps.env,
       logger: deps.logger,
@@ -524,7 +533,7 @@ export class NpatRoomEngine {
       /** @type {any} */ (err).code = 'NOT_ENOUGH_PLAYERS';
       throw err;
     }
-    if (this.mode === 'team') {
+    if (this.mode === NPAT_MODE_TEAM) {
       const teamIds = new Set(this.teams.map((t) => t.id));
       for (const tid of teamIds) {
         const has = connected.some((p) => p.teamId === tid);
@@ -544,7 +553,7 @@ export class NpatRoomEngine {
 
     assertTransition(this.state, GAME_STATES.STARTING);
     this.state = GAME_STATES.STARTING;
-    this.letterPool = shuffleLetters();
+    this.letterPool = shuffleLetters().slice(0, this.maxRounds);
     this.usedLetters = [];
     this.currentRoundIndex = -1;
     this.currentLetter = null;
@@ -807,7 +816,13 @@ export class NpatRoomEngine {
         }
 
         this.emit('room_update', { room: this.toPublicDto() });
-        this.emit('game_evaluated', { room: this.toPublicDto(), source });
+        const stamped = this._stampResultsEvaluationSource(source);
+        this.emit('game_evaluated', {
+          room: this.toPublicDto(),
+          results: this.results,
+          evaluationSource: stamped,
+          source: stamped,
+        });
         if (source === 'fallback' && this.env.GEMINI_API_KEY?.trim()) {
           this._upgradeEvaluationInBackground().catch((err) => {
             this.logger.warn({ err, event: 'npat_background_upgrade_failed' }, 'npat_room');
@@ -876,12 +891,32 @@ export class NpatRoomEngine {
     }
     this.logger.info({ event: 'npat_background_upgrade_applied', roomCode: this.code }, 'npat_room');
     this.emit('room_update', { room: this.toPublicDto() });
-    this.emit('game_evaluated', { room: this.toPublicDto(), source: 'gemini' });
+    const stamped = this._stampResultsEvaluationSource('gemini');
+    this.emit('game_evaluated', {
+      room: this.toPublicDto(),
+      results: this.results,
+      evaluationSource: stamped,
+      source: stamped,
+    });
   }
 
   /**
    * Drop the in-progress round (early finish): remove letter from stats and restore pool.
    */
+  /**
+   * Stamp game-level evaluation source on results and return it for socket payloads.
+   * @param {'gemini' | 'fallback' | null} [knownSource]
+   * @returns {'gemini' | 'fallback' | null}
+   */
+  _stampResultsEvaluationSource(knownSource) {
+    const evaluationSource =
+      knownSource ?? resolveGameEvaluationSource(this.results);
+    if (evaluationSource) {
+      this.results.evaluationSource = evaluationSource;
+    }
+    return evaluationSource;
+  }
+
   _discardInProgressRound() {
     if (this.state !== GAME_STATES.IN_ROUND || this.currentRoundIndex < 0) return;
     const L = this.currentLetter;
@@ -926,7 +961,13 @@ export class NpatRoomEngine {
       undefined,
     );
 
-    this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+    const evaluationSource = this._stampResultsEvaluationSource();
+    this.emit('game_finished', {
+      room: this.toPublicDto(),
+      results: this.results,
+      evaluationSource,
+      source: evaluationSource,
+    });
 
     void persistNpatResults({
       code: this.code,
@@ -987,7 +1028,13 @@ export class NpatRoomEngine {
       undefined,
     );
 
-    this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+    const evaluationSource = this._stampResultsEvaluationSource();
+    this.emit('game_finished', {
+      room: this.toPublicDto(),
+      results: this.results,
+      evaluationSource,
+      source: evaluationSource,
+    });
   }
 
   /**
@@ -1054,7 +1101,13 @@ export class NpatRoomEngine {
     );
 
     this.logger.info({ event: 'npat_game_finished_early', roomCode: this.code }, 'npat_room');
-    this.emit('game_finished', { room: this.toPublicDto(), results: this.results });
+    const evaluationSource = this._stampResultsEvaluationSource();
+    this.emit('game_finished', {
+      room: this.toPublicDto(),
+      results: this.results,
+      evaluationSource,
+      source: evaluationSource,
+    });
   }
 
   _evaluateEarlyFinishVotes() {
@@ -1180,7 +1233,7 @@ export class NpatRoomEngine {
       /** @type {any} */ (err).code = 'GAME_ALREADY_STARTED';
       throw err;
     }
-    if (this.mode !== 'team') {
+    if (this.mode !== NPAT_MODE_TEAM) {
       const err = new Error('Not a team game');
       /** @type {any} */ (err).code = 'NOT_TEAM_MODE';
       throw err;
@@ -1242,6 +1295,7 @@ export class NpatRoomEngine {
       code: this.code,
       stateVersion: this.publicStateVersion,
       mode: this.mode,
+      maxRounds: this.maxRounds,
       state: this.state,
       roundPhase: this.roundPhase,
       hostUserId: this.hostUserId,

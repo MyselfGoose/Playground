@@ -20,7 +20,7 @@ export function NpatResultClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code") ?? "";
-  const { room, connected, joinRoom, clearSocketError, socketError } = useNpat();
+  const { room, connected, joinRoom, clearSocketError, socketError, evaluationSource } = useNpat();
   const [joinPhase, setJoinPhase] = useState(/** @type {JoinPhase} */ ("idle"));
   const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
@@ -71,6 +71,16 @@ export function NpatResultClient() {
 
   const rounds = room?.results?.rounds;
   const list = Array.isArray(rounds) ? rounds : [];
+  const gameEvalSource =
+    room?.results?.evaluationSource === "gemini" || room?.results?.evaluationSource === "fallback"
+      ? room.results.evaluationSource
+      : evaluationSource;
+  const overallBadge =
+    gameEvalSource === "gemini"
+      ? "Overall: AI scored"
+      : gameEvalSource === "fallback"
+        ? "Overall: Rules scored"
+        : null;
 
   /** Still show results from the last `game_finished` / join snapshot while the socket is reconnecting. */
   const hasFinishedSnapshot =
@@ -189,6 +199,11 @@ export function NpatResultClient() {
         <p className="mt-2 text-lg text-ink-muted">
           Scroll through every letter; choose a player once to see their answers and notes for the whole game.
         </p>
+        {overallBadge ? (
+          <p className="mt-4 inline-flex rounded-full border border-foreground/15 bg-background/80 px-4 py-1.5 text-sm font-bold text-ink-muted">
+            {overallBadge}
+          </p>
+        ) : null}
       </motion.header>
 
       <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />

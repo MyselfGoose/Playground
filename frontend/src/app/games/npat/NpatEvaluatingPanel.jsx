@@ -1,13 +1,47 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
+const TIPS = [
+  "Unique answers often score higher than common ones.",
+  "Spelling counts — close matches may still earn partial credit.",
+  "All four categories are scored together for each letter.",
+];
+
 /**
- * Full-screen–friendly panel shown while the server scores the game (AI or offline rules).
- * Use anywhere `room.state === "EVALUATING"` should be visible (play page, etc.).
+ * @param {{
+ *   evaluationSource?: 'gemini' | 'fallback' | null,
+ *   className?: string,
+ * }} props
  */
-export function NpatEvaluatingPanel({ className = "" }) {
+export function NpatEvaluatingPanel({ evaluationSource = null, className = "" }) {
   const reduce = useReducedMotion();
+  const [tipIndex, setTipIndex] = useState(0);
+
+  useEffect(() => {
+    if (reduce) return undefined;
+    const id = setInterval(() => {
+      setTipIndex((i) => (i + 1) % TIPS.length);
+    }, 4500);
+    return () => clearInterval(id);
+  }, [reduce]);
+
+  const headline =
+    evaluationSource === "gemini"
+      ? "Scored with Google AI"
+      : evaluationSource === "fallback"
+        ? "Scored with standard rules"
+        : "Scoring your answers";
+
+  const subtitle =
+    evaluationSource === "gemini"
+      ? "Google AI is reviewing every round and field. Results open automatically when ready."
+      : evaluationSource === "fallback"
+        ? "Standard rules are scoring every round. Results open automatically when ready."
+        : "We're scoring every round and every field. This usually takes just a few seconds.";
+
+  const tip = TIPS[reduce ? 0 : tipIndex];
 
   return (
     <motion.div
@@ -19,11 +53,11 @@ export function NpatEvaluatingPanel({ className = "" }) {
       aria-live="polite"
       aria-busy="true"
     >
-      <div
+      <motion.div
         className="pointer-events-none absolute -left-24 -top-24 h-56 w-56 rounded-full bg-accent-purple/20 blur-3xl"
         aria-hidden
       />
-      <div
+      <motion.div
         className="pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-accent-sky/15 blur-3xl"
         aria-hidden
       />
@@ -34,11 +68,9 @@ export function NpatEvaluatingPanel({ className = "" }) {
           <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-primary border-r-accent-purple/45" />
           <span className="absolute inset-[10px] animate-pulse rounded-full bg-gradient-to-br from-primary to-accent-purple opacity-90 shadow-lg shadow-primary/25" />
         </div>
-        <p className="mt-8 text-2xl font-black tracking-tight text-ink sm:text-3xl">Evaluating answers with AI</p>
-        <p className="mt-2 max-w-sm text-sm font-semibold leading-relaxed text-ink-muted">
-          We&apos;re scoring every round and every field. This usually takes just a few seconds — you&apos;ll jump to
-          results automatically.
-        </p>
+        <p className="mt-8 text-2xl font-black tracking-tight text-ink sm:text-3xl">{headline}</p>
+        <p className="mt-2 max-w-sm text-sm font-semibold leading-relaxed text-ink-muted">{subtitle}</p>
+        <p className="mt-6 max-w-md text-xs font-semibold leading-relaxed text-ink-muted/90">{tip}</p>
       </div>
     </motion.div>
   );

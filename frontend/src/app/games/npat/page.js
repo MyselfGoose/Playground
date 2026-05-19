@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
+import { PageHeader } from "../../../components/PageHeader.jsx";
 import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../lib/socket/useConnectionTimeout.js";
 import {
@@ -25,7 +26,7 @@ export default function NpatEntryPage() {
     resumedCode,
     clearResumedCode,
   } = useNpat();
-  const [mode, setMode] = useState(/** @type {'solo' | 'team'} */ ("solo"));
+  const [mode, setMode] = useState(/** @type {'free-for-all' | 'team'} */ ("free-for-all"));
   const [joinCode, setJoinCode] = useState("");
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -36,19 +37,13 @@ export default function NpatEntryPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
-      <motion.header
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
-        <p className="text-sm font-bold uppercase tracking-widest bg-gradient-to-r from-primary to-accent-pink bg-clip-text text-transparent">🌍 Live multiplayer</p>
-        <h1 className="mt-3 text-5xl sm:text-6xl font-extrabold tracking-tight text-foreground leading-tight">
-          Name, Place,<br />Animal, Thing
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-foreground/70 leading-relaxed">
-          Fast rounds, silly answers, and a ticking clock. Create a room or join with a code.
-        </p>
-      </motion.header>
+      <PageHeader
+        gameId="npat"
+        eyebrow="Live multiplayer"
+        title="Name, Place, Animal, Thing"
+        description="Fast rounds, silly answers, and a ticking clock. Create a room or join with a code."
+        align="center"
+      />
 
       {connectTimedOut && !socketError ? (
         <p className="text-center text-sm font-bold text-muted">
@@ -135,11 +130,11 @@ export default function NpatEntryPage() {
               <input
                 type="radio"
                 name="mode"
-                checked={mode === "solo"}
-                onChange={() => setMode("solo")}
+                checked={mode === "free-for-all"}
+                onChange={() => setMode("free-for-all")}
                 className="h-5 w-5"
               />
-              <span className="font-bold text-foreground">Solo (free-for-all)</span>
+              <span className="font-bold text-foreground">Free-for-all</span>
             </label>
             <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] bg-background/45 px-4 py-3 ring-2 ring-foreground/10 transition-all hover:bg-background/65">
               <input

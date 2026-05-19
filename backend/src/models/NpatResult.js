@@ -5,7 +5,7 @@ const npatResultSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     username: { type: String, required: true },
     roomCode: { type: String, required: true },
-    mode: { type: String, enum: ['solo', 'team'], required: true },
+    mode: { type: String, enum: ['solo', 'free-for-all', 'team'], required: true },
     roundsPlayed: { type: Number, required: true },
     totalScore: { type: Number, required: true },
     averageScore: { type: Number, required: true },

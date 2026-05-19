@@ -27,6 +27,9 @@ export function NpatProvider({ children }) {
   const pathname = usePathname();
 
   const [room, setRoom] = useState(/** @type {RoomSnapshot} */ (null));
+  const [evaluationSource, setEvaluationSource] = useState(
+    /** @type {'gemini' | 'fallback' | null} */ (null),
+  );
   const [connected, setConnected] = useState(false);
   const [connectionState, setConnectionState] = useState(
     /** @type {'connected' | 'reconnecting' | 'disconnected'} */ ("disconnected"),
@@ -46,14 +49,39 @@ export function NpatProvider({ children }) {
   const applyRoom = useCallback((r) => {
     if (!r || typeof r !== "object") {
       setRoom(null);
+      setEvaluationSource(null);
       return;
     }
     const nextVersion = Number(r.stateVersion || 0);
     const prevVersion = roomVersionRef.current;
     if (nextVersion > 0 && nextVersion < prevVersion) return;
     if (nextVersion > 0) roomVersionRef.current = nextVersion;
+    const results = r.results;
+    if (
+      results &&
+      typeof results === "object" &&
+      (results.evaluationSource === "gemini" || results.evaluationSource === "fallback")
+    ) {
+      setEvaluationSource(results.evaluationSource);
+    }
     setRoom(r);
   }, []);
+
+  const applyEvaluatedPayload = useCallback(
+    (payload) => {
+      const src = payload?.evaluationSource ?? payload?.source;
+      if (src === "gemini" || src === "fallback") {
+        setEvaluationSource(src);
+      }
+      if (payload?.room) {
+        applyRoom({
+          ...payload.room,
+          results: payload.results ?? payload.room?.results,
+        });
+      }
+    },
+    [applyRoom],
+  );
 
   // Route-scoped socket error: clear whenever the path changes so a stale error from /lobby
   // does not leak into /play or /result.
@@ -142,15 +170,8 @@ export function NpatProvider({ children }) {
       socket.on("round_started", onRoomPayload);
       socket.on("timer_started", onRoomPayload);
       socket.on("round_ended", onRoomPayload);
-      socket.on("game_evaluated", onRoomPayload);
-      socket.on("game_finished", (payload) => {
-        if (payload?.room) {
-          applyRoom({
-            ...payload.room,
-            results: payload.results ?? payload.room?.results,
-          });
-        }
-      });
+      socket.on("game_evaluated", applyEvaluatedPayload);
+      socket.on("game_finished", applyEvaluatedPayload);
       socket.on("session_resumed", (payload) => {
         if (
           typeof window !== "undefined" &&
@@ -180,9 +201,10 @@ export function NpatProvider({ children }) {
       setConnectionState("disconnected");
       setReconnectedAt(null);
       setRoom(null);
+      setEvaluationSource(null);
       setResumedCode(null);
     };
-  }, [authLoading, user?.id, applyRoom, resyncRoom]);
+  }, [authLoading, user?.id, applyRoom, applyEvaluatedPayload, resyncRoom]);
 
   const clearSocketError = useCallback(() => {
     setSocketErrorState(null);
@@ -247,6 +269,7 @@ export function NpatProvider({ children }) {
     const socket = socketRef.current;
     if (!socket?.connected) {
       setRoom(null);
+      setEvaluationSource(null);
       setResumedCode(null);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("npat_suppress_resume", "1");
@@ -255,6 +278,7 @@ export function NpatProvider({ children }) {
     }
     const result = await emitAck(socket, "leave_room", null);
     setRoom(null);
+    setEvaluationSource(null);
     setResumedCode(null);
     if (typeof window !== "undefined") {
       sessionStorage.setItem("npat_suppress_resume", "1");
@@ -295,6 +319,7 @@ export function NpatProvider({ children }) {
   const value = useMemo(
     () => ({
       room,
+      evaluationSource,
       connected,
       connectionState,
       reconnectedAt,
@@ -318,6 +343,7 @@ export function NpatProvider({ children }) {
     }),
     [
       room,
+      evaluationSource,
       connected,
       connectionState,
       reconnectedAt,

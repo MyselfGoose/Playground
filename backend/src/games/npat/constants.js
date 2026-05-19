@@ -7,3 +7,6 @@ export const DEFAULT_TEAMS = [
   { id: 'A', name: 'Team A', color: '#7c3aed' },
   { id: 'B', name: 'Team B', color: '#0ea5e9' },
 ];
+
+export const NPAT_DEFAULT_MAX_ROUNDS = 26;
+export const NPAT_MAX_ROUNDS_LIMIT = 26;

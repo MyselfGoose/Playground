@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
 import { NpatRoomEngine } from './gameManager.js';
-import { DEFAULT_TEAMS, NPAT_FIELDS } from './constants.js';
+import { DEFAULT_TEAMS, NPAT_DEFAULT_MAX_ROUNDS, NPAT_FIELDS } from './constants.js';
+import { normalizeNpatMode, NPAT_MODE_TEAM } from './npatModeUtils.js';
 
 export const NPAT_RECENTLY_EXPIRED_TTL_MS = 5 * 60 * 1000;
 
@@ -230,19 +231,23 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
   }
 
   /**
-   * @param {'solo' | 'team'} mode
+   * @param {'solo' | 'free-for-all' | 'team'} mode
    * @param {string} userId
    * @param {string} username
    * @param {import('socket.io').Socket} socket
+   * @param {number} [maxRounds]
    */
-  async function createRoom(mode, userId, username, socket) {
+  async function createRoom(mode, userId, username, socket, maxRounds) {
+    const normalizedMode = normalizeNpatMode(mode);
+    const resolvedMaxRounds = maxRounds ?? NPAT_DEFAULT_MAX_ROUNDS;
     const hostOid = new mongoose.Types.ObjectId(userId);
-    const teams = mode === 'team' ? [...DEFAULT_TEAMS] : [];
+    const teams = normalizedMode === NPAT_MODE_TEAM ? [...DEFAULT_TEAMS] : [];
 
     const { code } = await allocateAndCreate((c) => ({
       code: c,
       hostUserId: hostOid,
-      mode,
+      mode: normalizedMode,
+      maxRounds: resolvedMaxRounds,
       maxPlayers: env.NPAT_MAX_PLAYERS,
       engineState: 'WAITING',
       roundPhase: 'none',
@@ -255,7 +260,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         {
           userId: hostOid,
           username,
-          teamId: mode === 'team' ? 'A' : '',
+          teamId: normalizedMode === NPAT_MODE_TEAM ? 'A' : '',
           ready: false,
           joinedAt: new Date(),
         },
@@ -269,7 +274,8 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       const persist = makePersist(code);
       const engine = new NpatRoomEngine({
         code,
-        mode,
+        mode: normalizedMode,
+        maxRounds: resolvedMaxRounds,
         hostUserId: userId,
         env,
         logger,
@@ -278,7 +284,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       });
       const now = Date.now();
       engine.upsertPlayer(userId, username, socket.id, now);
-      if (mode === 'team') {
+      if (normalizedMode === NPAT_MODE_TEAM) {
         const p = engine.players.get(userId);
         if (p) p.teamId = 'A';
       }
@@ -288,7 +294,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       socketToRoom.set(socket.id, code);
 
       logger.info(
-        { event: 'npat_room_created', roomCode: code, userId, socketId: socket.id, mode },
+        { event: 'npat_room_created', roomCode: code, userId, socketId: socket.id, mode: normalizedMode },
         'npat_room',
       );
 

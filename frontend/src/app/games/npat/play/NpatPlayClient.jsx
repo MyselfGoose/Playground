@@ -30,6 +30,7 @@ export function NpatPlayClient() {
     submitField,
     proposeEarlyFinish,
     voteEarlyFinish,
+    evaluationSource,
     localUserId,
     socketError,
     clearSocketError,
@@ -279,7 +280,7 @@ export function NpatPlayClient() {
       ) : null}
 
       {state === "EVALUATING" ? (
-        <NpatEvaluatingPanel />
+        <NpatEvaluatingPanel evaluationSource={evaluationSource} />
       ) : state === "BETWEEN_ROUNDS" ? (
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
@@ -287,7 +288,8 @@ export function NpatPlayClient() {
           className="rounded-[var(--radius-2xl)] border-2 border-accent/30 bg-gradient-to-br from-accent/15 via-background/90 to-accent-2/20 px-6 py-8 text-center shadow-[var(--shadow-soft)] ring-2 ring-muted-bright/70"
         >
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-ink-muted">Short break</p>
-          <p className="mt-3 text-2xl font-black text-ink">Round scored — next letter soon</p>
+          <p className="mt-3 text-2xl font-black text-ink">Round complete</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Next letter soon</p>
           {typeof betweenLeft === "number" ? (
             <p
               className="mt-4 inline-flex min-w-[8rem] justify-center rounded-2xl bg-background/85 px-4 py-2 text-3xl font-black tabular-nums text-accent shadow-inner ring-1 ring-accent/20"
@@ -374,6 +376,8 @@ export function NpatPlayClient() {
           localUserId={localUserId}
           roundPhase={roundPhase}
           gameState={state}
+          mode={typeof room?.mode === "string" ? room.mode : ""}
+          teams={Array.isArray(room?.teams) ? room.teams : []}
           onSubmit={(field, value) => submitField(field, value)}
         />
       ) : null}

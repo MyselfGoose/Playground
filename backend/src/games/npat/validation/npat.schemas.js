@@ -1,10 +1,14 @@
 import { z } from 'zod';
-import { NPAT_FIELDS } from '../constants.js';
+import { NPAT_FIELDS, NPAT_MAX_ROUNDS_LIMIT } from '../constants.js';
+import { normalizeNpatMode } from '../npatModeUtils.js';
 
-export const npatModeSchema = z.enum(['solo', 'team']);
+const npatModeInput = z.enum(['solo', 'free-for-all', 'team']);
+
+export const npatModeSchema = npatModeInput.transform((m) => normalizeNpatMode(m));
 
 export const createRoomSchema = z.object({
   mode: npatModeSchema,
+  maxRounds: z.number().int().min(1).max(NPAT_MAX_ROUNDS_LIMIT).optional(),
 });
 
 /**

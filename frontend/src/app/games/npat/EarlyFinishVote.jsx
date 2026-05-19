@@ -73,7 +73,7 @@ export function EarlyFinishVote({ room, localUserId, proposeEarlyFinish, voteEar
           type="button"
           disabled={busy}
           onClick={() => void propose()}
-          title="Ask everyone to end the game after this round (unanimous vote)"
+          title="Unanimous vote ends the game now; the current letter does not count"
           className={`${btnBase} border border-red-300/80 bg-white/90 text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-red-500`}
         >
           {busy ? "…" : "End Early?"}
@@ -88,7 +88,7 @@ export function EarlyFinishVote({ room, localUserId, proposeEarlyFinish, voteEar
   return (
     <div className="flex flex-col items-end gap-1 text-right">
       <span className="text-[11px] font-semibold leading-tight text-ink-muted">
-        {proposerName} · end after this round · {agreed}/{total} yes
+        {proposerName} · end now · current letter won&apos;t count · {agreed}/{total} yes
       </span>
       {imConnected ? (
         imProposer ? (

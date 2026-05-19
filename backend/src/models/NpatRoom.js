@@ -63,7 +63,8 @@ const npatRoomSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, unique: true, index: true },
     hostUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    mode: { type: String, enum: ['solo', 'team'], required: true },
+    mode: { type: String, enum: ['solo', 'free-for-all', 'team'], required: true },
+    maxRounds: { type: Number, default: 26, min: 1, max: 26 },
     maxPlayers: { type: Number, default: 8 },
     engineState: { type: String, default: 'WAITING' },
     roundPhase: { type: String, default: 'none' },
