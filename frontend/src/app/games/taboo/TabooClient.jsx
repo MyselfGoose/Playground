@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useVisualViewportKeyboard } from "../../../lib/hooks/useVisualViewportKeyboard.js";
+import { ResultActions } from "../../../components/game/ResultActions.jsx";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
@@ -86,7 +87,15 @@ function GameOverScreen({ game, players, onLeave }) {
             </ul>
           </div>
         ) : null}
-        <button type="button" onClick={onLeave} className="h-11 w-full rounded-xl bg-white/[0.06] text-sm font-medium text-white transition-all hover:bg-white/[0.1]">Leave Game</button>
+        <div className="mt-6">
+          <ResultActions
+            playAgainHref="/games/taboo"
+            secondaryLabel="Leave game"
+            onSecondary={onLeave}
+            linkClassName="text-emerald-300 hover:underline"
+            className="[&_button]:border-white/20 [&_button]:bg-white/10 [&_button]:text-white"
+          />
+        </div>
       </motion.div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { Button } from "../Button.jsx";
+import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
 import { MultiRaceTrack } from "./MultiRaceTrack.jsx";
 import { MultiRaceTyping } from "./MultiRaceTyping.jsx";
@@ -353,24 +354,24 @@ export function MultiRaceRoomView({ roomCode }) {
             ))}
           </div>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {isHost && (
-              <Button
-                type="button"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  await resetLobby();
-                  setBusy(false);
-                }}
-              >
-                Play again
-              </Button>
-            )}
-            <Button type="button" variant="secondary" onClick={() => router.push("/games/typing-race/multi")}>
-              Back to lobby
-            </Button>
-          </div>
+          <ResultActions
+            className="mt-8"
+            linkClassName="text-[var(--tt-accent)] hover:underline"
+            playAgainLabel={isHost ? "Play again" : "Back to lobby"}
+            onPlayAgain={
+              isHost
+                ? async () => {
+                    setBusy(true);
+                    await resetLobby();
+                    setBusy(false);
+                  }
+                : undefined
+            }
+            playAgainHref={isHost ? undefined : "/games/typing-race/multi"}
+            playAgainDisabled={busy}
+            secondaryHref={isHost ? "/games/typing-race/multi" : undefined}
+            secondaryLabel={isHost ? "Back to lobby" : undefined}
+          />
         </div>
       )}
     </div>

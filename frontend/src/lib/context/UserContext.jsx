@@ -44,6 +44,23 @@ function mapUser(u) {
   };
 }
 
+/** @param {AuthUser | null} a @param {AuthUser | null} b */
+function usersEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.id !== b.id || a.username !== b.username || a.email !== b.email) return false;
+  if (a.roles.length !== b.roles.length) return false;
+  for (let i = 0; i < a.roles.length; i += 1) {
+    if (a.roles[i] !== b.roles[i]) return false;
+  }
+  return true;
+}
+
+/** @param {AuthUser | null} prev @param {AuthUser | null} next */
+function mergeUserState(prev, next) {
+  return usersEqual(prev, next) ? prev : next;
+}
+
 async function fetchMeWithRetries(signal, maxAttempts = 4) {
   let delay = 400;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -134,7 +151,7 @@ export function UserProvider({ children }) {
       try {
         const me = await apiFetch("/api/v1/auth/me");
         if (!mountedRef.current) return;
-        setUserState(mapUser(me?.data?.user));
+        setUserState((prev) => mergeUserState(prev, mapUser(me?.data?.user)));
         invalidateDerivedCaches();
         setSessionError(null);
         setSessionNotice(null);
@@ -186,7 +203,7 @@ export function UserProvider({ children }) {
       try {
         const me = await fetchMeWithRetries(ac.signal);
         if (!mountedRef.current || ac.signal.aborted) return;
-        setUserState(mapUser(me?.data?.user));
+        setUserState((prev) => mergeUserState(prev, mapUser(me?.data?.user)));
         setLifecycle("SYNCED");
       } catch (e) {
         if (e?.name === "AbortError" || ac.signal.aborted) return;
@@ -278,15 +295,15 @@ export function UserProvider({ children }) {
   useEffect(() => {
     if (loading) return;
     if (Date.now() < skipNavigationReconcileUntilRef.current) return;
-    if (!user && !sessionError) return;
+    if (!userRef.current && !sessionErrorRef.current) return;
     scheduleReconcile("navigation");
-  }, [pathname, loading, user, sessionError, scheduleReconcile]);
+  }, [pathname, loading, scheduleReconcile]);
 
   const refreshUser = useCallback(async () => {
     try {
       const me = await apiFetch("/api/v1/auth/me");
       const next = mapUser(me?.data?.user);
-      setUserState(next);
+      setUserState((prev) => mergeUserState(prev, next));
       invalidateDerivedCaches();
       setSessionError(null);
       setLifecycle("SYNCED");

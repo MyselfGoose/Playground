@@ -75,6 +75,11 @@ export function useMyStats() {
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [data, setData] = useState(null);
   const [nonce, setNonce] = useState(0);
+  const dataRef = useRef(data);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   useEffect(() => {
     return registerDerivedCacheInvalidator(() => setNonce((n) => n + 1));
@@ -82,8 +87,9 @@ export function useMyStats() {
 
   useEffect(() => {
     let cancelled = false;
+    const isRefetch = dataRef.current != null;
     (async () => {
-      setLoading(true);
+      if (!isRefetch) setLoading(true);
       setError(null);
       try {
         const json = await apiFetch("/api/v1/leaderboard/me");

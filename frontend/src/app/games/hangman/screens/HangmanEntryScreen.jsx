@@ -9,6 +9,7 @@ import { HangmanShell } from "../components/HangmanShell.jsx";
 import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
 import { normalizePartyCode } from "../../../../lib/party/buildInviteUrl.js";
+import { GameRulesDrawer } from "../../../../components/game/GameRulesDrawer.jsx";
 
 export function HangmanEntryScreen() {
   const searchParams = useSearchParams();
@@ -35,6 +36,11 @@ export function HangmanEntryScreen() {
 
   return (
     <HangmanShell>
+      <GameRulesDrawer gameId="hangman" title="How to play Hangman">
+        <p>Take turns setting a word and guessing letters one at a time.</p>
+        <p>Wrong guesses add to the figure — guess the word before the drawing is complete.</p>
+        <p>Ready up in the lobby when everyone has joined; the host can start when all players are ready.</p>
+      </GameRulesDrawer>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
         <motion.header
           initial={{ opacity: 0, y: 16 }}

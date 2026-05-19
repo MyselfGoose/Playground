@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Button } from "../../../../components/Button.jsx";
+import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 
 /**
  * @param {{
@@ -45,6 +46,15 @@ export function GameEndPanel({ scoreRows, onPlayAgain, onReturnToLobby, onLeave,
           Leave
         </Button>
       </div>
+      <ResultActions
+        className="mt-6"
+        playAgainLabel="Play again"
+        onPlayAgain={onPlayAgain}
+        playAgainDisabled={busy}
+        secondaryLabel="Return to lobby"
+        onSecondary={onReturnToLobby}
+        secondaryDisabled={busy}
+      />
     </motion.section>
   );
 }

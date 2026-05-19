@@ -5,6 +5,7 @@ import { userRepository } from '../repositories/userRepository.js';
 import { HANGMAN_LEADERBOARD_MIN_GAMES, userStatsRepository } from '../repositories/userStatsRepository.js';
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
+import { getMatchHistoryForUser } from '../services/matchHistoryService.js';
 
 const cache = new Map();
 const CACHE_TTL = 45_000;
@@ -204,6 +205,34 @@ export function createUsersRouter() {
         rankingExplanation: rankingExplanation(breakdown),
         recentActivity,
       };
+      cacheSet(cacheKey, payload);
+      return res.json({ data: payload });
+    }),
+  );
+
+  router.get(
+    '/:id/matches',
+    asyncHandler(async (req, res) => {
+      const userId = String(req.params.id || '');
+      const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+      const cacheKey = `matches:${userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(404).json({
+          error: { message: 'User not found', code: 'USER_NOT_FOUND' },
+        });
+      }
+
+      const user = await userRepository.findByIdLean(userId);
+      if (!user) {
+        return res.status(404).json({
+          error: { message: 'User not found', code: 'USER_NOT_FOUND' },
+        });
+      }
+
+      const payload = await getMatchHistoryForUser(userId, { limit });
       cacheSet(cacheKey, payload);
       return res.json({ data: payload });
     }),

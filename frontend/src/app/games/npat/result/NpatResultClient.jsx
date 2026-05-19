@@ -12,6 +12,7 @@ import {
   mapConnectionError,
   mapConnectionErrorMessage,
 } from "../../../../lib/errors/mapConnectionError.js";
+import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -167,17 +168,7 @@ export function NpatResultClient() {
           <p className="mt-2 text-lg text-ink-muted">The game ended before any round was saved to history.</p>
         </motion.header>
         <ResultsCarousel key={`${normalizedCode}-0`} room={room} rounds={[]} />
-        <div className="flex flex-wrap justify-center gap-4">
-          <Link
-            href="/games/npat"
-            className="rounded-2xl bg-accent px-6 py-3 text-sm font-extrabold text-white shadow-[var(--shadow-soft)]"
-          >
-            Play again
-          </Link>
-          <Link href="/games" className="rounded-2xl px-6 py-3 text-sm font-extrabold text-ink-muted ring-2 ring-ink/10">
-            All games
-          </Link>
-        </div>
+        <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
       </div>
     );
   }
@@ -202,17 +193,7 @@ export function NpatResultClient() {
 
       <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />
 
-      <div className="flex flex-wrap justify-center gap-4">
-        <Link
-          href="/games/npat"
-          className="rounded-2xl bg-accent px-6 py-3 text-sm font-extrabold text-white shadow-[var(--shadow-soft)]"
-        >
-          Play again
-        </Link>
-        <Link href="/games" className="rounded-2xl px-6 py-3 text-sm font-extrabold text-ink-muted ring-2 ring-ink/10">
-          All games
-        </Link>
-      </div>
+      <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
     </div>
   );
 }

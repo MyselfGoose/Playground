@@ -97,6 +97,22 @@ export function TypingTestProvider({ children }) {
     refreshWith({});
   }, [refreshWith]);
 
+  const startDailyChallenge = useCallback(
+    (seed) => {
+      dispatch({
+        type: "RESTART",
+        seed: (Number(seed) >>> 0) || 1,
+        testMode,
+        timeLimitSec,
+        wordTarget,
+        useSentences,
+      });
+      setTabArmed(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [testMode, timeLimitSec, wordTarget, useSentences],
+  );
+
   useEffect(() => {
     if (engine.status !== "running") {
       return;
@@ -126,6 +142,7 @@ export function TypingTestProvider({ children }) {
       restart,
       refreshPassageIfIdle,
       refreshWith,
+      startDailyChallenge,
       setFocusMode,
       setTestMode,
       setTimeLimitSec,
@@ -148,6 +165,7 @@ export function TypingTestProvider({ children }) {
       restart,
       refreshPassageIfIdle,
       refreshWith,
+      startDailyChallenge,
     ],
   );
 

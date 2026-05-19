@@ -8,6 +8,7 @@ import { Button } from "../../../components/Button.jsx";
 import { BlackCardStage } from "./components/CardPieces.jsx";
 import ScoreboardRail, { scoreRows } from "./components/ScoreboardRail.jsx";
 import SubmissionCenter from "./components/SubmissionCenter.jsx";
+import { ResultActions } from "../../../components/game/ResultActions.jsx";
 
 function normalizeCode(code) {
   return String(code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
@@ -276,9 +277,12 @@ export default function CahClient({ view }) {
               </div>
             ))}
           </div>
-          <div className="mt-4 flex gap-2">
-            <Button className="flex-1" variant="secondary" onClick={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}>Leave</Button>
-            <Link className="flex-1" href="/leaderboard"><Button className="w-full" variant="primary">Leaderboard</Button></Link>
+          <div className="mt-6">
+            <ResultActions
+              playAgainHref="/games/cah"
+              secondaryLabel="Leave"
+              onSecondary={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}
+            />
           </div>
         </section>
       </div>

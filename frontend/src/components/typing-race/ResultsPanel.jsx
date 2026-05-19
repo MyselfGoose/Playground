@@ -3,6 +3,7 @@
 import { useTypingLiveMetrics } from "./useTypingLiveMetrics.js";
 import { useTypingTest } from "./TypingTestContext.jsx";
 import { useReportSoloTypingResult } from "../../hooks/useReportSoloTypingResult.js";
+import { ResultActions } from "../game/ResultActions.jsx";
 
 export function ResultsPanel() {
   const { engine, nowMs, restart } = useTypingTest();
@@ -54,13 +55,14 @@ export function ResultsPanel() {
             value={String(m.errorCount)}
           />
         </div>
-        <button
-          type="button"
-          className="font-sans mt-10 w-full rounded-[var(--tt-radius-md)] bg-[rgb(124_108_240_/0.22)] px-6 py-3 text-sm font-semibold text-[var(--tt-ink-strong)] shadow-[inset_0_0_0_1px_rgb(124_108_240_/0.4)] transition hover:bg-[rgb(124_108_240_/0.32)]"
-          onClick={restart}
-        >
-          Start again
-        </button>
+        <ResultActions
+          className="mt-8"
+          playAgainLabel="Play again"
+          onPlayAgain={restart}
+          secondaryHref="/games/typing-race/multi"
+          secondaryLabel="Multiplayer lobby"
+          linkClassName="text-[var(--tt-accent)] hover:underline"
+        />
         <p className="mt-5 font-sans text-xs text-[var(--tt-ink-muted)]">
           <kbd className="rounded-[6px] border border-[var(--tt-ink-muted)]/35 bg-[var(--tt-bg)] px-1.5 py-0.5 font-mono text-[10px]">
             Enter

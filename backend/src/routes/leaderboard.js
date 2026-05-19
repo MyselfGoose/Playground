@@ -11,6 +11,7 @@ import {
   userStatsRepository,
 } from '../repositories/userStatsRepository.js';
 import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
+import { dailyTypingSeedFromDate, utcDateString } from '../lib/dailyTypingSeed.js';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -108,6 +109,20 @@ export function createLeaderboardRouter({ env }) {
       next(err);
     }
   }
+
+  router.get(
+    '/typing/daily',
+    asyncHandler(async (_req, res) => {
+      const date = utcDateString();
+      const cacheKey = `typing_daily:${date}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const data = { seed: dailyTypingSeedFromDate(date), date };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
 
   router.get(
     '/typing/wpm',

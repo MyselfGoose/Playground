@@ -20,6 +20,7 @@ import { createContext, useContext } from "react";
  *   restart: () => void;
  *   refreshPassageIfIdle: () => void;
  *   refreshWith: (partial?: Partial<{ testMode: 'time'|'words'; timeLimitSec: number; wordTarget: number; useSentences: boolean }>) => void;
+ *   startDailyChallenge: (seed: number) => void;
  *   setFocusMode: (v: boolean | ((p: boolean) => boolean)) => void;
  *   setTestMode: (m: 'time' | 'words') => void;
  *   setTimeLimitSec: (n: number) => void;

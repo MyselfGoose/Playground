@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ProfileClient } from "./ProfileClient.jsx";
+import { ProfileView } from "../../components/profile/ProfileView.jsx";
 
 export default function ProfilePage() {
   return (
@@ -8,7 +8,7 @@ export default function ProfilePage() {
         <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">Loading…</div>
       }
     >
-      <ProfileClient />
+      <ProfileView mode="self" />
     </Suspense>
   );
 }
