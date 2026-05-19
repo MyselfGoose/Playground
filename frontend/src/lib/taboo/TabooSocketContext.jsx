@@ -18,6 +18,10 @@ export function TabooProvider({ children }) {
   const [socketError, setSocketError] = useState(
     !getSocketBase() ? connectionMessage("taboo", "missing_socket_url") : null,
   );
+  const [socketErrorCode, setSocketErrorCode] = useState(
+    !getSocketBase() ? "MISSING_SOCKET_URL" : null,
+  );
+  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
@@ -54,25 +58,30 @@ export function TabooProvider({ children }) {
           if (cancelled) return;
           setConnectionState("connected");
           setSocketError(null);
+          setSocketErrorCode(null);
           resyncRoom(s);
         },
         onDisconnect: () => {
           if (cancelled) return;
-          setConnectionState("disconnected");
+          setConnectionState("reconnecting");
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
+          const mapped = mapConnectionError("taboo", msg);
           setConnectionState("reconnecting");
-          setSocketError(mapConnectionError("taboo", msg));
+          setSocketError(mapped.message);
+          setSocketErrorCode(mapped.code);
         },
         onReconnect: (s) => {
           if (cancelled) return;
           setConnectionState("connected");
+          setReconnectedAt(Date.now());
           resyncRoom(s);
         },
         onReconnectFailed: () => {
           if (cancelled) return;
           setSocketError(SESSION_EXPIRED_MESSAGE);
+          setSocketErrorCode("SESSION_EXPIRED");
           setConnectionState("disconnected");
         },
         onVisibilityResync: resyncRoom,
@@ -93,6 +102,7 @@ export function TabooProvider({ children }) {
     } catch {
       if (!cancelled) {
         setSocketError(connectionMessage("taboo", "missing_socket_url"));
+        setSocketErrorCode("MISSING_SOCKET_URL");
       }
       return undefined;
     }
@@ -102,6 +112,7 @@ export function TabooProvider({ children }) {
       cleanup?.();
       socketRef.current = null;
       setConnectionState("disconnected");
+      setReconnectedAt(null);
       setRoom(null);
       roomVersionRef.current = 0;
       setCategories([]);
@@ -138,11 +149,17 @@ export function TabooProvider({ children }) {
 
   const send = useCallback((event, payload = {}) => emitAck(socketRef.current, event, payload), []);
 
+  const retryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
+
   const value = useMemo(() => ({
     room,
     connected: connectionState === "connected",
     connectionState,
     socketError,
+    socketErrorCode,
+    reconnectedAt,
     localUserId: user?.id ?? null,
     localUsername: user?.username ?? "",
     categories,
@@ -162,7 +179,8 @@ export function TabooProvider({ children }) {
     dismissReview: () => send("dismiss_review", {}),
     reviewVote: (vote) => send("review_vote", { vote }),
     reviewContinue: () => send("review_continue", {}),
-  }), [room, connectionState, socketError, user?.id, user?.username, categories, createRoom, joinRoom, leaveRoom, getCategories, send]);
+    retryConnection,
+  }), [room, connectionState, socketError, socketErrorCode, reconnectedAt, retryConnection, user?.id, user?.username, categories, createRoom, joinRoom, leaveRoom, getCategories, send]);
 
   return <TabooContext.Provider value={value}>{children}</TabooContext.Provider>;
 }

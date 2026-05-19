@@ -18,6 +18,10 @@ export function HangmanProvider({ children }) {
   const [socketError, setSocketError] = useState(
     !getSocketBase() ? connectionMessage("hangman", "missing_socket_url") : null,
   );
+  const [socketErrorCode, setSocketErrorCode] = useState(
+    !getSocketBase() ? "MISSING_SOCKET_URL" : null,
+  );
+  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
   const roomCodeRef = useRef(null);
@@ -65,27 +69,32 @@ export function HangmanProvider({ children }) {
           if (cancelled) return;
           setConnectionState("connected");
           setSocketError(null);
+          setSocketErrorCode(null);
           resyncRoom(s);
         },
         onDisconnect: () => {
           if (cancelled) return;
-          setConnectionState("disconnected");
+          setConnectionState("reconnecting");
           setSyncState("syncing");
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
+          const mapped = mapConnectionError("hangman", msg);
           setConnectionState("reconnecting");
-          setSocketError(mapConnectionError("hangman", msg));
+          setSocketError(mapped.message);
+          setSocketErrorCode(mapped.code);
           setSyncState("syncing");
         },
         onReconnect: (s) => {
           if (cancelled) return;
           setConnectionState("connected");
+          setReconnectedAt(Date.now());
           resyncRoom(s);
         },
         onReconnectFailed: () => {
           if (cancelled) return;
           setSocketError(SESSION_EXPIRED_MESSAGE);
+          setSocketErrorCode("SESSION_EXPIRED");
           setConnectionState("disconnected");
         },
         onVisibilityResync: resyncRoom,
@@ -106,6 +115,7 @@ export function HangmanProvider({ children }) {
     } catch {
       if (!cancelled) {
         setSocketError(connectionMessage("hangman", "missing_socket_url"));
+        setSocketErrorCode("MISSING_SOCKET_URL");
       }
       return undefined;
     }
@@ -115,6 +125,7 @@ export function HangmanProvider({ children }) {
       cleanup?.();
       socketRef.current = null;
       setConnectionState("disconnected");
+      setReconnectedAt(null);
       setSyncState("joining");
       setRoom(null);
       roomVersionRef.current = 0;
@@ -147,6 +158,10 @@ export function HangmanProvider({ children }) {
 
   const send = useCallback((event, payload = {}) => emitAck(socketRef.current, event, payload), []);
 
+  const retryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
+
   const value = useMemo(
     () => ({
       room,
@@ -154,6 +169,8 @@ export function HangmanProvider({ children }) {
       connectionState,
       syncState,
       socketError,
+      socketErrorCode,
+      reconnectedAt,
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
       createRoom,
@@ -165,12 +182,16 @@ export function HangmanProvider({ children }) {
       startGame: () => send("start_game", {}),
       guessLetter: (letter) => send("guess_letter", { letter }),
       getRoomState: () => send("get_room_state", {}),
+      retryConnection,
     }),
     [
       room,
       connectionState,
       syncState,
       socketError,
+      socketErrorCode,
+      reconnectedAt,
+      retryConnection,
       user?.id,
       user?.username,
       createRoom,

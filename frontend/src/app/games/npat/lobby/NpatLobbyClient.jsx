@@ -10,7 +10,11 @@ import { LobbyPanel } from "../../../../components/LobbyPanel.jsx";
 import { Avatar } from "../../../../components/Avatar.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
-import { mapConnectionError } from "../../../../lib/errors/mapConnectionError.js";
+import {
+  mapConnectionError,
+  mapConnectionErrorMessage,
+} from "../../../../lib/errors/mapConnectionError.js";
+import { ErrorState } from "../../../../components/feedback/ErrorState.jsx";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -34,7 +38,9 @@ export function NpatLobbyClient() {
   const [copied, setCopied] = useState(false);
   const [joinPhase, setJoinPhase] = useState(/** @type {JoinPhase} */ ("idle"));
   const connectTimedOut = useConnectionTimeout(connected);
-  const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
+  const [joinError, setJoinError] = useState(
+    /** @type {import("../../../../lib/errors/mapConnectionError.js").ConnectionErrorResult | null} */ (null),
+  );
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null));
   const [starting, setStarting] = useState(false);
   const [joinRetryToken, setJoinRetryToken] = useState(0);
@@ -125,17 +131,12 @@ export function NpatLobbyClient() {
   if (!connected) {
     return (
       <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-muted">
-        {socketError ? (
+        {socketError || connectTimedOut ? (
           <p className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-3 text-sm font-semibold text-error">
-            {socketError}
+            {socketError ||
+              mapConnectionErrorMessage("npat", null, { phase: "timeout" })}
           </p>
-        ) : (
-          <p className="text-sm font-bold">
-            {connectTimedOut
-              ? mapConnectionError("npat", null, { phase: "timeout" })
-              : "Connecting to game server…"}
-          </p>
-        )}
+        ) : null}
         <Link href="/games/npat" className="mt-8 text-sm font-bold text-primary underline">
           ← Back
         </Link>
@@ -144,10 +145,25 @@ export function NpatLobbyClient() {
   }
 
   if (joinPhase === "failed") {
+    if (
+      joinError &&
+      (joinError.code === "ROOM_NOT_FOUND" || joinError.code === "ROOM_EXPIRED")
+    ) {
+      return (
+        <ErrorState
+          title={joinError.code === "ROOM_EXPIRED" ? "Room expired" : "Room not found"}
+          message={joinError.message}
+          actions={[
+            { label: "Create new game", href: "/games/npat" },
+            { label: "Back to games", href: "/games" },
+          ]}
+        />
+      );
+    }
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
         <p className="font-semibold text-foreground">Could not join this room.</p>
-        {joinError ? <p className="mt-3 text-sm text-error">{joinError}</p> : null}
+        {joinError ? <p className="mt-3 text-sm text-error">{joinError.message}</p> : null}
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/games/npat"

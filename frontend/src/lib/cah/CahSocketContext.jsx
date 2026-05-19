@@ -18,6 +18,10 @@ export function CahProvider({ children }) {
   const [socketError, setSocketError] = useState(
     !getSocketBase() ? connectionMessage("cah", "missing_socket_url") : null,
   );
+  const [socketErrorCode, setSocketErrorCode] = useState(
+    !getSocketBase() ? "MISSING_SOCKET_URL" : null,
+  );
+  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
@@ -55,29 +59,34 @@ export function CahProvider({ children }) {
           if (cancelled) return;
           setConnectionState("connected");
           setSocketError(null);
+          setSocketErrorCode(null);
           setSyncState("syncing");
           resyncRoom(s);
         },
         onDisconnect: () => {
           if (cancelled) return;
-          setConnectionState("disconnected");
+          setConnectionState("reconnecting");
           setSyncState("syncing");
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
+          const mapped = mapConnectionError("cah", msg);
           setConnectionState("reconnecting");
-          setSocketError(mapConnectionError("cah", msg));
+          setSocketError(mapped.message);
+          setSocketErrorCode(mapped.code);
           setSyncState("syncing");
         },
         onReconnect: (s) => {
           if (cancelled) return;
           setConnectionState("connected");
+          setReconnectedAt(Date.now());
           setSyncState("syncing");
           resyncRoom(s);
         },
         onReconnectFailed: () => {
           if (cancelled) return;
           setSocketError(SESSION_EXPIRED_MESSAGE);
+          setSocketErrorCode("SESSION_EXPIRED");
           setConnectionState("disconnected");
         },
         onVisibilityResync: resyncRoom,
@@ -98,6 +107,7 @@ export function CahProvider({ children }) {
     } catch {
       if (!cancelled) {
         setSocketError(connectionMessage("cah", "missing_socket_url"));
+        setSocketErrorCode("MISSING_SOCKET_URL");
       }
       return undefined;
     }
@@ -107,6 +117,7 @@ export function CahProvider({ children }) {
       cleanup?.();
       socketRef.current = null;
       setConnectionState("disconnected");
+      setReconnectedAt(null);
       setSyncState("joining");
       setRoom(null);
       roomVersionRef.current = 0;
@@ -137,6 +148,10 @@ export function CahProvider({ children }) {
 
   const send = useCallback((event, payload = {}) => emitAck(socketRef.current, event, payload), []);
 
+  const retryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
+
   const value = useMemo(
     () => ({
       room,
@@ -144,6 +159,8 @@ export function CahProvider({ children }) {
       connectionState,
       syncState,
       socketError,
+      socketErrorCode,
+      reconnectedAt,
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
       createRoom,
@@ -156,8 +173,9 @@ export function CahProvider({ children }) {
       judgePickWinner: (submissionId) => send("judge_pick_winner", { submissionId }),
       nextRound: () => send("next_round", {}),
       getRoomState: () => send("get_room_state", {}),
+      retryConnection,
     }),
-    [room, connectionState, syncState, socketError, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send],
+    [room, connectionState, syncState, socketError, socketErrorCode, reconnectedAt, retryConnection, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send],
   );
 
   return <CahContext.Provider value={value}>{children}</CahContext.Provider>;

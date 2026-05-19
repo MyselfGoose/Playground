@@ -22,12 +22,6 @@ export default function TypingMultiHubPage() {
       <h1 className="mt-2 text-center font-sans text-2xl font-bold text-[var(--tt-ink-strong)]">
         Typing race
       </h1>
-      <div className="mt-3 flex items-center justify-center gap-2">
-        {!connected && !socketError && <div className="multi-spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} />}
-        <p className="text-center text-sm text-[var(--tt-ink-muted)]">
-          {connected ? "Connected to server" : "Connecting\u2026"}
-        </p>
-      </div>
       {(socketError || err) && (
         <p className="mt-2 text-center text-sm text-red-400">{err ?? socketError}</p>
       )}

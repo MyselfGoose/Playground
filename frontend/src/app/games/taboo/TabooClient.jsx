@@ -18,8 +18,6 @@ import {
   Target,
   Trophy,
   Users,
-  Wifi,
-  WifiOff,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -27,14 +25,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
-import { formatConnectionStateLabel } from "../../../lib/errors/mapConnectionError.js";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
 import { teamColors } from "../../../lib/taboo/variants.js";
-import { useGameFeedback } from "../../../lib/taboo/useGameFeedback.js";
+import { useGameFeedback } from "../../../lib/feedback/useGameFeedback.js";
 import { ConfirmDialog } from "../../../components/taboo/ConfirmDialog.jsx";
 import { StatusPill } from "../../../components/taboo/StatusPill.jsx";
-import { GameFeedbackOverlay } from "../../../components/taboo/GameFeedbackOverlay.jsx";
+import { GameFeedbackOverlay } from "../../../components/feedback/GameFeedbackOverlay.jsx";
 
 function normalizeCode(code) {
   return String(code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
@@ -247,7 +244,6 @@ export default function TabooClient({ view }) {
     } catch {}
   }
 
-  const connectedVariant = connectionState === "connected" ? "success" : connectionState === "reconnecting" ? "warning" : "danger";
   const teamA = teamColors("A");
   const teamB = teamColors("B");
   const role = game?.viewerRole || "spectator";
@@ -407,7 +403,7 @@ export default function TabooClient({ view }) {
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[400px] h-[300px] bg-[#b73b3b]/10 rounded-full blur-[100px] pointer-events-none" />
         <motion.header initial={reduceMotion ? false : { opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <button onClick={() => setShowLeaveConfirm(true)} className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"><LogOut className="w-5 h-5" /><span className="text-sm hidden sm:inline">Leave</span></button>
-          <StatusPill variant={connectedVariant}>{connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}<span>{formatConnectionStateLabel(connectionState)}</span></StatusPill>
+          <div className="w-10" aria-hidden />
         </motion.header>
         <main className="relative z-10 flex-1 flex flex-col px-4 py-4 sm:py-6 max-w-lg mx-auto w-full">
           {(error || socketError) && <p className="mb-3 rounded-xl bg-[#b73b3b]/10 border border-[#b73b3b]/20 px-3 py-2 text-sm text-[#c94d4d]">{error || socketError}</p>}

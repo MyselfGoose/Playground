@@ -8,7 +8,10 @@ import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
 import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../lib/socket/useConnectionTimeout.js";
-import { mapConnectionError } from "../../../lib/errors/mapConnectionError.js";
+import {
+  mapConnectionError,
+  mapConnectionErrorMessage,
+} from "../../../lib/errors/mapConnectionError.js";
 
 export default function NpatEntryPage() {
   const router = useRouter();
@@ -47,11 +50,9 @@ export default function NpatEntryPage() {
         </p>
       </motion.header>
 
-      {!connected && !socketError ? (
+      {connectTimedOut && !socketError ? (
         <p className="text-center text-sm font-bold text-muted">
-          {connectTimedOut
-            ? mapConnectionError("npat", null, { phase: "timeout" })
-            : "⏳ Connecting to game server…"}
+          {mapConnectionErrorMessage("npat", null, { phase: "timeout" })}
         </p>
       ) : null}
 
@@ -216,7 +217,7 @@ export default function NpatEntryPage() {
               const result = await joinRoom(joinCode);
               setJoining(false);
               if (!result.ok) {
-                setJoinError(mapConnectionError("npat", result.error));
+                setJoinError(mapConnectionError("npat", result.error).message);
                 return;
               }
               const code = result.data?.room?.code;

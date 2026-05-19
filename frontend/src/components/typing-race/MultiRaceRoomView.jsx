@@ -147,10 +147,7 @@ export function MultiRaceRoomView({ roomCode }) {
             </Button>
           </>
         ) : (
-          <>
-            <div className="multi-spinner mx-auto mb-4" />
-            <p>Connecting to server&hellip;</p>
-          </>
+          <div className="multi-spinner mx-auto" />
         )}
       </div>
     );

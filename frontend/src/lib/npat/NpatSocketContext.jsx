@@ -28,6 +28,10 @@ export function NpatProvider({ children }) {
 
   const [room, setRoom] = useState(/** @type {RoomSnapshot} */ (null));
   const [connected, setConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState(
+    /** @type {'connected' | 'reconnecting' | 'disconnected'} */ ("disconnected"),
+  );
+  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   const [resumedCode, setResumedCode] = useState(/** @type {string | null} */ (null));
   const [socketError, setSocketErrorState] = useState(
     /** @type {string | null} */ (!getSocketBase() ? connectionMessage("npat", "missing_socket_url") : null),
@@ -84,6 +88,7 @@ export function NpatProvider({ children }) {
         onConnect: (socket) => {
           if (cancelled) return;
           setConnected(true);
+          setConnectionState("connected");
           setSocketErrorState(null);
           setSocketErrorCode(null);
           resyncRoom(socket);
@@ -91,22 +96,29 @@ export function NpatProvider({ children }) {
         onDisconnect: () => {
           if (cancelled) return;
           setConnected(false);
+          setConnectionState("reconnecting");
         },
         onReconnect: (socket) => {
           if (cancelled) return;
+          setConnected(true);
+          setConnectionState("connected");
+          setReconnectedAt(Date.now());
           resyncRoom(socket);
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
-          setSocketErrorState(mapConnectionError("npat", msg));
-          setSocketErrorCode("CONNECT_ERROR");
+          const mapped = mapConnectionError("npat", msg);
+          setSocketErrorState(mapped.message);
+          setSocketErrorCode(mapped.code);
           setConnected(false);
+          setConnectionState("reconnecting");
         },
         onReconnectFailed: () => {
           if (cancelled) return;
           setSocketErrorState(SESSION_EXPIRED_MESSAGE);
           setSocketErrorCode("SESSION_EXPIRED");
           setConnected(false);
+          setConnectionState("disconnected");
           setRoom((prev) =>
             prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null,
           );
@@ -165,6 +177,8 @@ export function NpatProvider({ children }) {
       cleanup?.();
       socketRef.current = null;
       setConnected(false);
+      setConnectionState("disconnected");
+      setReconnectedAt(null);
       setRoom(null);
       setResumedCode(null);
     };
@@ -184,6 +198,10 @@ export function NpatProvider({ children }) {
     setSocketErrorCode(typeof code === "string" ? code : null);
   }, []);
   const clearResumedCode = useCallback(() => setResumedCode(null), []);
+
+  const retryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
 
   const createRoom = useCallback(
     async (mode) => {
@@ -278,6 +296,8 @@ export function NpatProvider({ children }) {
     () => ({
       room,
       connected,
+      connectionState,
+      reconnectedAt,
       resumedCode,
       clearResumedCode,
       socketError,
@@ -293,11 +313,15 @@ export function NpatProvider({ children }) {
       submitField,
       proposeEarlyFinish,
       voteEarlyFinish,
+      retryConnection,
       localUserId: user?.id ?? null,
     }),
     [
       room,
       connected,
+      connectionState,
+      reconnectedAt,
+      retryConnection,
       resumedCode,
       clearResumedCode,
       socketError,

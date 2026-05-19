@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { feedbackMotion } from "../../lib/taboo/motion.js";
+import { feedbackMotion } from "../../lib/feedback/feedbackMotion.js";
 import { cn } from "../../lib/taboo/cn.js";
 
 const styles = {

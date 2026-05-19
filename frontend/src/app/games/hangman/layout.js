@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { HangmanProvider } from "../../../lib/hangman/HangmanSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
 import { AuthGate } from "../../../components/AuthGate.jsx";
+import { HangmanConnectionBanner } from "../../../components/connection/HangmanConnectionBanner.jsx";
 
 function HangmanMultiplayerGate({ children }) {
   const pathname = usePathname();
@@ -14,7 +15,10 @@ function HangmanMultiplayerGate({ children }) {
 
   return (
     <AuthGate loginNext={loginNext}>
-      <HangmanProvider>{children}</HangmanProvider>
+      <HangmanProvider>
+        <HangmanConnectionBanner />
+        {children}
+      </HangmanProvider>
     </AuthGate>
   );
 }

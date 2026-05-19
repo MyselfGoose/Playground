@@ -8,7 +8,10 @@ import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
 import { ResultsCarousel } from "../ResultsCarousel.jsx";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
-import { mapConnectionError } from "../../../../lib/errors/mapConnectionError.js";
+import {
+  mapConnectionError,
+  mapConnectionErrorMessage,
+} from "../../../../lib/errors/mapConnectionError.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -47,7 +50,7 @@ export function NpatResultClient() {
         setJoinPhase("ready");
       } else {
         setJoinPhase("failed");
-        setJoinError(mapConnectionError("npat", result.error));
+        setJoinError(mapConnectionError("npat", result.error).message);
       }
     })();
 
@@ -100,17 +103,12 @@ export function NpatResultClient() {
   if (!connected && !hasFinishedSnapshot) {
     return (
       <div className="mx-auto flex max-w-lg flex-1 flex-col items-center justify-center px-4 py-20 text-center text-ink-muted">
-        {socketError ? (
+        {socketError || connectTimedOut ? (
           <p className="rounded-[var(--radius-2xl)] border-2 border-error/20 bg-error/5 px-4 py-3 text-sm font-semibold text-error">
-            {socketError}
+            {socketError ||
+              mapConnectionErrorMessage("npat", null, { phase: "timeout" })}
           </p>
-        ) : (
-          <p className="text-sm font-bold">
-            {connectTimedOut
-              ? mapConnectionError("npat", null, { phase: "timeout" })
-              : "Connecting to game server…"}
-          </p>
-        )}
+        ) : null}
         <Link href="/games/npat" className="mt-6 text-sm font-bold text-accent underline">
           Home
         </Link>

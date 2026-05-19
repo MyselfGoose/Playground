@@ -1,24 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { mapConnectionError } from "./mapConnectionError.js";
+import {
+  mapConnectionError,
+  mapConnectionErrorMessage,
+  resolveConnectionError,
+} from "./mapConnectionError.js";
 
-describe("mapConnectionError", () => {
-  it("maps ROOM_EXPIRED by error code", () => {
-    expect(mapConnectionError("npat", { code: "ROOM_EXPIRED" })).toMatch(
-      /no longer available/i,
-    );
+describe("resolveConnectionError", () => {
+  it("maps ROOM_EXPIRED with create_room and leave actions", () => {
+    const r = resolveConnectionError("npat", { code: "ROOM_EXPIRED" });
+    expect(r.code).toBe("ROOM_EXPIRED");
+    expect(r.message).toMatch(/no longer available/i);
+    expect(r.recoverable).toBe(true);
+    expect(r.actions).toEqual(["create_room", "leave"]);
   });
 
   it("maps ROOM_NOT_FOUND by nested ack error shape", () => {
-    expect(
-      mapConnectionError("typing-race", {
-        error: { code: "ROOM_NOT_FOUND", message: "Room not found" },
-      }),
-    ).toMatch(/could not find that room/i);
+    const r = resolveConnectionError("typing-race", {
+      error: { code: "ROOM_NOT_FOUND", message: "Room not found" },
+    });
+    expect(r.code).toBe("ROOM_NOT_FOUND");
+    expect(r.message).toMatch(/could not find that room/i);
+    expect(r.actions).toContain("create_room");
   });
 
-  it("maps ROOM_EXPIRED on Error with code property", () => {
-    const err = new Error("Room not found");
-    err.code = "ROOM_EXPIRED";
-    expect(mapConnectionError("npat", err)).toMatch(/no longer available/i);
+  it("maps session errors to sign_in action", () => {
+    const err = new Error("Session revoked");
+    err.code = "SESSION_REVOKED";
+    const r = resolveConnectionError("npat", err);
+    expect(r.actions).toEqual(["sign_in"]);
+    expect(r.message).toMatch(/sign in/i);
+  });
+
+  it("maps timeout phase with retry", () => {
+    const r = resolveConnectionError("hangman", null, { phase: "timeout" });
+    expect(r.code).toBe("TIMEOUT");
+    expect(r.actions).toEqual(["retry"]);
+  });
+});
+
+describe("mapConnectionErrorMessage", () => {
+  it("returns message string only", () => {
+    expect(mapConnectionErrorMessage("npat", { code: "ROOM_EXPIRED" })).toMatch(
+      /no longer available/i,
+    );
+  });
+});
+
+describe("mapConnectionError", () => {
+  it("returns structured result", () => {
+    const r = mapConnectionError("cah", "connection refused");
+    expect(r).toHaveProperty("message");
+    expect(r).toHaveProperty("code");
+    expect(Array.isArray(r.actions)).toBe(true);
   });
 });

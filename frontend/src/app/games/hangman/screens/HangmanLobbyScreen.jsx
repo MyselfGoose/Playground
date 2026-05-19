@@ -50,12 +50,7 @@ export function HangmanLobbyScreen() {
     : "Everyone ready starts a 5 second countdown.";
 
   return (
-    <HangmanShell
-      connected={connected}
-      connectionState={connectionState}
-      socketError={socketError}
-      isSyncing={isSyncing}
-    >
+    <HangmanShell>
       <AnimatePresence>
         {countdownActive ? <LobbyCountdownOverlay seconds={countdownSeconds} /> : null}
       </AnimatePresence>

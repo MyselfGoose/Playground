@@ -69,12 +69,7 @@ export function HangmanPlayScreen() {
   }
 
   return (
-    <HangmanShell
-      connected={connected}
-      connectionState={connectionState}
-      socketError={socketError}
-      isSyncing={isSyncing}
-    >
+    <HangmanShell>
       <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 pb-12 lg:grid-cols-[1fr_240px]">
         <div className="space-y-5">
           {room?.code ? (

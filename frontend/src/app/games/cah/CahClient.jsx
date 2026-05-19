@@ -339,8 +339,7 @@ export default function CahClient({ view }) {
         game={game}
       />
 
-      <div className="flex items-center justify-between text-sm text-foreground/60">
-        <p>{connectionState === "connected" ? "Live sync active" : "Reconnecting..."}</p>
+      <div className="flex items-center justify-end text-sm text-foreground/60">
         <Button variant="tertiary" onClick={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}>
           Leave Game
         </Button>

@@ -16,7 +16,11 @@ import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { connectGameSocket } from "../socket/createGameSocket.js";
 import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 import { ackToResult, ACK_TIMEOUT_MS } from "../socket/socketUtils.js";
-import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
+import {
+  connectionMessage,
+  mapConnectionError,
+  resolveConnectionError,
+} from "../errors/mapConnectionError.js";
 
 const TypingRaceContext = createContext(null);
 
@@ -62,18 +66,18 @@ export function typingRaceUserFacingError(err) {
   const code = /** @type {any} */ (e).code;
   if (code === "NOT_CONNECTED") {
     const detail = /** @type {any} */ (e).connectDetail;
-    return mapConnectionError("typing-race", detail || e);
+    return resolveConnectionError("typing-race", detail || e).message;
   }
   if (code === "ACK_TIMEOUT") {
-    return mapConnectionError("typing-race", e, { phase: "timeout" });
+    return resolveConnectionError("typing-race", e, { phase: "timeout" }).message;
   }
   if (code === "EMIT_FAILED") {
-    return mapConnectionError("typing-race", e.message || e);
+    return resolveConnectionError("typing-race", e.message || e).message;
   }
   if (code === "SOCKET_NOT_AUTHENTICATED") {
-    return mapConnectionError("typing-race", e, { phase: "reconnect" });
+    return resolveConnectionError("typing-race", e, { phase: "reconnect" }).message;
   }
-  return mapConnectionError("typing-race", e.message || e);
+  return resolveConnectionError("typing-race", e.message || e).message;
 }
 
 /**
@@ -110,6 +114,10 @@ export function TypingRaceProvider({ children }) {
   const [socketError, setSocketError] = useState(
     /** @type {string | null} */ (!getSocketBase() ? connectionMessage("typing-race", "missing_socket_url") : null),
   );
+  const [socketErrorCode, setSocketErrorCode] = useState(
+    /** @type {string | null} */ (!getSocketBase() ? "MISSING_SOCKET_URL" : null),
+  );
+  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   /** Plan F: explicit socket lifecycle for UX + emit gating. */
   const [socketLifecycle, setSocketLifecycle] = useState(
     /** @type {'DISCONNECTED'|'CONNECTING'|'AUTHENTICATING'|'AUTHENTICATED'|'RECONNECTING'|'FAILED'} */ (
@@ -162,10 +170,13 @@ export function TypingRaceProvider({ children }) {
           const detail = lastConnectErrorRef.current || "The server did not accept the connection in time.";
           return {
             ok: false,
-            error: Object.assign(new Error(mapConnectionError("typing-race", detail)), {
-              code: "NOT_CONNECTED",
-              connectDetail: detail,
-            }),
+            error: Object.assign(
+              new Error(resolveConnectionError("typing-race", detail).message),
+              {
+                code: "NOT_CONNECTED",
+                connectDetail: detail,
+              },
+            ),
           };
         }
       }
@@ -274,6 +285,7 @@ export function TypingRaceProvider({ children }) {
           authenticatedRef.current = true;
           setConnected(s.connected);
           setSocketError(null);
+          setSocketErrorCode(null);
           setSocketLifecycle("AUTHENTICATED");
           scheduleResync(s);
         },
@@ -281,13 +293,15 @@ export function TypingRaceProvider({ children }) {
           if (cancelled) return;
           authenticatedRef.current = false;
           setConnected(false);
-          setSocketLifecycle("DISCONNECTED");
+          setSocketLifecycle("RECONNECTING");
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
           authenticatedRef.current = false;
           lastConnectErrorRef.current = msg;
-          setSocketError(mapConnectionError("typing-race", msg));
+          const mapped = mapConnectionError("typing-race", msg);
+          setSocketError(mapped.message);
+          setSocketErrorCode(mapped.code);
           setConnected(false);
           setSocketLifecycle("FAILED");
         },
@@ -297,12 +311,15 @@ export function TypingRaceProvider({ children }) {
           authenticatedRef.current = true;
           setConnected(s.connected);
           setSocketError(null);
+          setSocketErrorCode(null);
+          setReconnectedAt(Date.now());
           setSocketLifecycle("AUTHENTICATED");
           scheduleResync(s);
         },
         onReconnectFailed: () => {
           if (cancelled) return;
           setSocketError(SESSION_EXPIRED_MESSAGE);
+          setSocketErrorCode("SESSION_EXPIRED");
           setConnected(false);
           setSocketLifecycle("FAILED");
         },
@@ -373,11 +390,12 @@ export function TypingRaceProvider({ children }) {
       socket.on("typing_race_finished", onRoom);
     } catch (e) {
       if (!cancelled) {
-        const msg =
+        const mapped =
           e instanceof ApiError
             ? mapConnectionError("typing-race", e.user_message || e.message)
             : mapConnectionError("typing-race", e);
-        setSocketError(msg);
+        setSocketError(mapped.message);
+        setSocketErrorCode(mapped.code);
         setSocketLifecycle("FAILED");
       }
     }
@@ -392,6 +410,7 @@ export function TypingRaceProvider({ children }) {
       socketCleanup?.();
       socketRef.current = null;
       setConnected(false);
+      setReconnectedAt(null);
       setRoom(null);
       setSocketLifecycle("DISCONNECTED");
     };
@@ -467,6 +486,10 @@ export function TypingRaceProvider({ children }) {
     return emitAck("typing_reset_lobby", {});
   }, [emitAck]);
 
+  const retryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
+
   const value = useMemo(
     () => ({
       room,
@@ -476,6 +499,8 @@ export function TypingRaceProvider({ children }) {
       serverNow,
       serverOffsetMs,
       socketError,
+      socketErrorCode,
+      reconnectedAt,
       typingRaceUserFacingError,
       createRoom,
       joinRoom,
@@ -487,6 +512,7 @@ export function TypingRaceProvider({ children }) {
       reportSoloComplete,
       forceEnd,
       resetLobby,
+      retryConnection,
       router,
     }),
     [
@@ -497,6 +523,9 @@ export function TypingRaceProvider({ children }) {
       serverNow,
       serverOffsetMs,
       socketError,
+      socketErrorCode,
+      reconnectedAt,
+      retryConnection,
       createRoom,
       joinRoom,
       leaveRoom,

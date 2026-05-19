@@ -73,10 +73,23 @@ function DefaultErrorFallback({ error, reset, level }) {
             {error.message}
           </pre>
         )}
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {isGame ? (
+            <a
+              href="/games"
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            >
+              Leave to games hub
+            </a>
+          ) : null}
           <button
+            type="button"
             onClick={reset}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              isGame
+                ? "border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30"
+                : "bg-red-600 text-white hover:bg-red-700"
+            }`}
           >
             Try again
           </button>

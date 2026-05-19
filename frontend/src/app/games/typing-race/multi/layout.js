@@ -5,11 +5,13 @@ import { Suspense } from "react";
 import { TypingRaceProvider } from "../../../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { ErrorBoundary } from "../../../../components/ErrorBoundary.jsx";
 import { AuthGate } from "../../../../components/AuthGate.jsx";
+import { TypingConnectionBanner } from "../../../../components/connection/TypingConnectionBanner.jsx";
 
 export default function TypingMultiLayout({ children }) {
   return (
     <ErrorBoundary level="game">
       <TypingRaceProvider>
+        <TypingConnectionBanner />
         <div className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased pb-[env(safe-area-inset-bottom)]">
           <Suspense
             fallback={

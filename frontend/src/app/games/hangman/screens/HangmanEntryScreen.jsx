@@ -34,12 +34,7 @@ export function HangmanEntryScreen() {
   const hasInviteLink = normalizedInvite.length > 0;
 
   return (
-    <HangmanShell
-      connected={connected}
-      connectionState={connectionState}
-      socketError={socketError}
-      isSyncing={isSyncing}
-    >
+    <HangmanShell>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
         <motion.header
           initial={{ opacity: 0, y: 16 }}

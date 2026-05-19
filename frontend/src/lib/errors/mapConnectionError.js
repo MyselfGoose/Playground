@@ -4,6 +4,17 @@
 
 /** @typedef {'npat' | 'cah' | 'taboo' | 'hangman' | 'typing-race' | 'generic'} GameContext */
 
+/** @typedef {'retry' | 'sign_in' | 'leave' | 'create_room'} ConnectionActionId */
+
+/**
+ * @typedef {{
+ *   code: string,
+ *   message: string,
+ *   recoverable: boolean,
+ *   actions: ConnectionActionId[],
+ * }} ConnectionErrorResult
+ */
+
 const MISSING_SOCKET_URL =
   "Live games are temporarily unavailable. Please try again in a moment.";
 
@@ -48,11 +59,29 @@ const ROOM_ERROR_MESSAGES = {
   ROOM_NOT_FOUND: "We could not find that room. Check the code or create a new game.",
 };
 
+const SESSION_ENDED_CODES = new Set([
+  "SESSION_EXPIRED",
+  "SESSION_REVOKED",
+  "UNAUTHENTICATED",
+  "MISSING_SOCKET_URL",
+]);
+
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {ConnectionActionId[]} actions
+ * @param {boolean} [recoverable=true]
+ * @returns {ConnectionErrorResult}
+ */
+function result(code, message, actions, recoverable = true) {
+  return { code, message, recoverable, actions };
+}
+
 /**
  * @param {unknown} err
  * @returns {string | null}
  */
-function resolveErrorCode(err) {
+export function resolveErrorCode(err) {
   if (err && typeof err === "object") {
     if ("code" in err && typeof /** @type {{ code: unknown }} */ (err).code === "string") {
       return /** @type {{ code: string }} */ (err).code;
@@ -83,39 +112,70 @@ export function connectionMessage(game, kind) {
  * @param {GameContext} game
  * @param {unknown} err
  * @param {{ phase?: 'connect' | 'timeout' | 'reconnect' }} [options]
+ * @returns {ConnectionErrorResult}
  */
-export function mapConnectionError(game, err, options = {}) {
+export function resolveConnectionError(game, err, options = {}) {
   if (options.phase === "timeout") {
-    return TIMEOUT[game] ?? TIMEOUT.generic;
+    return result("TIMEOUT", TIMEOUT[game] ?? TIMEOUT.generic, ["retry"]);
   }
   if (options.phase === "reconnect") {
-    return RECONNECTING[game] ?? RECONNECTING.generic;
+    return result("RECONNECTING", RECONNECTING[game] ?? RECONNECTING.generic, ["retry"], true);
   }
 
   const code = resolveErrorCode(err);
-  if (code && code in ROOM_ERROR_MESSAGES) {
-    return ROOM_ERROR_MESSAGES[/** @type {keyof typeof ROOM_ERROR_MESSAGES} */ (code)];
+  if (code === "ROOM_EXPIRED") {
+    return result(code, ROOM_ERROR_MESSAGES.ROOM_EXPIRED, ["create_room", "leave"]);
+  }
+  if (code === "ROOM_NOT_FOUND") {
+    return result(code, ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND, ["create_room", "leave"]);
+  }
+  if (code && SESSION_ENDED_CODES.has(code)) {
+    const message =
+      code === "MISSING_SOCKET_URL"
+        ? MISSING_SOCKET_URL
+        : "Please sign in again to continue.";
+    return result(code, message, ["sign_in"], true);
   }
 
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
 
   if (/NEXT_PUBLIC_|CORS_ORIGIN|localhost:4000|API origin|backend is running/i.test(msg)) {
-    return CONNECT_FAILED[game] ?? CONNECT_FAILED.generic;
+    return result("CONNECT_FAILED", CONNECT_FAILED[game] ?? CONNECT_FAILED.generic, ["retry"]);
   }
 
   if (/timeout|timed out|ETIMEDOUT/i.test(msg)) {
-    return TIMEOUT[game] ?? TIMEOUT.generic;
+    return result("TIMEOUT", TIMEOUT[game] ?? TIMEOUT.generic, ["retry"]);
   }
 
   if (/UNAUTHENTICATED|SESSION_REVOKED|sign in/i.test(msg)) {
-    return "Please sign in again to continue.";
+    return result("SESSION_REVOKED", "Please sign in again to continue.", ["sign_in"]);
   }
 
   if (msg.trim()) {
-    return msg;
+    return result("CONNECT_ERROR", msg, ["retry"], true);
   }
 
-  return CONNECT_FAILED[game] ?? CONNECT_FAILED.generic;
+  return result("CONNECT_FAILED", CONNECT_FAILED[game] ?? CONNECT_FAILED.generic, ["retry"]);
+}
+
+/**
+ * @param {GameContext} game
+ * @param {unknown} err
+ * @param {{ phase?: 'connect' | 'timeout' | 'reconnect' }} [options]
+ * @returns {ConnectionErrorResult}
+ */
+export function mapConnectionError(game, err, options = {}) {
+  return resolveConnectionError(game, err, options);
+}
+
+/**
+ * @param {GameContext} game
+ * @param {unknown} err
+ * @param {{ phase?: 'connect' | 'timeout' | 'reconnect' }} [options]
+ * @returns {string}
+ */
+export function mapConnectionErrorMessage(game, err, options = {}) {
+  return resolveConnectionError(game, err, options).message;
 }
 
 /**
