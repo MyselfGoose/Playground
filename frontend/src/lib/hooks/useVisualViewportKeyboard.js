@@ -18,11 +18,11 @@ export function computeKeyboardOffset(visualViewport, windowInnerHeight = typeof
  * Tracks virtual keyboard via visualViewport and exposes --keyboard-offset on documentElement.
  *
  * @param {import('react').RefObject<HTMLElement | null>} scrollTargetRef
- * @param {{ enabled?: boolean; setOnDocument?: boolean }} [options]
+ * @param {{ enabled?: boolean; setOnDocument?: boolean; refocusInputRef?: import('react').RefObject<HTMLTextAreaElement | null> }} [options]
  */
 export function useVisualViewportKeyboard(
   scrollTargetRef,
-  { enabled = true, setOnDocument = true } = {},
+  { enabled = true, setOnDocument = true, refocusInputRef } = {},
 ) {
   const lastOffsetRef = useRef(0);
 
@@ -49,8 +49,16 @@ export function useVisualViewportKeyboard(
       });
     }
 
+    if (enabled && refocusInputRef?.current) {
+      try {
+        refocusInputRef.current.focus({ preventScroll: true });
+      } catch {
+        refocusInputRef.current.focus();
+      }
+    }
+
     lastOffsetRef.current = offset;
-  }, [enabled, scrollTargetRef, setOnDocument]);
+  }, [enabled, scrollTargetRef, setOnDocument, refocusInputRef]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !enabled) {

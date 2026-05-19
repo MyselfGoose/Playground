@@ -177,6 +177,7 @@ export function MultiRaceRoomView({ roomCode }) {
         <PartyCode code={displayCode} gameSlug="typing-race" size="sm" />
         <button
           type="button"
+          data-no-refocus
           className="rounded-md px-3 py-1.5 text-xs font-medium text-[var(--tt-ink-muted)] transition hover:bg-[var(--tt-bg-elevated)] hover:text-[var(--tt-ink)]"
           onClick={() => {
             void leaveRoom();
@@ -217,6 +218,7 @@ export function MultiRaceRoomView({ roomCode }) {
                   {isHost && p.userId !== selfId && (
                     <button
                       type="button"
+                      data-no-refocus
                       className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400/90 hover:bg-red-500/10 hover:text-red-300"
                       disabled={busy}
                       onClick={() => void handleKick(p.userId)}
@@ -295,6 +297,7 @@ export function MultiRaceRoomView({ roomCode }) {
             <div className="mt-4 text-center">
               <button
                 type="button"
+                data-no-refocus
                 className="text-xs text-[var(--tt-ink-faint)] underline-offset-2 hover:underline hover:text-[var(--tt-ink-muted)]"
                 onClick={async () => {
                   setBusy(true);

@@ -7,7 +7,10 @@ import {
 } from "../../lib/typing-test/text-gen.js";
 import { useTypingTest } from "./TypingTestContext.jsx";
 
-function TypingToolbarInner() {
+/**
+ * @param {{ onMinimalUiToggle?: () => void }} [props]
+ */
+function TypingToolbarInner({ onMinimalUiToggle }) {
   const {
     engine,
     testMode,
@@ -131,9 +134,17 @@ function TypingToolbarInner() {
         <button
           type="button"
           className={pill(focusMode)}
-          onClick={() => setFocusMode((v) => !v)}
+          onClick={() => {
+            setFocusMode((v) => {
+              const next = !v;
+              if (next) {
+                onMinimalUiToggle?.();
+              }
+              return next;
+            });
+          }}
         >
-          focus
+          minimal UI
         </button>
       </div>
 

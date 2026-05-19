@@ -48,6 +48,7 @@ export function DailyChallengeBanner({ className = "" }) {
       <button
         type="button"
         className="rounded-[var(--tt-radius-md)] bg-[rgb(124_108_240_/0.25)] px-4 py-2 font-sans text-sm font-semibold text-[var(--tt-ink-strong)] ring-1 ring-[var(--tt-accent-soft)]/40 transition hover:bg-[rgb(124_108_240_/0.35)]"
+        data-no-refocus
         onClick={() => startDailyChallenge(daily.seed)}
       >
         Start daily

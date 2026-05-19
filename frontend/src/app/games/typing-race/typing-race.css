@@ -46,6 +46,15 @@
   resize: none;
 }
 
+/** Click-to-resume target during active solo / race typing */
+.typing-passage-capture--active {
+  cursor: text;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /**
  * Passage text layer — clipping prevents horizontal scroll; wrapping between words only.
  */

@@ -18,9 +18,10 @@ import { findActiveWordPartIndex, splitPassageWords } from "./typing-passage-bui
  *   cursor: number;
  *   errorStack: string;
  *   peerCursors?: Array<{ userId: string; displayName: string; color?: string; cursorDisplay?: number; finishedAtMs?: number | null }>;
+ *   ariaDescribedBy?: string;
  * }} props
  */
-function TypingPassageInner({ passage, cursor, errorStack, peerCursors }) {
+function TypingPassageInner({ passage, cursor, errorStack, peerCursors, ariaDescribedBy }) {
   const reduce = useReducedMotion();
   const containerRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const currentCharRef = useRef(/** @type {HTMLSpanElement | null} */ (null));
@@ -157,7 +158,10 @@ function TypingPassageInner({ passage, cursor, errorStack, peerCursors }) {
   }, [updateCaret, updatePeerCarets]);
 
   return (
-    <div className="typing-passage-wrap mx-auto w-full max-w-[min(76ch,100%-1.5rem)] px-3 py-8 sm:px-6">
+    <div
+      className="typing-passage-wrap mx-auto w-full max-w-[min(76ch,100%-1.5rem)] px-3 py-8 sm:px-6"
+      aria-describedby={ariaDescribedBy}
+    >
       <div
         ref={containerRef}
         className="tt-passage-text font-mono"

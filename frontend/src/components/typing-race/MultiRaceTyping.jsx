@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVisualViewportKeyboard } from "../../lib/hooks/useVisualViewportKeyboard.js";
 import { createInitialState, getDisplayIndex } from "../../lib/typing-test/typing-engine.js";
 import { computeTypingMetrics } from "../../lib/typing-test/metrics.js";
+import { handleRaceTypingKeyDown } from "../../lib/typing-test/typingKeyHandlers.js";
+import { useTypingInputCapture } from "../../lib/typing-test/useTypingInputCapture.js";
 import { typingTestReducer } from "./typingTestReducer.js";
 import { TypingPassage } from "./TypingPassage.jsx";
+import { TypingRaceInput } from "./TypingRaceInput.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 
 /**
@@ -20,7 +23,6 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   const { sendProgress } = useTypingRace();
   const inputRef = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const passageAreaRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  useVisualViewportKeyboard(passageAreaRef, { enabled: isRacing });
   const engineRef = useRef(
     createInitialState({
       mode: "words",
@@ -38,6 +40,28 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
 
   engineRef.current = engine;
 
+  const captureActive =
+    isRacing && (engine.status === "idle" || engine.status === "running");
+
+  const onCapturedKey = useCallback(
+    (e) => {
+      handleRaceTypingKeyDown({ isComposing, dispatch }, e);
+    },
+    [isComposing, dispatch],
+  );
+
+  const capture = useTypingInputCapture({
+    inputRef,
+    active: captureActive,
+    isComposing,
+    onCapturedKey,
+  });
+
+  useVisualViewportKeyboard(passageAreaRef, {
+    enabled: captureActive,
+    refocusInputRef: inputRef,
+  });
+
   useEffect(() => {
     if (!raceConfig?.passage) {
       return;
@@ -48,7 +72,6 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
       passage: raceConfig.passage,
       seed: raceConfig.seed,
     });
-    requestAnimationFrame(() => inputRef.current?.focus());
   }, [raceConfig]);
 
   useEffect(() => {
@@ -98,7 +121,6 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
         return;
       }
       const sinceLast = Date.now() - prev.sentAt;
-      // Hard-cap outbound progress updates at ~6.6 events/sec and coalesce bursts.
       if (sinceLast >= 150) {
         lastSentRef.current = { ...payload, sentAt: Date.now() };
         void sendProgress(payload);
@@ -146,42 +168,41 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
     }
   }, [engine.status, onDone]);
 
+  const onKeyDown = useCallback(
+    (e) => {
+      handleRaceTypingKeyDown({ isComposing, dispatch }, e);
+    },
+    [isComposing, dispatch],
+  );
+
   return (
-    <div ref={passageAreaRef} className="relative pb-[var(--keyboard-offset,0px)]">
-      <textarea
-        ref={inputRef}
-        aria-label="Typing input"
-        className="typing-hidden-input"
-        autoComplete="off"
-        spellCheck={false}
-        rows={1}
-        onInput={(e) => {
-          e.currentTarget.value = "";
-        }}
-        onPaste={(e) => e.preventDefault()}
-        onCompositionStart={() => setIsComposing(true)}
-        onCompositionEnd={() => setIsComposing(false)}
-        onKeyDown={(e) => {
-          if (isComposing) {
-            return;
-          }
-          dispatch({
-            type: "KEY",
-            event: {
-              key: e.key,
-              ctrlKey: e.ctrlKey,
-              metaKey: e.metaKey,
-              altKey: e.altKey,
-            },
-            ts: e.timeStamp || performance.now(),
-          });
-        }}
+    <div
+      ref={passageAreaRef}
+      className={`relative pb-[var(--keyboard-offset,0px)] ${capture.passageAreaClassName}`}
+      onPointerDown={capture.onPassagePointerDown}
+      role="presentation"
+    >
+      <TypingRaceInput
+        inputRef={inputRef}
+        bindInputFocus={capture.bindInputFocus}
+        isComposing={isComposing}
+        setIsComposing={setIsComposing}
+        onKeyDown={onKeyDown}
       />
+      {capture.needsResumeHint && (
+        <p
+          id="typing-race-resume-hint"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 text-center text-xs text-[var(--tt-ink-muted)]"
+        >
+          Tap here or keep typing to resume
+        </p>
+      )}
       <TypingPassage
         passage={engine.passage}
         cursor={engine.cursor}
         errorStack={engine.errorStack}
         peerCursors={peerCursors}
+        ariaDescribedBy={capture.needsResumeHint ? "typing-race-resume-hint" : undefined}
       />
     </div>
   );
