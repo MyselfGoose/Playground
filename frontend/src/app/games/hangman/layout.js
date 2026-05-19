@@ -1,9 +1,23 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { HangmanProvider } from "../../../lib/hangman/HangmanSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
 import { AuthGate } from "../../../components/AuthGate.jsx";
+
+function HangmanMultiplayerGate({ children }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const loginNext = search ? `${pathname}?${search}` : pathname ?? "/games/hangman";
+
+  return (
+    <AuthGate loginNext={loginNext}>
+      <HangmanProvider>{children}</HangmanProvider>
+    </AuthGate>
+  );
+}
 
 export default function HangmanLayout({ children }) {
   const pathname = usePathname();
@@ -15,9 +29,15 @@ export default function HangmanLayout({ children }) {
 
   return (
     <ErrorBoundary level="game">
-      <AuthGate loginNext="/games/hangman">
-        <HangmanProvider>{children}</HangmanProvider>
-      </AuthGate>
+      <Suspense
+        fallback={
+          <div className="flex min-h-[60vh] items-center justify-center px-4 text-sm font-semibold text-foreground/60">
+            Loading…
+          </div>
+        }
+      >
+        <HangmanMultiplayerGate>{children}</HangmanMultiplayerGate>
+      </Suspense>
     </ErrorBoundary>
   );
 }

@@ -7,7 +7,7 @@ import { GameBoard } from "../components/GameBoard.jsx";
 import { GameEndPanel } from "../components/GameEndPanel.jsx";
 import { HangmanShell } from "../components/HangmanShell.jsx";
 import { LetterKeyboard } from "../components/LetterKeyboard.jsx";
-import { RoomCodeChip } from "../components/RoomCodeChip.jsx";
+import { PartyCode } from "../../../../components/party/PartyCode.jsx";
 import { ScoreRail } from "../components/ScoreRail.jsx";
 import { TurnBanner } from "../components/TurnBanner.jsx";
 import { WordPickerPanel } from "../components/WordPickerPanel.jsx";
@@ -79,7 +79,7 @@ export function HangmanPlayScreen() {
         <div className="space-y-5">
           {room?.code ? (
             <div className="flex justify-center lg:justify-start">
-              <RoomCodeChip code={room.code} size="md" />
+              <PartyCode code={room.code} gameSlug="hangman" size="sm" />
             </div>
           ) : null}
 
