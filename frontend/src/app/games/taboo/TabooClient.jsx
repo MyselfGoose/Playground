@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useVisualViewportKeyboard } from "../../../lib/hooks/useVisualViewportKeyboard.js";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
@@ -209,6 +210,11 @@ export default function TabooClient({ view }) {
     review: game?.review,
     gameStatus: game?.status,
     reduceMotion,
+  });
+  const guessRowRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const canSubmitGuess = Boolean(game?.permissions?.canSubmitGuess);
+  const { refresh: refreshGuessKeyboard } = useVisualViewportKeyboard(guessRowRef, {
+    enabled: view === "play" && canSubmitGuess,
   });
 
   async function handleCreate() {
@@ -548,10 +554,10 @@ export default function TabooClient({ view }) {
   const reviewPaused = review?.status === "in_progress" || review?.status === "resolved";
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
+    <motion.div className="min-h-dvh bg-[#0a0f1a] text-white">
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#0a0f1a] via-[#0d1220] to-[#0a0f1a]" />
       <GameFeedbackOverlay variant={feedbackVariant} reduceMotion={reduceMotion} />
-      <div className="relative z-10 mx-auto flex w-full max-w-lg flex-col px-4 py-4">
+      <div className="relative z-10 mx-auto flex w-full max-w-lg flex-col px-4 py-4 pb-[calc(var(--keyboard-offset,0px)+env(safe-area-inset-bottom))]">
         <div className="mb-3 flex items-center justify-between">
           <button type="button" onClick={() => setShowLeaveConfirm(true)} className="flex items-center gap-2 text-neutral-400 hover:text-white"><LogOut className="h-5 w-5" />Leave</button>
           <p className="text-sm">Round {game?.roundNumber || 0}/{game?.totalRounds || 0}</p>
@@ -588,8 +594,8 @@ export default function TabooClient({ view }) {
             </div>
             {review.tabooCard ? <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 mb-3"><h3 className="text-center text-2xl font-bold">{review.tabooCard.question}</h3><div className="mt-3 flex flex-wrap justify-center gap-1.5">{(review.tabooCard.taboo || []).map((word) => <span key={word} className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-300">{word}</span>)}</div></div> : null}
             <div className="flex gap-2 flex-wrap">
-              {game?.permissions?.canVoteReview ? <><button className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm" onClick={() => act(reviewVote, "fair")} disabled={!isRealtimeConnected}>Vote Fair</button><button className="flex-1 rounded-xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm" onClick={() => act(reviewVote, "not_fair")} disabled={!isRealtimeConnected}>Vote Not Fair</button></> : null}
-              {game?.permissions?.canContinueAfterReview ? <button className="w-full rounded-xl border border-[#3b6ca8]/40 bg-[#1e3a5f]/30 px-4 py-2 text-sm" onClick={() => act(reviewContinue)} disabled={!isRealtimeConnected}>Continue Turn</button> : null}
+              {game?.permissions?.canVoteReview ? <><button className="flex-1 min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm" onClick={() => act(reviewVote, "fair")} disabled={!isRealtimeConnected}>Vote Fair</button><button className="flex-1 min-h-11 rounded-xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm" onClick={() => act(reviewVote, "not_fair")} disabled={!isRealtimeConnected}>Vote Not Fair</button></> : null}
+              {game?.permissions?.canContinueAfterReview ? <button className="w-full min-h-11 rounded-xl border border-[#3b6ca8]/40 bg-[#1e3a5f]/30 px-4 py-2 text-sm" onClick={() => act(reviewContinue)} disabled={!isRealtimeConnected}>Continue Turn</button> : null}
             </div>
             {review?.status === "resolved" ? (
               <p className="mt-3 text-xs text-neutral-500">
@@ -637,8 +643,8 @@ export default function TabooClient({ view }) {
             </motion.div>
             <div className="flex flex-wrap gap-2 mb-3">
               {game?.permissions?.canSubmitGuess ? (
-                <div className="flex w-full gap-2">
-                  <input className="h-11 flex-1 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-white outline-none" value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={isRealtimeConnected ? "Type your guess..." : "Reconnecting…"} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); act(submitGuess, guess); setGuess(""); } }} />
+                <div ref={guessRowRef} className="flex w-full gap-2">
+                  <input className="h-11 flex-1 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-white outline-none" value={guess} onChange={(e) => setGuess(e.target.value)} placeholder={isRealtimeConnected ? "Type your guess..." : "Reconnecting…"} onFocus={() => refreshGuessKeyboard()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); act(submitGuess, guess); setGuess(""); } }} />
                   <button className="h-11 rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-4 text-sm font-semibold text-emerald-300 disabled:opacity-50" disabled={!isRealtimeConnected} onClick={() => { act(submitGuess, guess); setGuess(""); }}>Guess</button>
                 </div>
               ) : null}
@@ -670,6 +676,6 @@ export default function TabooClient({ view }) {
       </div>
       <ConfirmDialog open={showLeaveConfirm} title="Leave Game?" description="You'll be removed from the game in progress. This can't be undone." confirmLabel="Leave" cancelLabel="Stay" variant="danger" onConfirm={async () => { await leaveRoom(); router.push("/games/taboo"); }} onCancel={() => setShowLeaveConfirm(false)} />
       <ConfirmDialog open={showReviewPrompt} title="Taboo Called" description="The opposing team called Taboo. Do you want to request a review, or ignore it and continue?" confirmLabel="Request review" cancelLabel="Ignore" variant="primary" onConfirm={() => { setShowReviewPrompt(false); act(requestReview); }} onCancel={() => { setShowReviewPrompt(false); act(dismissReview); }} />
-    </div>
+    </motion.div>
   );
 }

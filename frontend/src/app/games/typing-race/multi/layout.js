@@ -12,7 +12,7 @@ export default function TypingMultiLayout({ children }) {
     <ErrorBoundary level="game">
       <TypingRaceProvider>
         <TypingConnectionBanner />
-        <div className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased pb-[env(safe-area-inset-bottom)]">
+        <div className="typing-race-root flex min-h-[calc(100dvh-4rem)] flex-col antialiased pb-[env(safe-area-inset-bottom)]">
           <Suspense
             fallback={
               <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-16 text-center text-[var(--tt-ink-muted)]">

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useVisualViewportKeyboard } from "../../lib/hooks/useVisualViewportKeyboard.js";
 import { useTypingTest } from "./TypingTestContext.jsx";
 import { TypingHiddenInput } from "./TypingHiddenInput.jsx";
 import { TypingHud } from "./TypingHud.jsx";
@@ -11,6 +12,8 @@ import { TypingToolbar } from "./TypingToolbar.jsx";
 
 export function TypingTestView() {
   const { engine, focusMode, inputRef } = useTypingTest();
+  const passageAreaRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useVisualViewportKeyboard(passageAreaRef);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -18,7 +21,7 @@ export function TypingTestView() {
 
   return (
     <div
-      className="typing-race-root flex min-h-[calc(100vh-4rem)] flex-col antialiased sm:text-[16px]"
+      className="typing-race-root flex min-h-[calc(100dvh-4rem)] flex-col antialiased pb-[var(--keyboard-offset,0px)] sm:text-[16px]"
       data-focus-mode={focusMode ? "true" : "false"}
     >
       <TypingHiddenInput />
@@ -38,7 +41,7 @@ export function TypingTestView() {
       </header>
       <TypingToolbar />
       <TypingHud />
-      <div className="relative flex flex-1 flex-col justify-center">
+      <div ref={passageAreaRef} className="relative flex flex-1 flex-col justify-center">
         {engine.status === "completed" ? (
           <ResultsPanel />
         ) : (

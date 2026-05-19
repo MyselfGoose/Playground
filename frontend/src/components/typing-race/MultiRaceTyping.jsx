@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
+import { useVisualViewportKeyboard } from "../../lib/hooks/useVisualViewportKeyboard.js";
 import { createInitialState, getDisplayIndex } from "../../lib/typing-test/typing-engine.js";
 import { computeTypingMetrics } from "../../lib/typing-test/metrics.js";
 import { typingTestReducer } from "./typingTestReducer.js";
@@ -18,6 +19,8 @@ import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx
 export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   const { sendProgress } = useTypingRace();
   const inputRef = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
+  const passageAreaRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useVisualViewportKeyboard(passageAreaRef, { enabled: isRacing });
   const engineRef = useRef(
     createInitialState({
       mode: "words",
@@ -144,7 +147,7 @@ export function MultiRaceTyping({ raceConfig, isRacing, onDone, peerCursors }) {
   }, [engine.status, onDone]);
 
   return (
-    <div className="relative">
+    <div ref={passageAreaRef} className="relative pb-[var(--keyboard-offset,0px)]">
       <textarea
         ref={inputRef}
         aria-label="Typing input"

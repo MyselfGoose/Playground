@@ -30,7 +30,7 @@
     radial-gradient(ellipse 90% 70% at 50% -20%, rgb(124 108 240 / 0.14), transparent),
     radial-gradient(ellipse 60% 50% at 100% 80%, rgb(255 138 122 / 0.06), transparent),
     radial-gradient(ellipse 50% 40% at 0% 90%, rgb(91 191 179 / 0.05), transparent);
-  min-height: calc(100vh - 4rem);
+  min-height: calc(100dvh - 4rem);
 }
 
 .typing-hidden-input {

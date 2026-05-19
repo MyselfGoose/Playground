@@ -42,6 +42,9 @@
   --warning: #ffd166;
   --error: #dc2626;
 
+  /* Mobile keyboard (visualViewport hook) */
+  --keyboard-offset: 0px;
+
   /* Motion */
   --motion-fast: 120ms;
   --motion-normal: 220ms;
