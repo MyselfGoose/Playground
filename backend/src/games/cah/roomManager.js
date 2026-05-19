@@ -5,14 +5,17 @@ import {
   CAH_REVEALING_AUTO_ADVANCE_MS,
 } from './constants.js';
 import {
+  CAH_DATASET_VERSION,
   canAdvanceFromRevealing,
   createCahRoom,
   judgePickWinner,
+  listAvailablePacks,
   nextRound,
   reconcileRoomAfterMembershipChange,
   snapshotFor,
   startGame,
   submitCards,
+  validatePacksAgainstAllowed,
 } from './gameManager.js';
 import { persistCahGameResult, persistCahRoundResult } from '../../services/leaderboardStatsService.js';
 
@@ -48,6 +51,8 @@ function normalizeSettings(input = {}, serverMaxPlayers) {
 export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayers }) {
   const log = logger;
   const rooms = new Map();
+  /** @type {Set<string> | null} */
+  let cachedPackIds = null;
   const socketToCode = new Map();
   const userToCode = new Map();
   const userToSocketIds = new Map();
@@ -92,6 +97,23 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     room.updatedAt = Date.now();
   }
 
+  async function getAllowedPackSet() {
+    if (!cachedPackIds) {
+      const packs = await listAvailablePacks(CAH_DATASET_VERSION);
+      cachedPackIds = new Set(packs);
+    }
+    return cachedPackIds;
+  }
+
+  async function applyPackSettings(room, partialSettings) {
+    const merged = normalizeSettings(partialSettings, lobbyMaxPlayers);
+    if (Object.prototype.hasOwnProperty.call(partialSettings ?? {}, 'packs')) {
+      const allowed = await getAllowedPackSet();
+      merged.packs = validatePacksAgainstAllowed(merged.packs, allowed);
+    }
+    return merged;
+  }
+
   function trackUserSocket(userId, socketId) {
     const set = userToSocketIds.get(userId) ?? new Set();
     set.add(socketId);
@@ -132,7 +154,12 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     }
     if (!code) throw Object.assign(new Error('Could not allocate room'), { code: 'ROOM_ALLOC_FAIL' });
 
-    const room = createCahRoom(socket.data.userId, socket.data.username, normalizeSettings(settings, lobbyMaxPlayers));
+    const normalized = normalizeSettings(settings, lobbyMaxPlayers);
+    if (normalized.packs.length) {
+      const allowed = await getAllowedPackSet();
+      normalized.packs = validatePacksAgainstAllowed(normalized.packs, allowed);
+    }
+    const room = createCahRoom(socket.data.userId, socket.data.username, normalized);
     room.code = code;
     room.socketIds = new Set([socket.id]);
     rooms.set(code, room);
@@ -247,14 +274,29 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     return room;
   }
 
-  function updateSettings(socket, settings) {
+  async function updateSettings(socket, settings) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     if (room.hostId !== socket.data.userId) throw Object.assign(new Error('Only host can update settings'), { code: 'NOT_HOST' });
     if (room.game && room.game.status !== 'lobby') throw Object.assign(new Error('Cannot update settings after start'), { code: 'GAME_ALREADY_STARTED' });
-    room.settings = { ...room.settings, ...normalizeSettings(settings) };
+    const input = settings ?? {};
+    const merged = { ...room.settings };
+    if (Object.prototype.hasOwnProperty.call(input, 'maxRounds')) {
+      merged.maxRounds = normalizeSettings({ maxRounds: input.maxRounds }, lobbyMaxPlayers).maxRounds;
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'packs')) {
+      const packPatch = await applyPackSettings(room, { packs: input.packs });
+      merged.packs = packPatch.packs;
+    }
+    room.settings = merged;
     bumpStateVersion(room);
     return room;
+  }
+
+  async function listPacks() {
+    const packs = await listAvailablePacks(CAH_DATASET_VERSION);
+    cachedPackIds = new Set(packs);
+    return packs.map((pack) => ({ pack }));
   }
 
   async function startRoomGame(socket) {
@@ -321,6 +363,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     leaveRoom,
     setReady,
     updateSettings,
+    listPacks,
     startRoomGame,
     submitRoomCards,
     judgePick,

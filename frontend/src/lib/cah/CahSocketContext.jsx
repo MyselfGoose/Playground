@@ -22,6 +22,7 @@ export function CahProvider({ children }) {
     !getSocketBase() ? "MISSING_SOCKET_URL" : null,
   );
   const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
+  const [packs, setPacks] = useState(/** @type {{ pack: string }[]} */ ([]));
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
 
@@ -148,6 +149,14 @@ export function CahProvider({ children }) {
 
   const send = useCallback((event, payload = {}) => emitAck(socketRef.current, event, payload), []);
 
+  const getPacks = useCallback(async () => {
+    const result = await send("get_packs", {});
+    if (result.ok && Array.isArray(result.data?.packs)) {
+      setPacks(result.data.packs);
+    }
+    return result;
+  }, [send]);
+
   const retryConnection = useCallback(() => {
     socketRef.current?.connect();
   }, []);
@@ -173,9 +182,11 @@ export function CahProvider({ children }) {
       judgePickWinner: (submissionId) => send("judge_pick_winner", { submissionId }),
       nextRound: () => send("next_round", {}),
       getRoomState: () => send("get_room_state", {}),
+      getPacks,
+      packs,
       retryConnection,
     }),
-    [room, connectionState, syncState, socketError, socketErrorCode, reconnectedAt, retryConnection, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send],
+    [room, connectionState, syncState, socketError, socketErrorCode, reconnectedAt, packs, retryConnection, user?.id, user?.username, createRoom, joinRoom, leaveRoom, send, getPacks],
   );
 
   return <CahContext.Provider value={value}>{children}</CahContext.Provider>;

@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
 import { CahBlackCard } from '../../models/CahBlackCard.js';
 import { CahWhiteCard } from '../../models/CahWhiteCard.js';
-import { CAH_DEFAULT_HAND_SIZE, CAH_DEFAULT_MAX_ROUNDS, CAH_MIN_PLAYERS } from './constants.js';
+import { CAH_DATASET_VERSION, CAH_DEFAULT_HAND_SIZE, CAH_DEFAULT_MAX_ROUNDS, CAH_MIN_PLAYERS } from './constants.js';
+
+export { CAH_DATASET_VERSION };
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -13,6 +15,22 @@ function randomCode() {
 function sanitizePacks(input) {
   const packs = Array.isArray(input) ? input.map((p) => String(p ?? '').trim()).filter(Boolean) : [];
   return [...new Set(packs)];
+}
+
+export function validatePacksAgainstAllowed(packs, allowedSet) {
+  const sanitized = sanitizePacks(packs);
+  if (!sanitized.length) return [];
+  const allowed = allowedSet instanceof Set ? allowedSet : new Set(allowedSet);
+  const invalid = sanitized.filter((p) => !allowed.has(p));
+  if (invalid.length) {
+    throw Object.assign(new Error(`Unknown card pack(s): ${invalid.join(', ')}`), { code: 'INVALID_PACKS' });
+  }
+  return sanitized;
+}
+
+export async function listAvailablePacks(datasetVersion = CAH_DATASET_VERSION) {
+  const packs = await CahBlackCard.distinct('pack', { datasetVersion });
+  return packs.filter((p) => typeof p === 'string' && p.trim()).map((p) => p.trim()).sort();
 }
 
 function nextJudge(players, currentJudgeId) {
@@ -229,7 +247,7 @@ export function createCahRoom(hostId, hostName, settings = {}) {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     socketIds: new Set(),
-    datasetVersion: 'cah-legacy-v1',
+    datasetVersion: CAH_DATASET_VERSION,
     usedBlackSourceIds: new Set(),
     usedWhiteSourceIds: new Set(),
     usedWhiteSourceIdsByUser: new Map(),
@@ -282,6 +300,7 @@ export async function setupRound(room) {
   game.winnerSubmissionId = null;
   game.revealOrder = [];
   game.revealComplete = false;
+  room.deckRecycled = false;
 
   const black = await drawRandomBlackCard(room);
   if (!black) throw Object.assign(new Error('No black cards available'), { code: 'DECK_EMPTY' });
@@ -354,7 +373,8 @@ export function judgePickWinner(room, judgeUserId, submissionId) {
   winner.score += 1;
   room.game.winnerUserId = selected.userId;
   room.game.winnerSubmissionId = selected.submissionId;
-  room.game.revealOrder = room.game.submissions.map((s) => s.submissionId);
+  const submissionIds = room.game.submissions.map((s) => s.submissionId);
+  room.game.revealOrder = [...submissionIds].sort(() => Math.random() - 0.5);
   room.game.revealComplete = true;
   room.game.status = 'revealing';
   room.game.roundHistory.push({
@@ -429,6 +449,9 @@ export function snapshotFor(room, viewerUserId) {
       winnerUserId: shouldRevealAll ? game.winnerUserId : null,
       winnerSubmissionId: shouldRevealAll ? game.winnerSubmissionId : null,
       roundHistory: game.roundHistory,
+      ...(shouldRevealAll
+        ? { revealOrder: game.revealOrder ?? [], revealComplete: Boolean(game.revealComplete) }
+        : {}),
     },
   };
 }

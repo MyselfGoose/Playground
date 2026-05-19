@@ -1,3 +1,4 @@
+export const CAH_DATASET_VERSION = 'cah-legacy-v1';
 export const CAH_ROOM_CODE_LENGTH = 4;
 export const CAH_MIN_PLAYERS = 3;
 export const CAH_DEFAULT_MAX_ROUNDS = 10;

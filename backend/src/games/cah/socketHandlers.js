@@ -84,9 +84,14 @@ export function installCahHandlers({ socket, registry, logger }) {
   });
 
   register(socket, logger, 'update_settings', cahUpdateSettingsSchema, async (data) => {
-    const room = registry.updateSettings(socket, data);
+    const room = await registry.updateSettings(socket, data);
     registry.emitRoom(room.code, 'settings_updated');
     return { room: registry.snapshotForSocket(socket) };
+  });
+
+  register(socket, logger, 'get_packs', null, async () => {
+    const packs = await registry.listPacks();
+    return { packs };
   });
 
   register(socket, logger, 'start_game', null, async () => {

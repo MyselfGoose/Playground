@@ -6,11 +6,13 @@ import {
   canAdvanceFromRevealing,
   createCahRoom,
   judgePickWinner,
+  listAvailablePacks,
   nextRound,
   reconcileRoomAfterMembershipChange,
   snapshotFor,
   startGame,
   submitCards,
+  validatePacksAgainstAllowed,
 } from './gameManager.js';
 
 function createThreePlayerRoom() {
@@ -84,6 +86,76 @@ test('CAH round lifecycle with 3-player judge flow', async (t) => {
   assert.equal(room.game.status, 'submitting');
   assert.equal(room.game.roundIndex, 2);
   assert.equal(room.game.judgeUserId, 'u3');
+});
+
+test('judge cannot advance from revealing when host is connected', () => {
+  const room = createThreePlayerRoom();
+  room.game = {
+    gameSessionId: 'sess-1',
+    status: 'revealing',
+    roundIndex: 1,
+    judgeUserId: 'u2',
+    blackCard: { sourceId: 1, text: 'Prompt', pick: 1, pack: 'Base' },
+    submissions: [{ submissionId: 's1', userId: 'u3', cards: [] }],
+    winnerUserId: 'u3',
+    winnerSubmissionId: 's1',
+    revealOrder: ['s1'],
+    revealComplete: true,
+    roundHistory: [],
+  };
+  room.players.find((p) => p.userId === 'u1').connected = true;
+
+  assert.equal(canAdvanceFromRevealing(room, 'u2'), false);
+  assert.equal(canAdvanceFromRevealing(room, 'u1'), true);
+});
+
+test('judgePickWinner sets shuffled revealOrder and snapshot exposes it', () => {
+  const room = createCahRoom('u1', 'Host', {});
+  room.players.push({ userId: 'u2', username: 'Guest', ready: true, connected: true, score: 0 });
+  room.players.push({ userId: 'u3', username: 'Guest-2', ready: true, connected: true, score: 0 });
+  room.game = {
+    status: 'judging',
+    roundIndex: 1,
+    judgeUserId: 'u1',
+    blackCard: { sourceId: 1, text: 'Prompt', pick: 1, pack: 'Base' },
+    submissions: [
+      { submissionId: 's1', userId: 'u2', cards: [{ sourceId: 7, text: 'A' }] },
+      { submissionId: 's2', userId: 'u3', cards: [{ sourceId: 8, text: 'B' }] },
+    ],
+    winnerUserId: null,
+    winnerSubmissionId: null,
+    revealOrder: [],
+    revealComplete: false,
+    roundHistory: [],
+  };
+  judgePickWinner(room, 'u1', 's1');
+  assert.equal(room.game.revealOrder.length, 2);
+  assert.deepEqual([...room.game.revealOrder].sort(), ['s1', 's2']);
+  assert.equal(room.game.revealComplete, true);
+
+  const snap = snapshotFor(room, 'u2');
+  assert.equal(snap.game.status, 'revealing');
+  assert.deepEqual([...snap.game.revealOrder].sort(), ['s1', 's2']);
+  assert.equal(snap.game.revealComplete, true);
+});
+
+test('validatePacksAgainstAllowed rejects unknown packs', () => {
+  assert.throws(
+    () => validatePacksAgainstAllowed(['Base', 'FakePack'], new Set(['Base', 'Expansion'])),
+    (err) => err.code === 'INVALID_PACKS',
+  );
+  assert.deepEqual(validatePacksAgainstAllowed([], new Set(['Base'])), []);
+  assert.deepEqual(validatePacksAgainstAllowed(['Base'], new Set(['Base', 'Expansion'])), ['Base']);
+});
+
+test('listAvailablePacks returns sorted pack names', async (t) => {
+  const orig = CahBlackCard.distinct;
+  CahBlackCard.distinct = async () => ['Zebra', 'Base', ''];
+  t.after(() => {
+    CahBlackCard.distinct = orig;
+  });
+  const packs = await listAvailablePacks('cah-legacy-v1');
+  assert.deepEqual(packs, ['Base', 'Zebra']);
 });
 
 test('judge can advance from revealing when host is disconnected', async () => {
