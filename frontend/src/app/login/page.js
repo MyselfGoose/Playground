@@ -107,7 +107,7 @@ function LoginForm() {
                 <div className="w-full border-t border-muted-bright/40" />
               </div>
               <div className="relative flex justify-center text-xs uppercase tracking-wide">
-                <span className="bg-background px-3 text-foreground/50 font-bold">or</span>
+                <span className="bg-background px-3 text-xs font-bold uppercase tracking-wide text-foreground">or</span>
               </div>
             </div>
 
@@ -149,7 +149,7 @@ function LoginForm() {
                 type="submit"
                 variant="primary"
                 disabled={pending}
-                className="w-full py-4 text-lg font-extrabold"
+                className="w-full bg-primary-dark py-4 text-lg font-extrabold text-white"
               >
                 {pending ? (
                   <span className="flex items-center justify-center gap-2">

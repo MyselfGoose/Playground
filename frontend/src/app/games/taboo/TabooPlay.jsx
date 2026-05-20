@@ -23,7 +23,9 @@ import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
 import { useTabooCountdown } from "../../../lib/taboo/useTabooCountdown.js";
 import { teamColors } from "../../../lib/taboo/variants.js";
+import { useFocusTrap } from "../../../lib/a11y/useFocusTrap.js";
 import { PhasePanel, ROLE_BADGES, tabooPath } from "./taboo-shared.js";
+import { TabooPhaseAnnouncer } from "./TabooPhaseAnnouncer.jsx";
 
 /**
  * @param {{ room: object }} props
@@ -53,6 +55,7 @@ export function TabooPlay({ room }) {
   const [showReviewPrompt, setShowReviewPrompt] = useState(false);
   const lastPromptedReviewIdRef = useRef(null);
   const guessRowRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const reviewPanelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   const game = room?.game;
   const review = game?.review;
@@ -105,8 +108,11 @@ export function TabooPlay({ room }) {
   const reviewPaused = review?.status === "in_progress" || review?.status === "resolved";
   const activeTeamStyle = game?.activeTeam === "B" ? teamB : teamA;
 
+  useFocusTrap(Boolean(showReviewPanel), reviewPanelRef);
+
   return (
     <motion.div className="min-h-dvh bg-background text-foreground">
+      <TabooPhaseAnnouncer game={game} />
       <GameFeedbackOverlay variant={feedbackVariant} reduceMotion={reduceMotion} />
       <div className="relative z-10 mx-auto flex w-full max-w-lg flex-col px-4 py-4 pb-[calc(var(--keyboard-offset,0px)+env(safe-area-inset-bottom))]">
         <div className="mb-3 flex items-center justify-between">
@@ -190,22 +196,29 @@ export function TabooPlay({ room }) {
         </div>
 
         {showReviewPanel ? (
-          <div className="mb-4 rounded-2xl border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)]">
+          <div
+            ref={reviewPanelRef}
+            className="mb-4 rounded-2xl border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Taboo review"
+            tabIndex={-1}
+          >
             <div className="mb-3 flex items-start justify-between gap-2">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-foreground/50">Taboo review</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/70">Taboo review</p>
                 <p className="text-sm font-bold text-foreground">
                   {review.status === "in_progress" ? "Review in progress" : "Review resolved"}
                 </p>
                 {review.status === "in_progress" && secondsRemaining > 0 ? (
                   <p className="mt-1 text-xs font-semibold text-primary">Voting ends in {secondsRemaining}s</p>
                 ) : null}
-                <p className="text-xs text-foreground/55">
+                <p className="text-xs text-foreground/75">
                   Called by {review?.tabooCalledBy?.playerName || "Opponent"} · Team{" "}
                   {review?.penalizedTeam === "B" ? "Beta" : "Alpha"} penalized
                 </p>
               </div>
-              <span className="inline-flex items-center rounded-full border border-foreground/10 bg-muted-bright/30 px-3 py-1 text-xs font-semibold text-foreground/70">
+              <span className="inline-flex items-center rounded-full border border-foreground/10 bg-muted-bright/30 px-3 py-1 text-xs font-semibold text-foreground/80">
                 {review?.notFairCount ?? 0} not fair · {review?.fairCount ?? 0} fair
               </span>
             </div>

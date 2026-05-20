@@ -172,8 +172,13 @@ export function HangmanPlayScreen() {
 
           {phase === "guessing" ? (
             <>
+              <p className="sr-only" aria-live="polite" aria-atomic="true">
+                {typeof game?.wrongGuessCount === "number"
+                  ? `${game.wrongGuessCount} wrong guess${game.wrongGuessCount === 1 ? "" : "es"}`
+                  : ""}
+              </p>
               <Card variant="elevated" className="py-4">
-                <p className="mb-3 text-xs font-black uppercase text-foreground/55">Letters</p>
+                <p className="mb-3 text-xs font-black uppercase text-foreground/70">Letters</p>
                 <div className="flex flex-wrap gap-2 text-sm font-bold">
                   <span className="text-accent-mint">✓ {(game?.guessedLetters ?? []).join(", ") || "—"}</span>
                   <span className="text-error">✗ {(game?.wrongLetters ?? []).join(", ") || "—"}</span>

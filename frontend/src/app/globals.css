@@ -11,12 +11,12 @@
   --muted-bright: #e8e5e0;
   --input-bg: #ffffff;
   --input-border: #d4cec6;
-  --input-placeholder: #999;
+  --input-placeholder: #5c5854;
   
   /* Primary Colors - Vibrant & Playful */
   --primary: #ff6b5b;
   --primary-light: #ff9d94;
-  --primary-dark: #e85545;
+  --primary-dark: #9a2c22;
   
   /* Accent Colors */
   --accent-purple: #7c5ce6;
@@ -160,10 +160,10 @@ html.light {
   --muted-bright: #e8e5e0;
   --input-bg: #ffffff;
   --input-border: #d4cec6;
-  --input-placeholder: #999;
+  --input-placeholder: #5c5854;
   --primary: #ff6b5b;
   --primary-light: #ff9d94;
-  --primary-dark: #e85545;
+  --primary-dark: #9a2c22;
   --accent-purple: #7c5ce6;
   --accent-mint: #4ecdc4;
   --accent-lemon: #ffd166;

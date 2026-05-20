@@ -62,7 +62,7 @@ export function Navbar() {
                 href={href}
                 className={`${navLinkBase} ${
                   active
-                    ? "bg-primary text-white shadow-[var(--shadow-play)]"
+                    ? "bg-primary-dark text-white shadow-[var(--shadow-play)]"
                     : "text-foreground hover:bg-muted-bright/50 hover:text-primary"
                 }`}
               >
@@ -116,7 +116,7 @@ export function Navbar() {
               </Link>
               <Link
                 href="/login"
-                className={`${navLinkBase} bg-primary text-white shadow-[var(--shadow-play)] hover:brightness-95`}
+                className={`${navLinkBase} bg-primary-dark text-white shadow-[var(--shadow-play)] hover:brightness-95`}
               >
                 Login
               </Link>

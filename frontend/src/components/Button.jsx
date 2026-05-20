@@ -8,7 +8,7 @@ const base =
 
 const variants = {
   primary:
-    "bg-primary text-white shadow-[var(--shadow-play)] hover:brightness-95 focus-visible:outline-primary",
+    "bg-primary-dark text-white shadow-[var(--shadow-play)] hover:brightness-95 focus-visible:outline-primary",
   secondary:
     "bg-background text-foreground shadow-[var(--shadow-md)] ring-2 ring-muted-bright hover:bg-muted-bright hover:brightness-95 focus-visible:outline-primary",
   tertiary:

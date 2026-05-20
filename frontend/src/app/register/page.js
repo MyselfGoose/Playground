@@ -71,7 +71,7 @@ function RegisterForm() {
                 <div className="w-full border-t border-muted-bright/40" />
               </div>
               <div className="relative flex justify-center text-xs uppercase tracking-wide">
-                <span className="bg-background px-3 text-foreground/50 font-bold">or</span>
+                <span className="bg-background px-3 text-xs font-bold uppercase tracking-wide text-foreground">or</span>
               </div>
             </div>
 

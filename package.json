@@ -15,6 +15,7 @@
     "lighthouse:stub": "node scripts/lighthouse-ci-stub.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.52.0",
     "mongodb-memory-server": "^10.1.4",
     "pino": "^9.6.0",

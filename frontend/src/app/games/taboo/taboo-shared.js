@@ -194,9 +194,9 @@ export function PhasePanel({
 
     return (
       <motion.div className={phaseCardClass}>
-        <p className="mb-1 text-sm font-semibold text-foreground/60">Next turn</p>
+        <p className="mb-1 text-sm font-semibold text-foreground/75">Next turn</p>
         <h2 className="mb-2 text-xl font-black text-foreground">{activeName}</h2>
-        <p className="mb-4 text-sm text-foreground/55">Team {activeTeamLabel}</p>
+        <p className="mb-4 text-sm text-foreground/75">Team {activeTeamLabel}</p>
         {showManualStart ? (
           <button
             type="button"
@@ -227,7 +227,7 @@ export function PhasePanel({
         ) : startTurnDisabled ? (
           <p className="text-sm font-semibold text-warning">Reconnecting…</p>
         ) : (
-          <p className="text-sm text-foreground/55">
+          <p className="text-sm text-foreground/75">
             Waiting for {activeName}
             {countdown > 0 ? ` · starting in ${countdown}s` : ""}
           </p>
@@ -253,11 +253,11 @@ export function PhasePanel({
             ) : null}
           </div>
         ) : null}
-        <p className="mb-2 text-sm text-foreground/60">Up next</p>
+        <p className="mb-2 text-sm text-foreground/75">Up next</p>
         <p className="text-base font-bold text-foreground">
           {activeName} from Team {activeTeamLabel}
         </p>
-        <p className="mt-2 text-sm text-foreground/55">Starting in {countdown}s…</p>
+        <p className="mt-2 text-sm text-foreground/75">Starting in {countdown}s…</p>
       </motion.div>
     );
   }
@@ -286,7 +286,7 @@ export function PhasePanel({
 
   return (
     <motion.div className={phaseCardClass}>
-      <p className="text-sm text-foreground/55">Synchronizing turn state</p>
+      <p className="text-sm text-foreground/75">Synchronizing turn state</p>
     </motion.div>
   );
 }

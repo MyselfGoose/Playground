@@ -123,6 +123,13 @@ export function NpatPlayClient() {
   const letter = room?.currentLetter ?? "—";
   const state = room?.state ?? "";
   const roundPhase = room?.roundPhase ?? "none";
+  const [letterAnnouncement, setLetterAnnouncement] = useState("");
+
+  useEffect(() => {
+    if (state === "IN_ROUND" && letter && letter !== "—") {
+      setLetterAnnouncement(`Round letter ${letter}`);
+    }
+  }, [letter, state]);
 
   useEffect(() => {
     if (roundPhase === "countdown" && prevRoundPhaseRef.current !== "countdown") {
@@ -243,6 +250,11 @@ export function NpatPlayClient() {
 
   return (
     <div className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+      {letterAnnouncement ? (
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {letterAnnouncement}
+        </p>
+      ) : null}
       <GameFeedbackOverlay variant={fieldFeedbackVariant} reduceMotion={Boolean(reduce)} />
       <AnimatePresence>
         {showRoundCountdownStrip && countdownActive ? (

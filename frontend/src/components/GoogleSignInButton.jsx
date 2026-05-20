@@ -14,7 +14,7 @@ export function GoogleSignInButton({ nextPath = "/", disabled = false }) {
       href={unavailable ? undefined : href}
       aria-label="Continue with Google"
       aria-disabled={disabled || unavailable}
-      className={`flex w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-muted-bright/50 bg-background px-6 py-3 font-bold text-foreground transition-all hover:bg-muted-bright/20 ${
+      className={`flex w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-foreground/20 bg-background px-6 py-3 font-bold text-foreground transition-all hover:border-foreground/35 hover:bg-muted-bright/30 ${
         disabled || unavailable ? "pointer-events-none opacity-50" : ""
       }`}
       onClick={(e) => {
