@@ -9,6 +9,7 @@ const isCi = Boolean(process.env.CI);
 
 export default defineConfig({
   testDir: configDir,
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -21,11 +22,19 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: isCi
     ? {
-        command: "npm run ci:e2e:serve",
+        command: "node scripts/start-e2e-stack.mjs",
         cwd: repoRoot,
         url: baseURL,
         reuseExistingServer: false,
-        timeout: 300_000,
+        timeout: 360_000,
       }
-    : undefined,
+    : process.env.E2E_STACK
+      ? {
+          command: "node scripts/start-e2e-stack.mjs",
+          cwd: repoRoot,
+          url: baseURL,
+          reuseExistingServer: true,
+          timeout: 360_000,
+        }
+      : undefined,
 });

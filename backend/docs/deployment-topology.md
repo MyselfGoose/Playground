@@ -25,7 +25,7 @@ Requirements:
 
 - **`GET /health/live`** — process up.
 - **`GET /health/ready`** — Mongo connected (`readyState === 1`).
-- **`GET /health/metrics`** — in-process counters (refresh, handshake failures, cron completions).
+- **`GET /health/metrics`** — in-process counters (`auth_refresh_ok` / `auth_refresh_fail`, `socket_handshake_ok` / `socket_handshake_fail`, `leaderboard_cron_complete`, etc.). Prometheus text at **`GET /health/metrics/prometheus`**.
 
 ## Environment
 

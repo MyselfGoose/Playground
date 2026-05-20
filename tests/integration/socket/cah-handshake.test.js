@@ -1,6 +1,5 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import request from 'supertest';
 import { io as ioClient } from 'socket.io-client';
 import {
   startMongoMemoryServer,
@@ -10,8 +9,11 @@ import {
 } from '../../support/mongoTestHarness.js';
 import { applyTestEnv } from '../../support/testEnv.js';
 import { startSocketTestStack } from '../../support/socketTestStack.js';
-
-const strongPassword = 'SockUser123!@#';
+import {
+  registerSocketUser,
+  emitAck,
+  waitSocketConnected,
+} from '../../support/socketTestHelpers.js';
 
 describe('CAH Socket.IO handshake', () => {
   /** @type {Awaited<ReturnType<typeof startSocketTestStack>>} */
@@ -47,46 +49,56 @@ describe('CAH Socket.IO handshake', () => {
   });
 
   it('connects with socket admission token from register session', async () => {
-    const email = `cah_sock_${Date.now()}@example.com`;
-    const reg = await request(stack.server)
-      .post('/api/v1/auth/register')
-      .send({
-        username: `cah${Date.now()}`,
-        email,
-        password: strongPassword,
-      })
-      .expect(201);
-
-    const cookies = reg.headers['set-cookie'];
-    assert.ok(Array.isArray(cookies));
-    const cookieHeader = cookies.map((c) => c.split(';')[0]).join('; ');
-
-    const hs = await request(stack.server)
-      .get('/api/v1/auth/socket-admission')
-      .set('Cookie', cookieHeader)
-      .expect(200);
-    const token = hs.body?.data?.token;
-    assert.ok(typeof token === 'string' && token.length > 10, 'expected token from socket-admission');
-
+    const { token } = await registerSocketUser(stack.server, 'cah_hs');
     const socket = ioClient(`${stack.baseUrl}/cah`, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket'],
     });
 
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('connect timeout')), 5000);
-      socket.once('connect', () => {
-        clearTimeout(t);
-        resolve(undefined);
-      });
-      socket.once('connect_error', (e) => {
-        clearTimeout(t);
-        reject(e);
-      });
-    });
-
+    await waitSocketConnected(socket);
     assert.ok(socket.connected);
     socket.disconnect();
+  });
+
+  it('create_room, join_room, and get_room_state return matching lobby snapshot', async () => {
+    const { token: hostToken } = await registerSocketUser(stack.server, 'cah_host');
+    const { token: guestToken } = await registerSocketUser(stack.server, 'cah_guest');
+
+    const host = ioClient(`${stack.baseUrl}/cah`, {
+      path: '/socket.io',
+      auth: { token: hostToken },
+      transports: ['websocket'],
+    });
+    const guest = ioClient(`${stack.baseUrl}/cah`, {
+      path: '/socket.io',
+      auth: { token: guestToken },
+      transports: ['websocket'],
+    });
+
+    try {
+      await Promise.all([waitSocketConnected(host), waitSocketConnected(guest)]);
+
+      const created = await emitAck(host, 'create_room', {});
+      assert.equal(created?.ok, true);
+      const roomCode = created?.data?.room?.code;
+      assert.ok(typeof roomCode === 'string' && roomCode.length >= 4);
+
+      const state = await emitAck(host, 'get_room_state', {});
+      assert.equal(state?.ok, true);
+      assert.equal(state?.data?.room?.code, roomCode);
+      assert.equal(state?.data?.room?.game, null);
+
+      const joined = await emitAck(guest, 'join_room', { code: roomCode });
+      assert.equal(joined?.ok, true);
+      assert.equal(joined?.data?.room?.code, roomCode);
+
+      const guestState = await emitAck(guest, 'get_room_state', {});
+      assert.equal(guestState?.ok, true);
+      assert.equal(guestState?.data?.room?.code, roomCode);
+    } finally {
+      host.disconnect();
+      guest.disconnect();
+    }
   });
 });

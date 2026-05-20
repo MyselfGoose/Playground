@@ -67,6 +67,7 @@ export function createSocketAuthMiddleware({ tokenService, logger, nsTag }) {
       socket.data.username = ctx.username;
       socket.data.roles = ctx.roles;
       socket.data.sid = ctx.sid;
+      bumpMetric('socket_handshake_ok');
       return next();
     } catch (err) {
       bumpMetric('socket_handshake_fail');
