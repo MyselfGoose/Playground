@@ -26,6 +26,7 @@ export default function CahClient({ view }) {
     socketError,
     localUserId,
     leaveRoom,
+    returnToLobby,
     submitCards,
     judgePickWinner,
     nextRound,
@@ -36,6 +37,7 @@ export default function CahClient({ view }) {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState("");
   const [deckRecycledNotice, setDeckRecycledNotice] = useState(false);
   const [revealFeedback, setRevealFeedback] = useState(/** @type {null | 'correct'} */ (null));
+  const [rematchBusy, setRematchBusy] = useState(false);
   const prevDeckRecycledRef = useRef(false);
   const prevStatusRef = useRef("");
   const pathname = usePathname();
@@ -43,6 +45,7 @@ export default function CahClient({ view }) {
 
   const me = useMemo(() => room?.players?.find((p) => p.userId === localUserId) ?? null, [room?.players, localUserId]);
   const game = room?.game ?? null;
+  const isHost = Boolean(localUserId && room?.hostId === localUserId);
   const isJudge = game?.judgeUserId === localUserId;
   const pickCount = Number(game?.blackCard?.pick ?? 1);
 
@@ -146,9 +149,31 @@ export default function CahClient({ view }) {
             </div>
             <div className="mt-6">
               <ResultActions
-                playAgainHref="/games/cah"
+                playAgainLabel="Play again"
+                onPlayAgain={
+                  isHost
+                    ? () =>
+                        void (async () => {
+                          setRematchBusy(true);
+                          const res = await returnToLobby();
+                          setRematchBusy(false);
+                          if (res.ok && room?.code) {
+                            router.push(`/games/cah?code=${encodeURIComponent(room.code)}`);
+                          }
+                        })()
+                    : undefined
+                }
+                playAgainHref={isHost ? undefined : "/games/cah"}
+                playAgainDisabled={rematchBusy}
                 secondaryLabel="Leave"
-                onSecondary={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}
+                onSecondary={() =>
+                  run(() =>
+                    leaveRoom().then((res) => {
+                      if (res.ok) router.push("/games/cah");
+                      return res;
+                    }),
+                  )
+                }
               />
             </div>
           </section>

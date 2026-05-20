@@ -66,7 +66,14 @@ export function tabooWinnerBannerSubtitle(game) {
   return `Final score ${scoreA} – ${scoreB}`;
 }
 
-export function GameOverScreen({ game, players, onLeave }) {
+export function GameOverScreen({
+  game,
+  players,
+  onLeave,
+  onPlayAgain,
+  playAgainDisabled = false,
+  showInRoomRematch = false,
+}) {
   const scoreA = game?.scores?.A ?? 0;
   const scoreB = game?.scores?.B ?? 0;
   const winner = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "tie";
@@ -115,7 +122,14 @@ export function GameOverScreen({ game, players, onLeave }) {
         </div>
       ) : null}
       <ShareResultButton gameLabel="Taboo" className="mb-3 w-full" />
-      <ResultActions playAgainHref="/games/taboo" secondaryLabel="Leave game" onSecondary={onLeave} />
+      <ResultActions
+        playAgainLabel="Play again"
+        onPlayAgain={showInRoomRematch ? onPlayAgain : undefined}
+        playAgainHref={showInRoomRematch ? undefined : "/games/taboo"}
+        playAgainDisabled={playAgainDisabled}
+        secondaryLabel="Leave game"
+        onSecondary={onLeave}
+      />
     </motion.div>
   );
 }

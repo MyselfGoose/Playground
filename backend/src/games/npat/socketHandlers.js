@@ -261,4 +261,11 @@ export function installHandlers({ socket, registry, env, logger }) {
       return { room: engine.toPublicDto() };
     },
   });
+
+  register('reset_room', {
+    handler: async () => {
+      const room = await registry.resetRoom(socket);
+      return { room };
+    },
+  });
 }

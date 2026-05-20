@@ -1,229 +1,98 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
-import { connectGameSocket } from "../socket/createGameSocket.js";
-import { emitAck } from "../socket/socketUtils.js";
-import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
-import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
+import { useGameSocket } from "../socket/useGameSocket.js";
 
 const HangmanContext = createContext(null);
 
+/**
+ * @param {Record<string, unknown> | null} incoming
+ * @param {{ setRoom: (r: Record<string, unknown> | null) => void, roomVersionRef: React.MutableRefObject<number>, roomCodeRef: React.MutableRefObject<string | null> }} ctx
+ */
+function mergeHangmanRoom(incoming, { setRoom, roomVersionRef, roomCodeRef }) {
+  if (!incoming || typeof incoming !== "object") return;
+  const incomingCode = typeof incoming.code === "string" ? incoming.code : null;
+  const previousCode = roomCodeRef.current;
+  const nextVersion = Number(incoming.stateVersion || 0);
+  if (previousCode && incomingCode && previousCode !== incomingCode) {
+    roomVersionRef.current = 0;
+  }
+  if (incomingCode !== previousCode) {
+    roomCodeRef.current = incomingCode;
+  }
+  if (nextVersion < roomVersionRef.current) return;
+  roomVersionRef.current = nextVersion;
+  setRoom(incoming);
+}
+
 export function HangmanProvider({ children }) {
   const { user } = useUser();
-  const [room, setRoom] = useState(null);
-  const [connectionState, setConnectionState] = useState("disconnected");
-  const [syncState, setSyncState] = useState("joining");
-  const [socketError, setSocketError] = useState(
-    !getSocketBase() ? connectionMessage("hangman", "missing_socket_url") : null,
-  );
-  const [socketErrorCode, setSocketErrorCode] = useState(
-    !getSocketBase() ? "MISSING_SOCKET_URL" : null,
-  );
-  const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
   const [roomNotice, setRoomNotice] = useState(/** @type {string | null} */ (null));
-  const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
-  const roomVersionRef = useRef(0);
-  const roomCodeRef = useRef(null);
 
-  const applyRoomSnapshot = useCallback((incomingRoom) => {
-    if (!incomingRoom || typeof incomingRoom !== "object") return;
-    const incomingCode = typeof incomingRoom.code === "string" ? incomingRoom.code : null;
-    const previousCode = roomCodeRef.current;
-    const nextVersion = Number(incomingRoom.stateVersion || 0);
-    const prevVersion = Number(roomVersionRef.current || 0);
-    if (previousCode && incomingCode && previousCode !== incomingCode) {
-      roomVersionRef.current = 0;
+  const onRoomUpdate = useCallback((payload) => {
+    const reason = payload?.reason;
+    if (reason === "turn_skipped") {
+      setRoomNotice("Turn skipped — time ran out");
+    } else if (reason === "setter_timeout") {
+      setRoomNotice("Setter ran out of time — a random word was chosen");
     }
-    if (incomingCode !== previousCode) {
-      roomCodeRef.current = incomingCode;
-    }
-    if (nextVersion < roomVersionRef.current) return;
-    roomVersionRef.current = nextVersion;
-    setRoom(incomingRoom);
   }, []);
 
-  const resyncRoom = useCallback(
-    (socket) => {
-      setSyncState("syncing");
-      void emitAck(socket, "get_room_state", {}).then((result) => {
-        if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
-        setSyncState("ready");
-      });
-    },
-    [applyRoomSnapshot],
-  );
+  const socket = useGameSocket({
+    namespace: "/hangman",
+    gameTag: "hangman",
+    mapGame: "hangman",
+    enabled: Boolean(user?.id && getSocketBase()),
+    trackSyncState: true,
+    mergeRoom: mergeHangmanRoom,
+    onRoomUpdate,
+  });
 
-  useEffect(() => {
-    if (!user?.id || !getSocketBase()) return undefined;
-
-    let cancelled = false;
-    /** @type {(() => void) | null} */
-    let cleanup = null;
-
-    try {
-      const { socket, cleanup: socketCleanup } = connectGameSocket({
-        namespace: "/hangman",
-        gameTag: "hangman",
-        onConnect: (s) => {
-          if (cancelled) return;
-          setConnectionState("connected");
-          setSocketError(null);
-          setSocketErrorCode(null);
-          resyncRoom(s);
-        },
-        onDisconnect: () => {
-          if (cancelled) return;
-          setConnectionState("reconnecting");
-          setSyncState("syncing");
-        },
-        onConnectError: (_s, msg) => {
-          if (cancelled) return;
-          const mapped = mapConnectionError("hangman", msg);
-          setConnectionState("reconnecting");
-          setSocketError(mapped.message);
-          setSocketErrorCode(mapped.code);
-          setSyncState("syncing");
-        },
-        onReconnect: (s) => {
-          if (cancelled) return;
-          setConnectionState("connected");
-          setReconnectedAt(Date.now());
-          resyncRoom(s);
-        },
-        onReconnectFailed: () => {
-          if (cancelled) return;
-          setSocketError(SESSION_EXPIRED_MESSAGE);
-          setSocketErrorCode("SESSION_EXPIRED");
-          setConnectionState("disconnected");
-        },
-        onVisibilityResync: resyncRoom,
-      });
-      if (cancelled) {
-        socketCleanup();
-        return undefined;
-      }
-
-      socketRef.current = socket;
-      cleanup = socketCleanup;
-
-      const onRoomPayload = (payload) => {
-        if (payload?.room) applyRoomSnapshot(payload.room);
-      };
-      const onTurnSkipped = () => {
-        setRoomNotice("Turn skipped — time ran out");
-      };
-      const onSetterTimeout = () => {
-        setRoomNotice("Setter ran out of time — a random word was chosen");
-      };
-      socket.on("room_update", onRoomPayload);
-      socket.on("session_resumed", onRoomPayload);
-      socket.on("turn_skipped", onTurnSkipped);
-      socket.on("setter_timeout", onSetterTimeout);
-      socket.on("play_again", onRoomPayload);
-      socket.on("returned_to_lobby", onRoomPayload);
-
-      const prevCleanup = cleanup;
-      cleanup = () => {
-        socket.off("room_update", onRoomPayload);
-        socket.off("session_resumed", onRoomPayload);
-        socket.off("turn_skipped", onTurnSkipped);
-        socket.off("setter_timeout", onSetterTimeout);
-        socket.off("play_again", onRoomPayload);
-        socket.off("returned_to_lobby", onRoomPayload);
-        prevCleanup?.();
-      };
-    } catch {
-      if (!cancelled) {
-        setSocketError(connectionMessage("hangman", "missing_socket_url"));
-        setSocketErrorCode("MISSING_SOCKET_URL");
-      }
-      return undefined;
-    }
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-      socketRef.current = null;
-      setConnectionState("disconnected");
-      setReconnectedAt(null);
-      setSyncState("joining");
-      setRoom(null);
-      roomVersionRef.current = 0;
-      roomCodeRef.current = null;
-    };
-  }, [user?.id, applyRoomSnapshot, resyncRoom]);
-
-  const createRoom = useCallback(async (settings) => {
-    const result = await emitAck(socketRef.current, "create_room", settings ?? {});
-    if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
-    return result;
-  }, [applyRoomSnapshot]);
-
-  const joinRoom = useCallback(async (code) => {
-    const normalized = String(code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
-    const result = await emitAck(socketRef.current, "join_room", { code: normalized });
-    if (result.ok && result.data?.room) applyRoomSnapshot(result.data.room);
-    return result;
-  }, [applyRoomSnapshot]);
-
-  const leaveRoom = useCallback(async () => {
-    const result = await emitAck(socketRef.current, "leave_room", {});
-    if (result.ok) {
-      setRoom(null);
-      roomVersionRef.current = 0;
-      roomCodeRef.current = null;
-    }
-    return result;
-  }, []);
-
-  const send = useCallback((event, payload = {}) => emitAck(socketRef.current, event, payload), []);
-
-  const retryConnection = useCallback(() => {
-    socketRef.current?.connect();
-  }, []);
+  const applyRoomSnapshot = socket.applyRoom;
 
   const value = useMemo(
     () => ({
-      room,
-      connected: connectionState === "connected",
-      connectionState,
-      syncState,
-      socketError,
-      socketErrorCode,
-      reconnectedAt,
+      room: socket.room,
+      connected: socket.connected,
+      connectionState: socket.connectionState,
+      syncState: socket.syncState,
+      socketError: socket.socketError,
+      socketErrorCode: socket.socketErrorCode,
+      reconnectedAt: socket.reconnectedAt,
       roomNotice,
       clearRoomNotice: () => setRoomNotice(null),
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
-      createRoom,
-      joinRoom,
-      leaveRoom,
+      createRoom: socket.createRoom,
+      joinRoom: socket.joinRoom,
+      leaveRoom: socket.leaveRoom,
       applyRoomSnapshot,
-      send,
-      setReady: (ready) => send("set_ready", { ready }),
-      startGame: () => send("start_game", {}),
-      guessLetter: (letter) => send("guess_letter", { letter }),
-      getRoomState: () => send("get_room_state", {}),
-      retryConnection,
+      send: socket.send,
+      setReady: (ready) => socket.send("set_ready", { ready }),
+      startGame: () => socket.send("start_game", {}),
+      guessLetter: (letter) => socket.send("guess_letter", { letter }),
+      getRoomState: () => socket.send("get_room_state", {}),
+      retryConnection: socket.retryConnection,
     }),
     [
-      room,
-      connectionState,
-      syncState,
-      socketError,
-      socketErrorCode,
-      reconnectedAt,
+      socket.room,
+      socket.connected,
+      socket.connectionState,
+      socket.syncState,
+      socket.socketError,
+      socket.socketErrorCode,
+      socket.reconnectedAt,
       roomNotice,
-      retryConnection,
       user?.id,
       user?.username,
-      createRoom,
-      joinRoom,
-      leaveRoom,
+      socket.createRoom,
+      socket.joinRoom,
+      socket.leaveRoom,
       applyRoomSnapshot,
-      send,
+      socket.send,
+      socket.retryConnection,
     ],
   );
 

@@ -348,6 +348,27 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     return snapshotFor(room, socket.data.userId);
   }
 
+  function returnToLobby(socket) {
+    const room = getRoomForSocket(socket);
+    if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    if (room.hostId !== socket.data.userId) {
+      throw Object.assign(new Error('Only host can return to lobby'), { code: 'NOT_HOST' });
+    }
+    if (!room.game || room.game.status !== 'finished') {
+      throw Object.assign(new Error('Game must be finished'), { code: 'INVALID_PHASE' });
+    }
+    clearRevealingTimer(room.code);
+    room.game = null;
+    room.deckRecycled = false;
+    for (const p of room.players) {
+      p.ready = false;
+      p.score = 0;
+    }
+    bumpStateVersion(room);
+    room.updatedAt = Date.now();
+    return room;
+  }
+
   function shutdown() {
     for (const t of revealingTimers.values()) clearTimeout(t);
     revealingTimers.clear();
@@ -372,6 +393,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     getRoomForSocket,
     attachActiveRoomForUser,
     reconcileRoomAfterMembership,
+    returnToLobby,
     emitRoom,
     shutdown,
   };

@@ -139,4 +139,10 @@ export function installCahHandlers({ socket, registry, logger }) {
   register(socket, logger, 'get_room_state', null, async () => {
     return { room: registry.snapshotForSocket(socket) };
   });
+
+  register(socket, logger, 'return_to_lobby', null, async () => {
+    const room = registry.returnToLobby(socket);
+    registry.emitRoom(room.code, 'returned_to_lobby');
+    return { room: registry.snapshotForSocket(socket) };
+  });
 }

@@ -21,8 +21,35 @@ export function NpatResultClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code") ?? "";
-  const { room, connected, joinRoom, clearSocketError, socketError, evaluationSource } = useNpat();
+  const {
+    room,
+    connected,
+    joinRoom,
+    clearSocketError,
+    socketError,
+    evaluationSource,
+    resetRoom,
+    localUserId,
+  } = useNpat();
   const [joinPhase, setJoinPhase] = useState(/** @type {JoinPhase} */ ("idle"));
+  const [rematchBusy, setRematchBusy] = useState(false);
+  const [rematchError, setRematchError] = useState(/** @type {string | null} */ (null));
+
+  const isHost = Boolean(localUserId && room?.hostUserId === localUserId);
+
+  const handlePlayAgain = async () => {
+    if (!isHost || !normalizedCode) return;
+    setRematchBusy(true);
+    setRematchError(null);
+    const result = await resetRoom();
+    setRematchBusy(false);
+    if (!result.ok) {
+      const err = result.error;
+      setRematchError(err instanceof Error ? err.message : "Could not start another game");
+      return;
+    }
+    router.push(`/games/npat/lobby?code=${encodeURIComponent(normalizedCode)}`);
+  };
   const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const [joinRetryToken, setJoinRetryToken] = useState(0);
@@ -179,7 +206,17 @@ export function NpatResultClient() {
           <p className="mt-2 text-lg text-ink-muted">The game ended before any round was saved to history.</p>
         </motion.header>
         <ResultsCarousel key={`${normalizedCode}-0`} room={room} rounds={[]} />
-        <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
+        <ResultActions
+          playAgainLabel="Play again"
+          onPlayAgain={isHost ? () => void handlePlayAgain() : undefined}
+          playAgainHref={isHost ? undefined : "/games/npat"}
+          playAgainDisabled={rematchBusy}
+          secondaryHref="/games"
+          secondaryLabel="All games"
+        />
+        {rematchError ? (
+          <p className="text-center text-sm font-semibold text-red-600">{rematchError}</p>
+        ) : null}
       </div>
     );
   }
@@ -213,7 +250,17 @@ export function NpatResultClient() {
 
         <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />
 
-        <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
+        <ResultActions
+          playAgainLabel="Play again"
+          onPlayAgain={isHost ? () => void handlePlayAgain() : undefined}
+          playAgainHref={isHost ? undefined : "/games/npat"}
+          playAgainDisabled={rematchBusy}
+          secondaryHref="/games"
+          secondaryLabel="All games"
+        />
+        {rematchError ? (
+          <p className="text-center text-sm font-semibold text-red-600">{rematchError}</p>
+        ) : null}
       </div>
     </ResultGate>
   );

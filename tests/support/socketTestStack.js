@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { createTestApp } from './appFactory.js';
 import { createSilentLogger } from './silentLogger.js';
-import { attachSocketIo } from '../../backend/src/games/npat/npatSocket.js';
+import { attachSocketIo } from '../../backend/src/realtime/socketServer.js';
 
 /**
  * HTTP server + Express app + Socket.IO (same wiring as production).

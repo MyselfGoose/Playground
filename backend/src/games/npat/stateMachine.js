@@ -43,7 +43,7 @@ export function canTransition(from, to, ctx = {}) {
     case GAME_STATES.BETWEEN_ROUNDS:
       return to === GAME_STATES.IN_ROUND || to === GAME_STATES.FINISHED || to === GAME_STATES.EVALUATING;
     case GAME_STATES.FINISHED:
-      return false;
+      return to === GAME_STATES.WAITING;
     default:
       return false;
   }

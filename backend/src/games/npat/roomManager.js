@@ -622,6 +622,23 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     return res;
   }
 
+  /**
+   * @param {import('socket.io').Socket} socket
+   */
+  async function resetRoom(socket) {
+    const userId = /** @type {string} */ (socket.data.userId);
+    const engine = getEngineForSocket(socket);
+    if (!engine) {
+      const err = new Error('Not in a room');
+      /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+      throw err;
+    }
+    return roomLock.run(engine.code, async () => {
+      engine.resetForRematch(userId);
+      return engine.toPublicDto();
+    });
+  }
+
   return {
     engines,
     socketToRoom,
@@ -630,6 +647,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     joinRoom,
     leaveRoom,
     leaveRoomExplicit,
+    resetRoom,
     getEngineForSocket,
     attachActiveRoomForUser,
     bootHydrate,

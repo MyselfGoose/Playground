@@ -355,6 +355,25 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     return game.toSnapshot(room, socket.data.userId);
   }
 
+  function returnToLobby(socket) {
+    const room = getRoomForSocket(socket);
+    if (!room) throw Object.assign(new Error("Not in room"), { code: "NOT_IN_ROOM" });
+    if (room.hostId !== socket.data.userId) {
+      throw Object.assign(new Error("Only host can return to lobby"), { code: "NOT_HOST" });
+    }
+    if (!room.game || room.game.status !== "finished") {
+      throw Object.assign(new Error("Game must be finished"), { code: "INVALID_PHASE" });
+    }
+    room.game = null;
+    room.tabooStatsPersisted = false;
+    for (const p of room.players) {
+      p.ready = false;
+    }
+    bumpStateVersion(room);
+    room.updatedAt = Date.now();
+    return room;
+  }
+
   function shutdown() {
     rooms.clear();
     socketToCode.clear();
@@ -372,6 +391,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     setCategories,
     listCategories,
     applyAction,
+    returnToLobby,
     emitRoom,
     tick,
     snapshotFor,

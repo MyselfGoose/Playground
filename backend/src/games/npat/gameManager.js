@@ -346,6 +346,46 @@ export class NpatRoomEngine {
   }
 
   /**
+   * Host-only rematch: same room code and roster, reset to lobby (WAITING).
+   * @param {string} hostUserId
+   */
+  resetForRematch(hostUserId) {
+    if (this.hostUserId !== hostUserId) {
+      const err = new Error('Only the host can reset the room');
+      /** @type {any} */ (err).code = 'NOT_HOST';
+      throw err;
+    }
+    if (this.state !== GAME_STATES.FINISHED) {
+      const err = new Error('Game must be finished before rematch');
+      /** @type {any} */ (err).code = 'INVALID_PHASE';
+      throw err;
+    }
+    this.clearTimers();
+    this._evaluationFlight = null;
+    assertTransition(this.state, GAME_STATES.WAITING, { roundPhase: 'none' });
+    this.state = GAME_STATES.WAITING;
+    this.roundPhase = 'none';
+    this.letterPool = [];
+    this.usedLetters = [];
+    this.currentLetter = null;
+    this.currentRoundIndex = -1;
+    this.submissions = new Map();
+    this.results = { rounds: [] };
+    this.earlyFinishProposal = null;
+    this.countdownTriggeredByUserId = null;
+    this.roundStartAt = null;
+    this.roundEndDeadline = null;
+    this.betweenEndDeadline = null;
+    this._countdownStarted = false;
+    for (const p of this.players.values()) {
+      p.ready = false;
+    }
+    this.publicStateVersion += 1;
+    void this.persist(this.toPersistDoc(), undefined);
+    this.emit('room_update', { room: this.toPublicDto() });
+  }
+
+  /**
    * Returns the subset of state that must be persisted to survive a restart.
    */
   toPersistDoc() {

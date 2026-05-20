@@ -11,7 +11,7 @@ import { createLogger } from './lib/logger.js';
 import { createApp } from './app.js';
 import { createHttpServer, listen, setupGracefulShutdown } from './server.js';
 import { registerProcessHandlers } from './processHandlers.js';
-import { attachSocketIo } from './games/npat/npatSocket.js';
+import { attachSocketIo } from './realtime/socketServer.js';
 import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
 import { scheduleLeaderboardCron } from './jobs/leaderboardCron.js';
 import { runGeminiHealthCheck } from './services/npat/npatGeminiHealth.js';
