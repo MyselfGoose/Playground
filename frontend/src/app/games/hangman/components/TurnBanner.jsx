@@ -2,15 +2,24 @@
 
 import { motion } from "framer-motion";
 import { Avatar } from "../../../../components/Avatar.jsx";
+import { TimerBar } from "../../../../components/game-feel/TimerBar.jsx";
 
 /**
  * @param {{
  *   activeUsername: string,
  *   isMyTurn: boolean,
  *   secondsRemaining?: number,
+ *   turnEndsAt?: number | null,
+ *   turnTotalSeconds?: number,
  * }} props
  */
-export function TurnBanner({ activeUsername, isMyTurn, secondsRemaining }) {
+export function TurnBanner({
+  activeUsername,
+  isMyTurn,
+  secondsRemaining,
+  turnEndsAt = null,
+  turnTotalSeconds,
+}) {
   return (
     <motion.div
       layout
@@ -28,7 +37,14 @@ export function TurnBanner({ activeUsername, isMyTurn, secondsRemaining }) {
         <p className="text-sm font-black text-foreground">
           {isMyTurn ? "Your turn — pick a letter" : `${activeUsername}'s turn`}
         </p>
-        {typeof secondsRemaining === "number" && secondsRemaining > 0 ? (
+        {typeof turnEndsAt === "number" ? (
+          <TimerBar
+            endsAt={turnEndsAt}
+            totalSeconds={turnTotalSeconds}
+            warnAtSeconds={10}
+            className="mt-2 max-w-[12rem]"
+          />
+        ) : typeof secondsRemaining === "number" && secondsRemaining > 0 ? (
           <p className="text-xs font-semibold text-foreground/55">{secondsRemaining}s remaining</p>
         ) : null}
       </div>

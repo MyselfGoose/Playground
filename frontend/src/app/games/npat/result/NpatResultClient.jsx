@@ -12,6 +12,7 @@ import {
   mapConnectionError,
   mapConnectionErrorMessage,
 } from "../../../../lib/errors/mapConnectionError.js";
+import { ResultGate } from "../../../../components/game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
@@ -184,31 +185,36 @@ export function NpatResultClient() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-10 sm:px-6 sm:py-14">
-      {!connected && hasFinishedSnapshot ? (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900">
-          Reconnecting to the game server… You can still browse the last results below.
-        </p>
-      ) : null}
-      <motion.header
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
-        <h1 className="text-4xl font-extrabold text-ink sm:text-5xl">Game over</h1>
-        <p className="mt-2 text-lg text-ink-muted">
-          Scroll through every letter; choose a player once to see their answers and notes for the whole game.
-        </p>
-        {overallBadge ? (
-          <p className="mt-4 inline-flex rounded-full border border-foreground/15 bg-background/80 px-4 py-1.5 text-sm font-bold text-ink-muted">
-            {overallBadge}
+    <ResultGate
+      title="Game over"
+      subtitle={overallBadge ?? "Scroll through every letter and see how everyone scored."}
+    >
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-10 sm:px-6 sm:py-14">
+        {!connected && hasFinishedSnapshot ? (
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900">
+            Reconnecting to the game server… You can still browse the last results below.
           </p>
         ) : null}
-      </motion.header>
+        <motion.header
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <h1 className="text-4xl font-extrabold text-ink sm:text-5xl">Game over</h1>
+          <p className="mt-2 text-lg text-ink-muted">
+            Scroll through every letter; choose a player once to see their answers and notes for the whole game.
+          </p>
+          {overallBadge ? (
+            <p className="mt-4 inline-flex rounded-full border border-foreground/15 bg-background/80 px-4 py-1.5 text-sm font-bold text-ink-muted">
+              {overallBadge}
+            </p>
+          ) : null}
+        </motion.header>
 
-      <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />
+        <ResultsCarousel key={`${normalizedCode}-${list.length}`} room={room} rounds={list} />
 
-      <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
-    </div>
+        <ResultActions playAgainHref="/games/npat" secondaryHref="/games" secondaryLabel="All games" />
+      </div>
+    </ResultGate>
   );
 }

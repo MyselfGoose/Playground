@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Button } from "../../../../components/Button.jsx";
+import { ResultGate } from "../../../../components/game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 
 /**
@@ -14,7 +15,12 @@ import { ResultActions } from "../../../../components/game/ResultActions.jsx";
  * }} props
  */
 export function GameEndPanel({ scoreRows, onPlayAgain, onReturnToLobby, onLeave, busy }) {
+  const top = scoreRows[0];
+  const bannerTitle = top ? `${top.name} wins!` : "Game over";
+  const bannerSubtitle = top ? `Top score: ${top.score.toFixed(0)}` : "Final standings";
+
   return (
+    <ResultGate title={bannerTitle} subtitle={bannerSubtitle}>
     <motion.section
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -52,5 +58,6 @@ export function GameEndPanel({ scoreRows, onPlayAgain, onReturnToLobby, onLeave,
       </div>
       <ResultActions className="mt-6 border-t border-foreground/10 pt-6" />
     </motion.section>
+    </ResultGate>
   );
 }

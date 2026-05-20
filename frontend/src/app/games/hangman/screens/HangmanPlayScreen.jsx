@@ -128,6 +128,7 @@ export function HangmanPlayScreen() {
                 preview={game?.wordPreview ?? null}
                 busy={!connected}
                 secondsRemaining={game?.setterSecondsRemaining}
+                setterEndsAt={game?.setterEndsAt}
                 onRandomize={() => void randomizePreview()}
                 onSubmit={(w) => void submitWord(w)}
               />
@@ -164,6 +165,8 @@ export function HangmanPlayScreen() {
               activeUsername={activePlayer.username}
               isMyTurn={Boolean(game?.isMyTurn)}
               secondsRemaining={game?.turnSecondsRemaining}
+              turnEndsAt={game?.turnEndsAt}
+              turnTotalSeconds={30}
             />
           ) : null}
 

@@ -15,6 +15,7 @@ export default defineConfig({
       "src/lib/typing-test/**",
       "src/lib/api.normalize.test.js",
       "src/lib/auth/oauth.test.js",
+      "src/components/game-feel/**",
     ],
     globals: false,
   },

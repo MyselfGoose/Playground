@@ -6,6 +6,7 @@ import { useUser } from "../../lib/context/UserContext.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { Button } from "../Button.jsx";
 import { PartyCode } from "../party/PartyCode.jsx";
+import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
 import { MultiRaceTrack } from "./MultiRaceTrack.jsx";
@@ -313,6 +314,14 @@ export function MultiRaceRoomView({ roomCode }) {
       )}
 
       {phase === "finished" && (
+        <ResultGate
+          title={
+            sortedResults.find((p) => p.rank === 1)?.username
+              ? `${sortedResults.find((p) => p.rank === 1)?.username} wins the race!`
+              : "Race complete"
+          }
+          subtitle="Fastest fingers take the crown."
+        >
         <div className="multi-phase-enter mt-6">
           <div className="text-center">
             <p className="font-sans text-xs font-bold uppercase tracking-[0.2em] text-[var(--tt-accent)]">
@@ -363,6 +372,7 @@ export function MultiRaceRoomView({ roomCode }) {
             secondaryLabel={isHost ? "Leave room" : undefined}
           />
         </div>
+        </ResultGate>
       )}
     </div>
   );

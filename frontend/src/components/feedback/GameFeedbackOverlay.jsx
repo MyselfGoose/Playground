@@ -11,6 +11,7 @@ const styles = {
   skip: "bg-gradient-to-b from-yellow-400/[0.18] via-yellow-500/[0.08] to-transparent",
   review_reverted: "bg-gradient-to-b from-sky-500/[0.12] via-sky-600/[0.05] to-transparent",
   review_upheld: "bg-gradient-to-b from-neutral-500/[0.1] via-neutral-700/[0.04] to-transparent",
+  field_complete: "bg-gradient-to-b from-emerald-400/[0.18] via-teal-500/[0.08] to-transparent",
 };
 
 export function GameFeedbackOverlay({ variant, reduceMotion }) {

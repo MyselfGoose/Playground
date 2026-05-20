@@ -50,6 +50,7 @@ function teamHasField(players, submissions, teamId, field) {
  *   gameState?: string,
  *   mode?: string,
  *   teams?: Array<{ id: string, name: string }>,
+ *   onFieldComplete?: () => void,
  * }} props
  */
 export function RoundFields({
@@ -63,6 +64,7 @@ export function RoundFields({
   gameState = "",
   mode = "",
   teams = [],
+  onFieldComplete,
 }) {
   const [drafts, setDrafts] = useState(() => ({ name: "", place: "", animal: "", thing: "" }));
   const [pending, setPending] = useState(
@@ -97,6 +99,8 @@ export function RoundFields({
     setPending((p) => ({ ...p, [key]: false }));
     if (!result.ok) {
       setErrors((e) => ({ ...e, [key]: result.error?.message ?? "Could not submit" }));
+    } else {
+      onFieldComplete?.();
     }
   }
 

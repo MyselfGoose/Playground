@@ -333,3 +333,38 @@ select:focus {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }
+
+@keyframes timer-bar-urgent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes timer-bar-fill-urgent {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+.timer-bar-urgent-pulse {
+  animation: timer-bar-urgent-pulse var(--motion-normal) ease-in-out infinite;
+}
+
+.timer-bar-fill-urgent {
+  animation: timer-bar-fill-urgent var(--motion-normal) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-bar-urgent-pulse,
+  .timer-bar-fill-urgent {
+    animation: none;
+  }
+}

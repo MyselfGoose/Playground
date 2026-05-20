@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import { CountdownStrip } from "../../../../components/game-feel/CountdownStrip.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
 import { HangmanShell } from "../components/HangmanShell.jsx";
-import { LobbyCountdownOverlay } from "../components/LobbyCountdownOverlay.jsx";
 import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
 
@@ -24,6 +24,19 @@ export function HangmanLobbyScreen() {
     lastScores,
   } = useHangmanRoom("lobby");
   const { error, setReady, leaveToMenu } = useHangmanActions();
+  const [showCountdownStrip, setShowCountdownStrip] = useState(false);
+  const wasCountdownRef = useRef(false);
+
+  useEffect(() => {
+    if (countdownActive && !wasCountdownRef.current) {
+      wasCountdownRef.current = true;
+      setShowCountdownStrip(true);
+    }
+    if (!countdownActive) {
+      wasCountdownRef.current = false;
+      setShowCountdownStrip(false);
+    }
+  }, [countdownActive]);
 
   const me = room?.players?.find((p) => p.userId === localUserId);
   const isReady = Boolean(me?.ready);
@@ -53,7 +66,12 @@ export function HangmanLobbyScreen() {
   return (
     <HangmanShell>
       <AnimatePresence>
-        {countdownActive ? <LobbyCountdownOverlay seconds={countdownSeconds} /> : null}
+        {countdownActive && showCountdownStrip ? (
+          <CountdownStrip
+            label="Get ready to play Hangman"
+            onComplete={() => setShowCountdownStrip(false)}
+          />
+        ) : null}
       </AnimatePresence>
 
       {lastScores && Object.keys(lastScores).length > 0 ? (

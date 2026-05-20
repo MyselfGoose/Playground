@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
-import { GameOverScreen } from "./taboo-shared.js";
+import { ResultGate } from "../../../components/game-feel/WinnerBanner.jsx";
+import { GameOverScreen, tabooWinnerBannerSubtitle, tabooWinnerBannerTitle } from "./taboo-shared.js";
 
 /**
  * @param {{ room: object }} props
@@ -15,14 +16,19 @@ export function TabooResult({ room }) {
 
   return (
     <motion.div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-8 text-foreground">
-      <GameOverScreen
-        game={game}
-        players={room?.players}
-        onLeave={async () => {
-          await leaveRoom();
-          router.push("/games/taboo");
-        }}
-      />
+      <ResultGate
+        title={tabooWinnerBannerTitle(game)}
+        subtitle={tabooWinnerBannerSubtitle(game)}
+      >
+        <GameOverScreen
+          game={game}
+          players={room?.players}
+          onLeave={async () => {
+            await leaveRoom();
+            router.push("/games/taboo");
+          }}
+        />
+      </ResultGate>
     </motion.div>
   );
 }

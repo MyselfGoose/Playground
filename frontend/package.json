@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/typing-test/*.test.js src/lib/*.normalize.test.js src/lib/auth/*.test.js next.config.normalize.test.mjs && vitest run",
+    "test": "node --test src/lib/typing-test/*.test.js src/lib/*.normalize.test.js src/lib/auth/*.test.js src/components/game-feel/*.test.js next.config.normalize.test.mjs && vitest run",
     "test:component": "vitest run"
   },
   "dependencies": {

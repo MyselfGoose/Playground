@@ -49,6 +49,22 @@ export function buildPlayerRecapRows(players, history) {
   return [...rows.values()].sort((a, b) => b.correct - a.correct);
 }
 
+/** @param {{ scores?: { A?: number, B?: number } }} game */
+export function tabooWinnerBannerTitle(game) {
+  const scoreA = game?.scores?.A ?? 0;
+  const scoreB = game?.scores?.B ?? 0;
+  if (scoreA > scoreB) return "Team Alpha wins!";
+  if (scoreB > scoreA) return "Team Beta wins!";
+  return "It's a tie!";
+}
+
+/** @param {{ scores?: { A?: number, B?: number } }} game */
+export function tabooWinnerBannerSubtitle(game) {
+  const scoreA = game?.scores?.A ?? 0;
+  const scoreB = game?.scores?.B ?? 0;
+  return `Final score ${scoreA} – ${scoreB}`;
+}
+
 export function GameOverScreen({ game, players, onLeave }) {
   const scoreA = game?.scores?.A ?? 0;
   const scoreB = game?.scores?.B ?? 0;

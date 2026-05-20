@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { RoundFields } from "../RoundFields.jsx";
 import { EarlyFinishVote } from "../EarlyFinishVote.jsx";
+import { CountdownStrip } from "../../../../components/game-feel/CountdownStrip.jsx";
+import { TimerBar } from "../../../../components/game-feel/TimerBar.jsx";
+import { GameFeedbackOverlay } from "../../../../components/feedback/GameFeedbackOverlay.jsx";
+import { useNpatFieldFeedback } from "../../../../lib/npat/useNpatFieldFeedback.js";
 import { NpatEvaluatingPanel } from "../NpatEvaluatingPanel.jsx";
 import { formatJoinCodeForServer } from "../../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
@@ -40,6 +45,11 @@ export function NpatPlayClient() {
   const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const [joinRetryToken, setJoinRetryToken] = useState(0);
+  const [showRoundCountdownStrip, setShowRoundCountdownStrip] = useState(false);
+  const prevRoundPhaseRef = useRef("none");
+  const { variant: fieldFeedbackVariant, pulseFieldComplete } = useNpatFieldFeedback({
+    reduceMotion: Boolean(reduce),
+  });
 
   const normalizedCode = useMemo(() => {
     try {
@@ -108,6 +118,14 @@ export function NpatPlayClient() {
   const letter = room?.currentLetter ?? "—";
   const state = room?.state ?? "";
   const roundPhase = room?.roundPhase ?? "none";
+
+  useEffect(() => {
+    if (roundPhase === "countdown" && prevRoundPhaseRef.current !== "countdown") {
+      setShowRoundCountdownStrip(true);
+    }
+    prevRoundPhaseRef.current = roundPhase;
+  }, [roundPhase]);
+
   const submissions =
     room?.submissions && typeof room.submissions === "object"
       ? /** @type {Record<string, Record<string, string>>} */ (room.submissions)
@@ -219,7 +237,16 @@ export function NpatPlayClient() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+      <GameFeedbackOverlay variant={fieldFeedbackVariant} reduceMotion={Boolean(reduce)} />
+      <AnimatePresence>
+        {showRoundCountdownStrip && countdownActive ? (
+          <CountdownStrip
+            label="Finish your answers"
+            onComplete={() => setShowRoundCountdownStrip(false)}
+          />
+        ) : null}
+      </AnimatePresence>
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -326,13 +353,15 @@ export function NpatPlayClient() {
           >
             {letter}
           </p>
-          {countdownActive && typeof msLeft === "number" ? (
-            <div className="mt-5 space-y-1">
-              <p className={`text-lg font-extrabold tabular-nums ${urgent ? "text-red-700" : "text-ink-muted"}`}>
-                Time left: {(msLeft / 1000).toFixed(1)}s
-              </p>
+          {countdownActive && typeof room?.timerEndsAt === "number" ? (
+            <div className="mx-auto mt-5 max-w-xs space-y-2">
+              <TimerBar
+                endsAt={room.timerEndsAt}
+                warnAtSeconds={10}
+                totalSeconds={Math.ceil((room.timerEndsAt - (room.roundStartAt ?? now)) / 1000) || 10}
+              />
               <p className="text-sm font-semibold text-red-800/90">
-                Finish and submit your answers — the round closes for everyone when this hits zero.
+                Finish and submit — the round closes for everyone when time runs out.
               </p>
             </div>
           ) : null}
@@ -379,6 +408,7 @@ export function NpatPlayClient() {
           mode={typeof room?.mode === "string" ? room.mode : ""}
           teams={Array.isArray(room?.teams) ? room.teams : []}
           onSubmit={(field, value) => submitField(field, value)}
+          onFieldComplete={pulseFieldComplete}
         />
       ) : null}
     </div>

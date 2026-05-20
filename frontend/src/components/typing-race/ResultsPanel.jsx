@@ -3,6 +3,7 @@
 import { useTypingLiveMetrics } from "./useTypingLiveMetrics.js";
 import { useTypingTest } from "./TypingTestContext.jsx";
 import { useReportSoloTypingResult } from "../../hooks/useReportSoloTypingResult.js";
+import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 
 export function ResultsPanel() {
@@ -19,6 +20,10 @@ export function ResultsPanel() {
     Number.isFinite(n) ? (Math.round(n * 10) / 10).toFixed(1) : "0.0";
 
   return (
+    <ResultGate
+      title="Session complete"
+      subtitle={`${fmt(m.wpm)} WPM · ${fmt(m.accuracy)}% accuracy`}
+    >
     <div
       className="typing-race-focus-keep mx-auto w-full max-w-md px-4"
       role="region"
@@ -74,6 +79,7 @@ export function ResultsPanel() {
         </p>
       </div>
     </div>
+    </ResultGate>
   );
 }
 

@@ -5,6 +5,7 @@ import { apiUrl } from "../../../../lib/api.js";
 import { Button } from "../../../../components/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { PageHeader } from "../../../../components/PageHeader.jsx";
+import { ResultGate } from "../../../../components/game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../../../../components/game/ResultActions.jsx";
 import { HangmanFigure } from "../components/HangmanFigure.jsx";
 import { HANGMAN_MAX_WRONG } from "../constants.js";
@@ -105,8 +106,19 @@ export default function HangmanSoloPage() {
     else setWrong((w) => [...w, ch].sort());
   }
 
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10">
+  const soloBannerTitle =
+    status === "won" ? "You won!" : status === "lost" ? "Out of guesses" : "";
+  const soloBannerSubtitle =
+    status === "won"
+      ? "Nice work — try another word?"
+      : status === "lost"
+        ? secret
+          ? `The word was ${secret}`
+          : "Better luck next time"
+        : "";
+
+  const mainContent = (
+    <>
       <PageHeader gameId="hangman" eyebrow="Solo" title="Practice round" align="left" />
 
       {error ? (
@@ -156,6 +168,18 @@ export default function HangmanSoloPage() {
             Restart same word
           </Button>
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10">
+      {finished && soloBannerTitle ? (
+        <ResultGate title={soloBannerTitle} subtitle={soloBannerSubtitle}>
+          {mainContent}
+        </ResultGate>
+      ) : (
+        mainContent
       )}
     </div>
   );

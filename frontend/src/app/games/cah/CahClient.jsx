@@ -1,6 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useReducedMotion } from "framer-motion";
+import { GameFeedbackOverlay } from "../../../components/feedback/GameFeedbackOverlay.jsx";
+import { ResultGate } from "../../../components/game-feel/WinnerBanner.jsx";
 import { usePathname, useRouter } from "next/navigation";
 import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
@@ -28,13 +31,27 @@ export default function CahClient({ view }) {
   const [selectedCards, setSelectedCards] = useState([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState("");
   const [deckRecycledNotice, setDeckRecycledNotice] = useState(false);
+  const [revealFeedback, setRevealFeedback] = useState(/** @type {null | 'correct'} */ (null));
   const prevDeckRecycledRef = useRef(false);
+  const prevStatusRef = useRef("");
   const pathname = usePathname();
+  const reduceMotion = useReducedMotion();
 
   const me = useMemo(() => room?.players?.find((p) => p.userId === localUserId) ?? null, [room?.players, localUserId]);
   const game = room?.game ?? null;
   const isJudge = game?.judgeUserId === localUserId;
   const pickCount = Number(game?.blackCard?.pick ?? 1);
+
+  useEffect(() => {
+    const status = game?.status ?? "";
+    if (status === "revealing" && prevStatusRef.current !== "revealing" && !reduceMotion) {
+      setRevealFeedback("correct");
+      const t = setTimeout(() => setRevealFeedback(null), 650);
+      return () => clearTimeout(t);
+    }
+    prevStatusRef.current = status;
+    return undefined;
+  }, [game?.status, reduceMotion]);
 
   useEffect(() => {
     const targetRoute = !room?.code
@@ -100,33 +117,39 @@ export default function CahClient({ view }) {
   const isFinished = status === "finished";
   if (view === "result" || isFinished) {
     const rows = scoreRows(room.players ?? []);
+    const top = rows[0];
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-10">
-        <section className="rounded-[30px] border border-foreground/10 bg-background/90 p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
-          <h2 className="text-4xl font-black text-foreground">Game Finished</h2>
-          <p className="mt-2 text-foreground/70">Best score wins. Thanks for playing!</p>
-        </section>
-        <section className="rounded-[26px] border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)]">
-          <h3 className="text-xl font-black text-foreground">Final Standings</h3>
-          <div className="mt-3 space-y-2">
-            {rows.map((p, idx) => (
-              <div key={p.userId} className="flex items-center justify-between rounded-xl bg-muted-bright/25 px-4 py-3 ring-1 ring-foreground/10">
-                <p className="font-bold text-foreground">
-                  #{idx + 1} {p.username}
-                </p>
-                <p className="text-xl font-black text-primary">{p.score ?? 0}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6">
-            <ResultActions
-              playAgainHref="/games/cah"
-              secondaryLabel="Leave"
-              onSecondary={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}
-            />
-          </div>
-        </section>
-      </div>
+      <ResultGate
+        title={top ? `${top.username} wins!` : "Game finished"}
+        subtitle="Best score wins — thanks for playing!"
+      >
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-10">
+          <section className="rounded-[30px] border border-foreground/10 bg-background/90 p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
+            <h2 className="text-4xl font-black text-foreground">Game Finished</h2>
+            <p className="mt-2 text-foreground/70">Best score wins. Thanks for playing!</p>
+          </section>
+          <section className="rounded-[26px] border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)]">
+            <h3 className="text-xl font-black text-foreground">Final Standings</h3>
+            <div className="mt-3 space-y-2">
+              {rows.map((p, idx) => (
+                <div key={p.userId} className="flex items-center justify-between rounded-xl bg-muted-bright/25 px-4 py-3 ring-1 ring-foreground/10">
+                  <p className="font-bold text-foreground">
+                    #{idx + 1} {p.username}
+                  </p>
+                  <p className="text-xl font-black text-primary">{p.score ?? 0}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6">
+              <ResultActions
+                playAgainHref="/games/cah"
+                secondaryLabel="Leave"
+                onSecondary={() => run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}
+              />
+            </div>
+          </section>
+        </div>
+      </ResultGate>
     );
   }
 
@@ -137,7 +160,8 @@ export default function CahClient({ view }) {
   const judgeName = room.players?.find((p) => p.userId === game?.judgeUserId)?.username ?? "—";
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6">
+    <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6">
+      <GameFeedbackOverlay variant={revealFeedback} reduceMotion={reduceMotion} />
       {socketError || error ? (
         <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">
           {socketError || error}

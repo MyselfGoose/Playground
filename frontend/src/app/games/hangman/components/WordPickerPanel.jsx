@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Dices, Send } from "lucide-react";
 import { Button } from "../../../../components/Button.jsx";
+import { TimerBar } from "../../../../components/game-feel/TimerBar.jsx";
 
 /**
  * @param {{
@@ -12,9 +13,17 @@ import { Button } from "../../../../components/Button.jsx";
  *   onSubmit: (word: string) => void,
  *   busy?: boolean,
  *   secondsRemaining?: number,
+ *   setterEndsAt?: number | null,
  * }} props
  */
-export function WordPickerPanel({ preview, onRandomize, onSubmit, busy, secondsRemaining }) {
+export function WordPickerPanel({
+  preview,
+  onRandomize,
+  onSubmit,
+  busy,
+  secondsRemaining,
+  setterEndsAt = null,
+}) {
   const [manual, setManual] = useState("");
   const display = preview ?? manual;
   const canSubmit = Boolean(preview || (manual.trim().length >= 4 && /^[a-zA-Z]+$/.test(manual.trim())));
@@ -28,10 +37,12 @@ export function WordPickerPanel({ preview, onRandomize, onSubmit, busy, secondsR
       <p className="text-sm font-black uppercase tracking-wide text-foreground/60">You pick the word</p>
       <p className="mt-1 text-xs font-semibold text-foreground/55">
         Randomize until you like it, then submit when ready.
-        {typeof secondsRemaining === "number" && secondsRemaining > 0 ? (
-          <span className="mt-1 block font-black text-primary">{secondsRemaining}s to pick</span>
-        ) : null}
       </p>
+      {typeof setterEndsAt === "number" ? (
+        <TimerBar endsAt={setterEndsAt} warnAtSeconds={10} className="mt-3 max-w-xs" />
+      ) : typeof secondsRemaining === "number" && secondsRemaining > 0 ? (
+        <p className="mt-1 text-xs font-black text-primary">{secondsRemaining}s to pick</p>
+      ) : null}
 
       <motion.div
         className="mt-5 flex min-h-[4rem] items-center justify-center rounded-2xl bg-background/90 px-4 py-6 ring-1 ring-foreground/10"

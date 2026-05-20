@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { TimerBar } from "../../../components/game-feel/TimerBar.jsx";
 import { GameFeedbackOverlay } from "../../../components/feedback/GameFeedbackOverlay.jsx";
 import { ConfirmDialog } from "../../../components/taboo/ConfirmDialog.jsx";
 import { useGameFeedback } from "../../../lib/feedback/useGameFeedback.js";
@@ -33,6 +34,7 @@ export function TabooPlay({ room }) {
   const {
     connectionState,
     serverNow,
+    serverOffsetMs,
     startTurn,
     holdTurnStart,
     submitGuess,
@@ -97,10 +99,6 @@ export function TabooPlay({ room }) {
 
   const normalizedStatus = game?.status === "in_progress" ? "turn_in_progress" : game?.status;
   const roundDuration = room?.settings?.roundDurationSeconds ?? 60;
-  const timerPercent =
-    normalizedStatus === "turn_in_progress" && roundDuration > 0 ? (secondsRemaining / roundDuration) * 100 : 0;
-  const timerColor =
-    secondsRemaining <= 10 ? "text-error" : secondsRemaining <= 20 ? "text-warning" : "text-foreground";
   const roleBadge = ROLE_BADGES[role] || ROLE_BADGES.spectator;
   const RoleIcon = roleBadge.icon;
   const showReviewPanel = review && (review.status === "in_progress" || review.status === "resolved");
@@ -156,13 +154,17 @@ export function TabooPlay({ room }) {
           </div>
           <div className="relative overflow-hidden rounded-xl border border-foreground/10 bg-background/90 p-3 text-center shadow-sm">
             <Clock className="mx-auto mb-1 h-4 w-4 text-foreground/45" />
-            <p className={cn("font-mono text-2xl font-black tabular-nums", timerColor)}>{secondsRemaining}</p>
-            {normalizedStatus === "turn_in_progress" ? (
-              <div
-                className={cn("absolute bottom-0 left-0 h-1 bg-gradient-to-r transition-all duration-700", activeTeamStyle.timerBar)}
-                style={{ width: `${Math.max(0, Math.min(100, timerPercent))}%` }}
+            {normalizedStatus === "turn_in_progress" && typeof countdownEndsAt === "number" ? (
+              <TimerBar
+                endsAt={countdownEndsAt}
+                serverOffsetMs={serverOffsetMs}
+                totalSeconds={roundDuration}
+                warnAtSeconds={10}
+                className="relative"
               />
-            ) : null}
+            ) : (
+              <p className="font-mono text-2xl font-black tabular-nums text-foreground">{secondsRemaining}</p>
+            )}
           </div>
           <motion.div
             className={cn(
