@@ -61,12 +61,12 @@ function DefaultErrorFallback({ error, reset, level }) {
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-20 text-center">
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950/40 max-w-md w-full">
         <h2 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">
-          {isGame ? "Game crashed" : "Something went wrong"}
+          {isGame ? "Something hiccuped in this game" : "That didn't work"}
         </h2>
         <p className="text-sm text-red-600/80 dark:text-red-300/80 mb-4">
           {isGame
-            ? "This game ran into an unexpected error. Your progress on the server is safe."
-            : "An unexpected error occurred. You can try again or go back to the home page."}
+            ? "Your progress on the server is safe — try again or head back to the games hub."
+            : "Give it another try, or head back to the home page."}
         </p>
         {error?.message && process.env.NODE_ENV !== "production" && (
           <pre className="mb-4 max-h-32 overflow-auto rounded bg-red-100 p-2 text-left text-xs text-red-800 dark:bg-red-900/40 dark:text-red-200">

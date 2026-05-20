@@ -5,6 +5,7 @@ import { useTypingTest } from "./TypingTestContext.jsx";
 import { useReportSoloTypingResult } from "../../hooks/useReportSoloTypingResult.js";
 import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
+import { ShareResultButton } from "../game/ShareResultButton.jsx";
 
 export function ResultsPanel() {
   const { engine, nowMs, restart } = useTypingTest();
@@ -60,8 +61,9 @@ export function ResultsPanel() {
             value={String(m.errorCount)}
           />
         </div>
+        <ShareResultButton gameLabel="Typing Race" className="mt-8 w-full" />
         <ResultActions
-          className="mt-8"
+          className="mt-4"
           playAgainLabel="Play again"
           onPlayAgain={restart}
           secondaryHref="/games/typing-race/multi"

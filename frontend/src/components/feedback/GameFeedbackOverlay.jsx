@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { feedbackMotion } from "../../lib/feedback/feedbackMotion.js";
+import { play } from "../../lib/sound/soundManager.js";
 import { cn } from "../../lib/taboo/cn.js";
 
 const styles = {
@@ -14,7 +16,22 @@ const styles = {
   field_complete: "bg-gradient-to-b from-emerald-400/[0.18] via-teal-500/[0.08] to-transparent",
 };
 
+const SUCCESS_VARIANTS = new Set(["correct", "field_complete"]);
+
 export function GameFeedbackOverlay({ variant, reduceMotion }) {
+  const lastPlayedRef = useRef(/** @type {string | null} */ (null));
+
+  useEffect(() => {
+    if (!variant || !SUCCESS_VARIANTS.has(variant)) return;
+    if (lastPlayedRef.current === variant) return;
+    lastPlayedRef.current = variant;
+    play("success");
+  }, [variant]);
+
+  useEffect(() => {
+    if (!variant) lastPlayedRef.current = null;
+  }, [variant]);
+
   const show = Boolean(variant) && styles[variant];
   return (
     <AnimatePresence>

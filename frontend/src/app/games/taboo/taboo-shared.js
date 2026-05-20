@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { ResultActions } from "../../../components/game/ResultActions.jsx";
+import { ShareResultButton } from "../../../components/game/ShareResultButton.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
 import { teamColors } from "../../../lib/taboo/variants.js";
@@ -113,6 +114,7 @@ export function GameOverScreen({ game, players, onLeave }) {
           </ul>
         </div>
       ) : null}
+      <ShareResultButton gameLabel="Taboo" className="mb-3 w-full" />
       <ResultActions playAgainHref="/games/taboo" secondaryLabel="Leave game" onSecondary={onLeave} />
     </motion.div>
   );

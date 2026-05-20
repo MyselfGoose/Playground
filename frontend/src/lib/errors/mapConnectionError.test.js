@@ -9,7 +9,7 @@ describe("resolveConnectionError", () => {
   it("maps ROOM_EXPIRED with create_room and leave actions", () => {
     const r = resolveConnectionError("npat", { code: "ROOM_EXPIRED" });
     expect(r.code).toBe("ROOM_EXPIRED");
-    expect(r.message).toMatch(/no longer available/i);
+    expect(r.message).toMatch(/party ended/i);
     expect(r.recoverable).toBe(true);
     expect(r.actions).toEqual(["create_room", "leave"]);
   });
@@ -19,7 +19,7 @@ describe("resolveConnectionError", () => {
       error: { code: "ROOM_NOT_FOUND", message: "Room not found" },
     });
     expect(r.code).toBe("ROOM_NOT_FOUND");
-    expect(r.message).toMatch(/could not find that room/i);
+    expect(r.message).toMatch(/party code/i);
     expect(r.actions).toContain("create_room");
   });
 
@@ -41,7 +41,7 @@ describe("resolveConnectionError", () => {
 describe("mapConnectionErrorMessage", () => {
   it("returns message string only", () => {
     expect(mapConnectionErrorMessage("npat", { code: "ROOM_EXPIRED" })).toMatch(
-      /no longer available/i,
+      /party ended/i,
     );
   });
 });

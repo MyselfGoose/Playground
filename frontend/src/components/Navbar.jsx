@@ -7,6 +7,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../lib/context/UserContext.jsx";
 import { useTheme } from "../lib/theme/ThemeContext.jsx";
+import { getEnabled, play, setEnabled } from "../lib/sound/soundManager.js";
 import { Avatar } from "./Avatar.jsx";
 
 const links = [
@@ -23,6 +24,16 @@ export function Navbar() {
   const { user, loading, logout } = useUser();
   const [open, setOpen] = useState(false);
   const { isDark, toggleTheme, ready: themeReady } = useTheme();
+  const [soundEnabled, setSoundEnabled] = useState(() =>
+    typeof window !== "undefined" ? getEnabled() : false,
+  );
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setEnabled(next);
+    setSoundEnabled(next);
+    if (next) play("success");
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted-bright/30 shadow-sm pt-[env(safe-area-inset-top)]">
@@ -114,6 +125,21 @@ export function Navbar() {
 
           <motion.button
             type="button"
+            onClick={toggleSound}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright"
+            aria-label={soundEnabled ? "Sound effects on" : "Sound effects off"}
+            aria-pressed={soundEnabled}
+            suppressHydrationWarning
+          >
+            <span className="text-lg" suppressHydrationWarning>
+              {soundEnabled ? "🔊" : "🔇"}
+            </span>
+          </motion.button>
+
+          <motion.button
+            type="button"
             onClick={toggleTheme}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -172,6 +198,17 @@ export function Navbar() {
               >
                 Feedback
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  toggleSound();
+                }}
+                className="flex items-center justify-between rounded-xl px-4 py-3 text-base font-bold text-foreground transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright/50"
+                aria-pressed={soundEnabled}
+              >
+                <span>Sound effects</span>
+                <span aria-hidden>{soundEnabled ? "On" : "Off"}</span>
+              </button>
               {!loading && !user ? (
                 <>
                   <Link

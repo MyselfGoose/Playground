@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { play } from "../../lib/sound/soundManager.js";
 import { COUNTDOWN_STEPS, gameFeelMotion } from "./gameFeelMotion.js";
 
 const DEFAULT_DURATION_MS = 3000;
@@ -23,20 +24,36 @@ export function CountdownStrip({
   const reduceMotion = useReducedMotion();
   const [stepIndex, setStepIndex] = useState(0);
   const completedRef = useRef(false);
+  const goSoundPlayedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  });
 
   const stepDuration = Math.max(200, Math.floor(durationMs / COUNTDOWN_STEPS.length));
   const currentLabel = COUNTDOWN_STEPS[stepIndex] ?? "GO";
 
   useEffect(() => {
+    if (currentLabel === "GO" && !goSoundPlayedRef.current) {
+      goSoundPlayedRef.current = true;
+      play("success");
+    }
+  }, [currentLabel]);
+
+  useEffect(() => {
     completedRef.current = false;
+    goSoundPlayedRef.current = false;
     setStepIndex(0);
 
     if (reduceMotion) {
       const t = setTimeout(() => {
         if (!completedRef.current) {
           completedRef.current = true;
+          if (!goSoundPlayedRef.current) {
+            goSoundPlayedRef.current = true;
+            play("success");
+          }
           onCompleteRef.current?.();
         }
       }, Math.min(durationMs, 400));

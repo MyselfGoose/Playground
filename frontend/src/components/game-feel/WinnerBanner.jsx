@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { play } from "../../lib/sound/soundManager.js";
 import { gameFeelMotion } from "./gameFeelMotion.js";
 
 const DEFAULT_DISPLAY_MS = 2000;
@@ -35,6 +36,7 @@ export function WinnerBanner({
 
   useEffect(() => {
     dismissedRef.current = false;
+    play("success");
     const ms = reduceMotion ? Math.min(displayMs, 800) : displayMs;
     const t = setTimeout(() => dismiss(), ms);
     return () => clearTimeout(t);

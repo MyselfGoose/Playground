@@ -190,7 +190,7 @@ export function NpatLobbyClient() {
     if (joinError && (joinError.code === "ROOM_NOT_FOUND" || joinError.code === "ROOM_EXPIRED")) {
       return (
         <ErrorState
-          title={joinError.code === "ROOM_EXPIRED" ? "Room expired" : "Room not found"}
+          title={joinError.code === "ROOM_EXPIRED" ? "This party ended" : "Party not found"}
           message={joinError.message}
           actions={[
             { label: "Create new game", href: "/games/npat" },
@@ -201,7 +201,9 @@ export function NpatLobbyClient() {
     }
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <p className="font-semibold text-foreground">Could not join this room.</p>
+        <p className="font-semibold text-foreground">
+          We couldn&apos;t get you into that room — try again or start fresh.
+        </p>
         {joinError ? <p className="mt-3 text-sm text-error">{joinError.message}</p> : null}
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link

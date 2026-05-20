@@ -19,44 +19,45 @@ const MISSING_SOCKET_URL =
   "Live games are temporarily unavailable. Please try again in a moment.";
 
 const NOT_CONNECTED = {
-  npat: "Connecting to your game…",
-  cah: "Connecting to your game…",
-  taboo: "Connecting to your game…",
-  hangman: "Connecting to your game…",
-  "typing-race": "Connecting to your race…",
-  generic: "Connecting…",
+  npat: "Joining your party…",
+  cah: "Joining your party…",
+  taboo: "Joining your party…",
+  hangman: "Joining your party…",
+  "typing-race": "Joining your race…",
+  generic: "Joining your party…",
 };
 
 const CONNECT_FAILED = {
-  npat: "Could not connect to the game. Check your connection and try again.",
-  cah: "Could not connect to the game. Check your connection and try again.",
-  taboo: "Could not connect to the game. Check your connection and try again.",
-  hangman: "Could not connect to the game. Check your connection and try again.",
-  "typing-race": "Could not connect to the race. Check your connection and try again.",
-  generic: "Could not connect. Check your connection and try again.",
+  npat: "We lost the connection — check your network and try again.",
+  cah: "We lost the connection — check your network and try again.",
+  taboo: "We lost the connection — check your network and try again.",
+  hangman: "We lost the connection — check your network and try again.",
+  "typing-race": "We lost the connection — check your network and try again.",
+  generic: "We lost the connection — check your network and try again.",
 };
 
 const TIMEOUT = {
-  npat: "This is taking longer than usual. Check your connection and try again.",
-  cah: "This is taking longer than usual. Check your connection and try again.",
-  taboo: "This is taking longer than usual. Check your connection and try again.",
-  hangman: "This is taking longer than usual. Check your connection and try again.",
-  "typing-race": "This is taking longer than usual. Check your connection and try again.",
-  generic: "This is taking longer than usual. Check your connection and try again.",
+  npat: "This is taking a while — try again in a moment.",
+  cah: "This is taking a while — try again in a moment.",
+  taboo: "This is taking a while — try again in a moment.",
+  hangman: "This is taking a while — try again in a moment.",
+  "typing-race": "This is taking a while — try again in a moment.",
+  generic: "This is taking a while — try again in a moment.",
 };
 
 const RECONNECTING = {
-  npat: "Reconnecting…",
-  cah: "Reconnecting…",
-  taboo: "Reconnecting to your room…",
-  hangman: "Reconnecting…",
-  "typing-race": "Reconnecting to your race…",
-  generic: "Reconnecting…",
+  npat: "Back online — syncing your game…",
+  cah: "Back online — syncing your game…",
+  taboo: "Back online — syncing your room…",
+  hangman: "Back online — syncing your game…",
+  "typing-race": "Back online — syncing your race…",
+  generic: "Back online — syncing…",
 };
 
 const ROOM_ERROR_MESSAGES = {
-  ROOM_EXPIRED: "This game room is no longer available. Start or join a new one.",
-  ROOM_NOT_FOUND: "We could not find that room. Check the code or create a new game.",
+  ROOM_EXPIRED: "This party ended — start a fresh game when you're ready.",
+  ROOM_NOT_FOUND:
+    "We can't find that party code — double-check it or start a new game.",
 };
 
 const SESSION_ENDED_CODES = new Set([
@@ -191,6 +192,6 @@ export function formatConnectionStateLabel(state) {
     case "disconnected":
       return "Disconnected";
     default:
-      return "Connecting";
+      return "Joining";
   }
 }
