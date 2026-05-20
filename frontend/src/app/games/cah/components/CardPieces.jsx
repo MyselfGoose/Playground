@@ -21,7 +21,7 @@ export function WhiteCard({ card, selected, disabled, onClick }) {
   return (
     <motion.button
       type="button"
-      whileHover={disabled ? undefined : { y: -6, scale: 1.01 }}
+      whileHover={disabled ? undefined : { y: -6 }}
       whileTap={disabled ? undefined : { scale: 0.98 }}
       onClick={onClick}
       disabled={disabled}

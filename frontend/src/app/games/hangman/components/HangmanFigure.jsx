@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { HANGMAN_MAX_WRONG } from "../constants.js";
 
@@ -7,7 +8,7 @@ import { HANGMAN_MAX_WRONG } from "../constants.js";
  * Six-stage hangman figure (head, body, arms, legs).
  * @param {{ wrongCount: number, className?: string }} props
  */
-export function HangmanFigure({ wrongCount, className = "" }) {
+export const HangmanFigure = memo(function HangmanFigure({ wrongCount, className = "" }) {
   const reduceMotion = useReducedMotion();
   const stage = Math.min(Math.max(0, wrongCount), HANGMAN_MAX_WRONG);
 
@@ -39,4 +40,4 @@ export function HangmanFigure({ wrongCount, className = "" }) {
       </g>
     </svg>
   );
-}
+});

@@ -24,6 +24,13 @@ import {
 
 const TypingRaceContext = createContext(null);
 
+/**
+ * Performance note (Phase 17): peer progress uses `typing_peer_progress` partial updates;
+ * full `room` snapshots still rerender all context consumers. Splitting progress into a
+ * separate context is deferred until React Profiler shows MultiRaceTrack-bound work as
+ * a hotspot — see performance-budgets.md.
+ */
+
 const DEV = process.env.NODE_ENV !== "production";
 
 const TYPING_ROOM_STORAGE_KEY = "playground:typing-race:last-room-code";

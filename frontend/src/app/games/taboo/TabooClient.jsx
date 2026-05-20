@@ -1,13 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LoadingSkeleton } from "../../../components/LoadingSkeleton.jsx";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { TabooEntry } from "./TabooEntry.jsx";
 import { TabooLobby } from "./TabooLobby.jsx";
-import { TabooPlay } from "./TabooPlay.jsx";
 import { TabooResult } from "./TabooResult.jsx";
 import { tabooPath } from "./taboo-shared.js";
+
+const TabooPlay = dynamic(
+  () => import("./TabooPlay.jsx").then((m) => ({ default: m.TabooPlay })),
+  { ssr: false, loading: () => <LoadingSkeleton variant="playfield" /> },
+);
 
 /**
  * @param {{ view: 'entry' | 'lobby' | 'play' | 'result' }} props

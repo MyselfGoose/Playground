@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { Avatar } from "../Avatar.jsx";
@@ -22,7 +23,7 @@ import { Avatar } from "../Avatar.jsx";
  *   className?: string,
  * }} props
  */
-export function PlayerList({ players, localUserId = null, className = "" }) {
+export const PlayerList = memo(function PlayerList({ players, localUserId = null, className = "" }) {
   return (
     <ul className={`space-y-2 ${className}`}>
       <AnimatePresence initial={false}>
@@ -67,4 +68,4 @@ export function PlayerList({ players, localUserId = null, className = "" }) {
       </AnimatePresence>
     </ul>
   );
-}
+});

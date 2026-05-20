@@ -1,13 +1,17 @@
+"use client";
+
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import { NpatPlayClient } from "./NpatPlayClient.jsx";
+import { LoadingSkeleton } from "../../../../components/LoadingSkeleton.jsx";
+
+const NpatPlayClient = dynamic(
+  () => import("./NpatPlayClient.jsx").then((m) => ({ default: m.NpatPlayClient })),
+  { ssr: false, loading: () => <LoadingSkeleton variant="playfield" /> },
+);
 
 export default function NpatPlayPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex flex-1 items-center justify-center px-4 py-20 text-ink-muted">Loading game…</div>
-      }
-    >
+    <Suspense fallback={<LoadingSkeleton variant="playfield" />}>
       <NpatPlayClient />
     </Suspense>
   );

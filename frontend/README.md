@@ -18,6 +18,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
+## Performance budgets
+
+LCP/CLS targets and Lighthouse instructions: [performance-budgets.md](../performance-budgets.md). Quick helper from repo root: `npm run lighthouse:stub`.
+
 ## API URL (Playground)
 
 **Production deploy:** See [deploy-auth-checklist.md](../deploy-auth-checklist.md) for same-origin proxy, `COOKIE_DOMAIN`, `CORS_ORIGIN`, and mobile OAuth checks. For multiplayer, keep the backend at **one replica** until shared socket state is configured — see [deploy-replica-limit.md](../deploy-replica-limit.md).

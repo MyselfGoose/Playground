@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 export function scoreRows(players) {
   return [...(players ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
@@ -7,7 +9,7 @@ export function scoreRows(players) {
 /**
  * @param {{ players: object[], judgeUserId?: string | null }} props
  */
-export default function ScoreboardRail({ players, judgeUserId = null }) {
+export const ScoreboardRail = memo(function ScoreboardRail({ players, judgeUserId = null }) {
   return (
     <section className="rounded-[22px] border border-foreground/10 bg-background/90 p-4 shadow-[var(--shadow-card)]">
       <h3 className="text-lg font-black text-foreground">Scoreboard</h3>
@@ -36,4 +38,7 @@ export default function ScoreboardRail({ players, judgeUserId = null }) {
       </div>
     </section>
   );
-}
+});
+
+/** @deprecated Use named import `{ ScoreboardRail }` */
+export default ScoreboardRail;

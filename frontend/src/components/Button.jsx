@@ -13,6 +13,8 @@ const variants = {
     "bg-background text-foreground shadow-[var(--shadow-md)] ring-2 ring-muted-bright hover:bg-muted-bright hover:brightness-95 focus-visible:outline-primary",
   tertiary:
     "bg-transparent text-foreground ring-2 ring-muted hover:ring-primary hover:text-primary hover:brightness-95 focus-visible:outline-primary",
+  ghost:
+    "bg-transparent text-muted hover:bg-muted-bright/50 hover:text-foreground focus-visible:outline-primary",
   gradient:
     "bg-gradient-to-r from-accent-purple via-accent-pink to-accent-lemon text-foreground shadow-[var(--shadow-md)] hover:brightness-95 focus-visible:outline-accent-purple",
 };
@@ -22,6 +24,7 @@ export const Button = forwardRef(function Button(
   ref,
 ) {
   const reduce = useReducedMotion();
+  /** Secondary/tertiary use CSS hover only — avoids scale churn in dense game UIs. */
   const useMotionHover = variant === "primary" || variant === "gradient";
 
   return (

@@ -102,6 +102,23 @@ export function createTabooRoomManager({ tabooNs, logger }) {
   function emitRoom(code, reason = "room_update") {
     const room = rooms.get(code);
     if (!room) return;
+
+    if (process.env.NODE_ENV !== "production" && room.game) {
+      const hostId = room.hostId ?? room.players[0]?.userId;
+      const sampleUserId = hostId ?? room.players[0]?.userId;
+      if (sampleUserId) {
+        const snap = game.toSnapshot(room, sampleUserId);
+        const serverHistoryLen = room.game.history?.length ?? 0;
+        const snapshotHistoryLen = snap.game?.history?.length ?? 0;
+        console.debug("[taboo:snapshot]", {
+          reason,
+          serverHistoryLen,
+          snapshotHistoryLen,
+          bytes: JSON.stringify(snap).length,
+        });
+      }
+    }
+
     for (const socketId of room.socketIds) {
       const socket = tabooNs.sockets.get(socketId);
       if (!socket) continue;

@@ -34,9 +34,32 @@ function SkeletonBar({ className = "" }) {
   );
 }
 
-/** @param {{ count?: number; variant?: 'card' | 'list' | 'lobby' | 'text' }} props */
+/** @param {{ count?: number; variant?: 'card' | 'list' | 'lobby' | 'text' | 'playfield' }} props */
 export function LoadingSkeleton({ count = 3, variant = "card" }) {
   const reduce = useReducedMotion();
+
+  if (variant === "playfield") {
+    return (
+      <motion.div
+        className="mx-auto w-full max-w-7xl px-4 py-6"
+        variants={container}
+        initial={reduce ? false : "hidden"}
+        animate="show"
+        aria-busy="true"
+        aria-label="Loading game"
+      >
+        <SkeletonBar className="mb-5 h-10 w-full max-w-xl rounded-[var(--radius-xl)]" />
+        <div className="grid gap-5 lg:grid-cols-[1.1fr_0.55fr]">
+          <div className="space-y-4">
+            <SkeletonBar className="h-40 rounded-[var(--radius-2xl)]" />
+            <SkeletonBar className="h-28 rounded-[22px]" />
+          </div>
+          <SkeletonBar className="h-48 rounded-[22px]" />
+        </div>
+        <SkeletonBar className="mt-5 h-56 rounded-[var(--radius-2xl)]" />
+      </motion.div>
+    );
+  }
 
   if (variant === "text") {
     return (
