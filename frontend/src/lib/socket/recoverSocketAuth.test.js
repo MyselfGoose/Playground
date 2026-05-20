@@ -37,7 +37,7 @@ describe("recoverSocketAuthAfterHandshakeFailure", () => {
       vi.useRealTimers();
     });
 
-    it("runs recovery only once within DEBOUNCE_MS, then again after the window", async () => {
+    it("debounces rapid failures and runs a trailing recovery after the window", async () => {
       const apiFetch = vi.fn().mockResolvedValue({});
       const admission = vi.fn().mockResolvedValue("tok");
       const socket = { connected: false, connect: vi.fn(), auth: {} };
@@ -47,8 +47,7 @@ describe("recoverSocketAuthAfterHandshakeFailure", () => {
       await Promise.all([first, second]);
       expect(apiFetch).toHaveBeenCalledTimes(1);
 
-      vi.advanceTimersByTime(400);
-      await recoverSocketAuthAfterHandshakeFailure(socket, apiFetch, admission);
+      await vi.runAllTimersAsync();
       expect(apiFetch).toHaveBeenCalledTimes(2);
     });
   });

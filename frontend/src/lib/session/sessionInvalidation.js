@@ -5,6 +5,9 @@
 
 export const SESSION_INVALIDATED_EVENT = "playgrounds:session-invalidated";
 
+/** localStorage key pinged on logout so other tabs tear down sockets and auth. */
+export const SESSION_CROSS_TAB_KEY = "playgrounds:session-invalidated";
+
 /** @typedef {(reason: string) => void} SocketTeardownFn */
 
 /** @type {Set<SocketTeardownFn>} */
@@ -39,6 +42,11 @@ export function runSocketTeardowns(reason = "session_invalidated") {
 export function dispatchSessionInvalidated(reason = "session_invalidated") {
   if (typeof window === "undefined") return;
   runSocketTeardowns(reason);
+  try {
+    localStorage.setItem(SESSION_CROSS_TAB_KEY, JSON.stringify({ reason, at: Date.now() }));
+  } catch {
+    /* private mode / quota */
+  }
   window.dispatchEvent(
     new CustomEvent(SESSION_INVALIDATED_EVENT, { detail: { reason } }),
   );

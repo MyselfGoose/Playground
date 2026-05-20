@@ -64,6 +64,11 @@ export function NpatPlayClient() {
       return;
     }
 
+    if (room?.code === normalizedCode) {
+      setJoinPhase("ready");
+      return;
+    }
+
     let cancelled = false;
 
     void (async () => {
@@ -83,7 +88,7 @@ export function NpatPlayClient() {
     return () => {
       cancelled = true;
     };
-  }, [code, normalizedCode, connected, joinRoom, clearSocketError, joinRetryToken]);
+  }, [code, normalizedCode, connected, room?.code, joinRoom, clearSocketError, joinRetryToken]);
 
   useEffect(() => {
     const st = room?.state;

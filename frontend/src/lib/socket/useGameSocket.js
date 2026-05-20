@@ -3,14 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSocketBase } from "../api.js";
 import { connectGameSocket } from "./createGameSocket.js";
-import { emitAck } from "./socketUtils.js";
+import { emitAck, ACK_TIMEOUT_MS } from "./socketUtils.js";
 import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 /**
  * @typedef {'disconnected' | 'reconnecting' | 'connected'} ConnectionState
- * @typedef {'joining' | 'syncing' | 'ready'} SyncState
+ * @typedef {'idle' | 'joining' | 'syncing' | 'ready' | 'error'} SyncState
  */
+
+/**
+ * @param {boolean} trackSyncState
+ * @param {boolean} enabled
+ * @returns {SyncState}
+ */
+function initialSyncState(trackSyncState, enabled) {
+  if (!trackSyncState) return "ready";
+  return enabled ? "joining" : "ready";
+}
 
 /**
  * Default stateVersion merge (monotonic); games with extra rules pass custom mergeRoom.
@@ -35,7 +45,7 @@ export function mergeRoomByStateVersion(incoming, { setRoom, roomVersionRef }) {
  * @property {string} gameTag reconcile prefix for createGameSocket
  * @property {string} mapGame mapConnectionError game id
  * @property {boolean} [enabled] when false, socket effect is skipped
- * @property {boolean} [trackSyncState] expose joining/syncing/ready lifecycle
+ * @property {boolean} [trackSyncState] expose idle/joining/syncing/ready lifecycle
  * @property {(incoming: Record<string, unknown> | null, ctx: {
  *   setRoom: (r: Record<string, unknown> | null) => void,
  *   roomVersionRef: React.MutableRefObject<number>,
@@ -65,22 +75,24 @@ export function useGameSocket({
   resync: resyncOverride,
   serverEvents = {},
   shouldAcceptSessionResumed,
-  resyncEvent = "get_room_state",
   onRoomUpdate,
   onReconnectFailedExtra,
   onSessionResumedExtra,
+  resyncEvent = "get_room_state",
 }) {
   const [room, setRoom] = useState(/** @type {Record<string, unknown> | null} */ (null));
   const [connectionState, setConnectionState] = useState(
     /** @type {ConnectionState} */ ("disconnected"),
   );
-  const [syncState, setSyncState] = useState(/** @type {SyncState} */ ("joining"));
-  const [socketError, setSocketError] = useState(
+  const [syncState, setSyncState] = useState(
+    /** @type {SyncState} */ (initialSyncState(trackSyncState, enabled)),
+  );
+  const [socketError, setSocketErrorState] = useState(
     /** @type {string | null} */ (
       !getSocketBase() ? connectionMessage(mapGame, "missing_socket_url") : null
     ),
   );
-  const [socketErrorCode, setSocketErrorCode] = useState(
+  const [socketErrorCode, setSocketErrorCodeState] = useState(
     /** @type {string | null} */ (!getSocketBase() ? "MISSING_SOCKET_URL" : null),
   );
   const [reconnectedAt, setReconnectedAt] = useState(/** @type {number | null} */ (null));
@@ -88,6 +100,18 @@ export function useGameSocket({
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
   const roomCodeRef = useRef(/** @type {string | null} */ (null));
+
+  const onRoomUpdateRef = useRef(onRoomUpdate);
+  const onReconnectFailedExtraRef = useRef(onReconnectFailedExtra);
+  const onSessionResumedExtraRef = useRef(onSessionResumedExtra);
+  const shouldAcceptSessionResumedRef = useRef(shouldAcceptSessionResumed);
+  const serverEventsRef = useRef(serverEvents);
+
+  onRoomUpdateRef.current = onRoomUpdate;
+  onReconnectFailedExtraRef.current = onReconnectFailedExtra;
+  onSessionResumedExtraRef.current = onSessionResumedExtra;
+  shouldAcceptSessionResumedRef.current = shouldAcceptSessionResumed;
+  serverEventsRef.current = serverEvents;
 
   const mergeCtx = useMemo(
     () => ({ setRoom, roomVersionRef, roomCodeRef }),
@@ -101,15 +125,31 @@ export function useGameSocket({
     [mergeRoom, mergeCtx],
   );
 
+  const setSocketError = useCallback((message, code) => {
+    setSocketErrorState(message);
+    setSocketErrorCodeState(code ?? null);
+  }, []);
+
   const defaultResync = useCallback(
     (socket) => {
       if (trackSyncState) setSyncState("syncing");
-      void emitAck(socket, resyncEvent, {}).then((result) => {
-        if (result.ok && result.data?.room) {
-          applyRoom(/** @type {Record<string, unknown>} */ (result.data.room));
-        }
-        if (trackSyncState) setSyncState("ready");
-      });
+      const syncTimeout = setTimeout(() => {
+        if (trackSyncState) setSyncState("error");
+      }, ACK_TIMEOUT_MS);
+      void emitAck(socket, resyncEvent, {})
+        .then((result) => {
+          if (result.ok && result.data?.room) {
+            applyRoom(/** @type {Record<string, unknown>} */ (result.data.room));
+            if (trackSyncState) setSyncState("ready");
+          } else if (result.ok) {
+            if (trackSyncState) setSyncState("ready");
+          } else if (trackSyncState) {
+            setSyncState("error");
+          }
+        })
+        .finally(() => {
+          clearTimeout(syncTimeout);
+        });
     },
     [applyRoom, trackSyncState, resyncEvent],
   );
@@ -117,7 +157,16 @@ export function useGameSocket({
   const resyncRoom = resyncOverride ?? defaultResync;
 
   useEffect(() => {
-    if (!enabled || !getSocketBase()) return undefined;
+    if (!trackSyncState) return;
+    if (!enabled) {
+      setSyncState("ready");
+    }
+  }, [enabled, trackSyncState]);
+
+  useEffect(() => {
+    if (!enabled || !getSocketBase()) {
+      return undefined;
+    }
 
     let cancelled = false;
     /** @type {(() => void) | null} */
@@ -125,19 +174,20 @@ export function useGameSocket({
 
     const onRoomPayload = (payload) => {
       const p = /** @type {{ room?: Record<string, unknown>, reason?: string }} */ (payload);
-      onRoomUpdate?.(p);
+      onRoomUpdateRef.current?.(p);
       if (p?.room) applyRoom(p.room);
     };
 
     try {
+      if (trackSyncState) setSyncState("joining");
+
       const { socket, cleanup: socketCleanup } = connectGameSocket({
         namespace,
         gameTag,
         onConnect: (s) => {
           if (cancelled) return;
           setConnectionState("connected");
-          setSocketError(null);
-          setSocketErrorCode(null);
+          setSocketError(null, null);
           resyncRoom(s);
         },
         onDisconnect: () => {
@@ -149,9 +199,8 @@ export function useGameSocket({
           if (cancelled) return;
           const mapped = mapConnectionError(mapGame, msg);
           setConnectionState("reconnecting");
-          setSocketError(mapped.message);
-          setSocketErrorCode(mapped.code);
-          if (trackSyncState) setSyncState("syncing");
+          setSocketError(mapped.message, mapped.code);
+          if (trackSyncState) setSyncState("error");
         },
         onReconnect: (s) => {
           if (cancelled) return;
@@ -161,10 +210,9 @@ export function useGameSocket({
         },
         onReconnectFailed: () => {
           if (cancelled) return;
-          setSocketError(SESSION_EXPIRED_MESSAGE);
-          setSocketErrorCode("SESSION_EXPIRED");
+          setSocketError(SESSION_EXPIRED_MESSAGE, "SESSION_EXPIRED");
           setConnectionState("disconnected");
-          onReconnectFailedExtra?.();
+          onReconnectFailedExtraRef.current?.();
         },
         onVisibilityResync: resyncRoom,
       });
@@ -178,17 +226,18 @@ export function useGameSocket({
       cleanup = socketCleanup;
 
       const onSessionResumed = (payload) => {
-        if (shouldAcceptSessionResumed && !shouldAcceptSessionResumed(payload)) return;
+        const accept = shouldAcceptSessionResumedRef.current;
+        if (accept && !accept(payload)) return;
         const p = /** @type {{ room?: Record<string, unknown> }} */ (payload);
-        onSessionResumedExtra?.(p);
+        onSessionResumedExtraRef.current?.(p);
         onRoomPayload(payload);
       };
 
       socket.on("room_update", onRoomPayload);
       socket.on("session_resumed", onSessionResumed);
 
-      const eventEntries = Object.entries(serverEvents);
-      for (const [event, handler] of eventEntries) {
+      const events = serverEventsRef.current;
+      for (const [event, handler] of Object.entries(events)) {
         socket.on(event, handler);
       }
 
@@ -196,15 +245,15 @@ export function useGameSocket({
       cleanup = () => {
         socket.off("room_update", onRoomPayload);
         socket.off("session_resumed", onSessionResumed);
-        for (const [event, handler] of eventEntries) {
+        for (const [event, handler] of Object.entries(events)) {
           socket.off(event, handler);
         }
         prevCleanup?.();
       };
     } catch {
       if (!cancelled) {
-        setSocketError(connectionMessage(mapGame, "missing_socket_url"));
-        setSocketErrorCode("MISSING_SOCKET_URL");
+        setSocketError(connectionMessage(mapGame, "missing_socket_url"), "MISSING_SOCKET_URL");
+        if (trackSyncState) setSyncState("error");
       }
       return undefined;
     }
@@ -215,25 +264,12 @@ export function useGameSocket({
       socketRef.current = null;
       setConnectionState("disconnected");
       setReconnectedAt(null);
-      if (trackSyncState) setSyncState("joining");
+      if (trackSyncState) setSyncState("ready");
       setRoom(null);
       roomVersionRef.current = 0;
       roomCodeRef.current = null;
     };
-  }, [
-    enabled,
-    namespace,
-    gameTag,
-    mapGame,
-    applyRoom,
-    resyncRoom,
-    trackSyncState,
-    serverEvents,
-    shouldAcceptSessionResumed,
-    onRoomUpdate,
-    onReconnectFailedExtra,
-    onSessionResumedExtra,
-  ]);
+  }, [enabled, namespace, gameTag, mapGame, applyRoom, resyncRoom, trackSyncState, setSocketError]);
 
   const send = useCallback(
     (event, payload = {}) => emitAck(socketRef.current, event, payload),
@@ -296,7 +332,7 @@ export function useGameSocket({
     socketError,
     socketErrorCode,
     setSocketError,
-    setSocketErrorCode,
+    setSocketErrorCode: setSocketErrorCodeState,
     reconnectedAt,
     socketRef,
     send,

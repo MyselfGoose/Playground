@@ -6,6 +6,9 @@
 /** @type {WeakMap<import("socket.io-client").Socket, number>} */
 const lastRecoveryAt = new WeakMap();
 
+/** @type {WeakMap<import("socket.io-client").Socket, ReturnType<typeof setTimeout> | null>} */
+const trailingRecoveryTimer = new WeakMap();
+
 /**
  * Debounce window for refresh + admission recovery after handshake failure (BUG-S03).
  * Rapid failures within this window are dropped to avoid refresh/admission storms.
@@ -21,8 +24,24 @@ const DEBOUNCE_MS = 400;
 export async function recoverSocketAuthAfterHandshakeFailure(socket, apiFetchFn, fetchAdmissionTokenFn) {
   const now = Date.now();
   const prev = lastRecoveryAt.get(socket) ?? 0;
-  if (now - prev < DEBOUNCE_MS) return;
+  if (now - prev < DEBOUNCE_MS) {
+    const existing = trailingRecoveryTimer.get(socket);
+    if (existing) clearTimeout(existing);
+    trailingRecoveryTimer.set(
+      socket,
+      setTimeout(() => {
+        trailingRecoveryTimer.delete(socket);
+        void recoverSocketAuthAfterHandshakeFailure(socket, apiFetchFn, fetchAdmissionTokenFn);
+      }, DEBOUNCE_MS - (now - prev) + 10),
+    );
+    return;
+  }
   lastRecoveryAt.set(socket, now);
+  const pending = trailingRecoveryTimer.get(socket);
+  if (pending) {
+    clearTimeout(pending);
+    trailingRecoveryTimer.delete(socket);
+  }
 
   await apiFetchFn("/api/v1/auth/refresh", { method: "POST" });
   const fresh = await fetchAdmissionTokenFn();

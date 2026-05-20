@@ -13,7 +13,11 @@ import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
 import { notifyRefreshCompleted, subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
-import { subscribeSessionInvalidated } from "../session/sessionInvalidation.js";
+import {
+  dispatchSessionInvalidated,
+  SESSION_CROSS_TAB_KEY,
+  subscribeSessionInvalidated,
+} from "../session/sessionInvalidation.js";
 
 /** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string }} AuthUser */
 
@@ -255,6 +259,24 @@ export function UserProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    /** @param {StorageEvent} e */
+    const onStorage = (e) => {
+      if (e.key !== SESSION_CROSS_TAB_KEY || !e.newValue) return;
+      const hadUser = Boolean(userRef.current);
+      setUserState(null);
+      setSessionError(null);
+      invalidateDerivedCaches();
+      if (hadUser) {
+        setSessionNotice("Your session ended. Please sign in again.");
+      }
+      setLifecycle("SYNCED");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
     if (typeof document === "undefined") return undefined;
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
@@ -391,6 +413,7 @@ export function UserProvider({ children }) {
     } catch {
       // Still drop client state; server clears cookies when reachable.
     }
+    dispatchSessionInvalidated("logout");
     setUserState(null);
     invalidateDerivedCaches();
     setSessionError(null);

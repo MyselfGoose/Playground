@@ -28,7 +28,7 @@ function mergeHangmanRoom(incoming, { setRoom, roomVersionRef, roomCodeRef }) {
 }
 
 export function HangmanProvider({ children }) {
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const [roomNotice, setRoomNotice] = useState(/** @type {string | null} */ (null));
 
   const onRoomUpdate = useCallback((payload) => {
@@ -44,7 +44,7 @@ export function HangmanProvider({ children }) {
     namespace: "/hangman",
     gameTag: "hangman",
     mapGame: "hangman",
-    enabled: Boolean(user?.id && getSocketBase()),
+    enabled: Boolean(!loading && user?.id && getSocketBase()),
     trackSyncState: true,
     mergeRoom: mergeHangmanRoom,
     onRoomUpdate,

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useNpat } from "../../../lib/npat/NpatSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
+import { RejoinRoomPrompt } from "../../../components/party/RejoinRoomPrompt.jsx";
 import { PageHeader } from "../../../components/PageHeader.jsx";
 import { getNpatRoomCodeLength } from "../../../lib/npat/roomCode.js";
 import { useConnectionTimeout } from "../../../lib/socket/useConnectionTimeout.js";
@@ -69,41 +70,18 @@ export default function NpatEntryPage() {
       ) : null}
 
       {connected && resumedCode ? (
-        <motion.div 
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="flex flex-col gap-4 rounded-[var(--radius-2xl)] border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-accent-pink/5 px-6 py-5 shadow-[var(--shadow-md)] ring-1 ring-primary/20 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <p className="text-sm font-semibold text-foreground">
-            You still have an active game in room{" "}
-            <span className="font-mono font-black tracking-[0.2em] text-primary">{resumedCode}</span>
-            . Rejoin to continue?
-          </p>
-          <div className="flex flex-shrink-0 flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              className="px-4 py-2 text-sm font-bold"
-              onClick={() => {
-                router.replace(`/games/npat/lobby?code=${resumedCode}`);
-                clearResumedCode();
-              }}
-            >
-              Rejoin
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="px-4 py-2 text-sm font-bold"
-              onClick={async () => {
-                await leaveRoom();
-                clearResumedCode();
-              }}
-            >
-              Leave
-            </Button>
-          </div>
-        </motion.div>
+        <RejoinRoomPrompt
+          roomCode={resumedCode}
+          lobbyHref={`/games/npat/lobby?code=${resumedCode}`}
+          onRejoin={() => {
+            router.replace(`/games/npat/lobby?code=${resumedCode}`);
+            clearResumedCode();
+          }}
+          onLeave={async () => {
+            await leaveRoom();
+            clearResumedCode();
+          }}
+        />
       ) : null}
 
       {createError ? (

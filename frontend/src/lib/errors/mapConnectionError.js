@@ -148,6 +148,14 @@ export function resolveConnectionError(game, err, options = {}) {
     return result("TIMEOUT", TIMEOUT[game] ?? TIMEOUT.generic, ["retry"]);
   }
 
+  if (
+    /xhr poll error|websocket error|transport error|poll error|connection error|ECONNREFUSED|ENOTFOUND|network/i.test(
+      msg,
+    )
+  ) {
+    return result("CONNECT_FAILED", CONNECT_FAILED[game] ?? CONNECT_FAILED.generic, ["retry"]);
+  }
+
   if (/UNAUTHENTICATED|SESSION_REVOKED|sign in/i.test(msg)) {
     return result("SESSION_REVOKED", "Please sign in again to continue.", ["sign_in"]);
   }

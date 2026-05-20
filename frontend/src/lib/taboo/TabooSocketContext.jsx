@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { useGameSocket } from "../socket/useGameSocket.js";

@@ -256,6 +256,15 @@ async function refreshViaCoordinator() {
 let refreshInFlight = null;
 
 /** Paths whose 401s should NOT trigger an automatic refresh. */
+/** Refresh failures with these codes mean the session cannot be recovered client-side. */
+const SESSION_DEAD_REFRESH_CODES = new Set([
+  "INVALID_REFRESH",
+  "TOKEN_REUSE",
+  "SESSION_EXPIRED",
+  "SESSION_REVOKED",
+  "UNAUTHENTICATED",
+]);
+
 const NO_AUTO_REFRESH = new Set([
   "/api/v1/auth/login",
   "/api/v1/auth/register",
@@ -290,6 +299,13 @@ export async function apiFetch(path, options = {}) {
           return json;
         } catch (e) {
           dispatchReconcile("refresh_failed");
+          if (
+            e instanceof ApiError &&
+            (e.requires_reauth ||
+              (typeof e.code === "string" && SESSION_DEAD_REFRESH_CODES.has(e.code)))
+          ) {
+            dispatchSessionInvalidated(e.code ?? "refresh_failed");
+          }
           throw e;
         }
       })().finally(() => {

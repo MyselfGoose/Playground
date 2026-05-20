@@ -53,4 +53,11 @@ describe("mapConnectionError", () => {
     expect(r).toHaveProperty("code");
     expect(Array.isArray(r.actions)).toBe(true);
   });
+
+  it("maps xhr poll and websocket transport errors to friendly copy", () => {
+    const r = mapConnectionError("npat", "xhr poll error");
+    expect(r.code).toBe("CONNECT_FAILED");
+    expect(r.message).toMatch(/lost the connection/i);
+    expect(r.message).not.toMatch(/xhr poll/i);
+  });
 });

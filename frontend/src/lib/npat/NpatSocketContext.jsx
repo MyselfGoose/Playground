@@ -15,6 +15,12 @@ import { useUser } from "../context/UserContext.jsx";
 import { formatJoinCodeForServer } from "./roomCode.js";
 import { emitAck } from "../socket/socketUtils.js";
 import { useGameSocket } from "../socket/useGameSocket.js";
+import {
+  clearResumeSuppress,
+  isResumeSuppressed,
+  persistLastRoomCode,
+  setResumeSuppressed,
+} from "../session/RoomSession.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -63,12 +69,19 @@ export function NpatProvider({ children }) {
 
   const shouldAcceptSessionResumed = useCallback(() => {
     if (typeof window === "undefined") return true;
-    return sessionStorage.getItem("npat_suppress_resume") !== "1";
+    return !isResumeSuppressed("npat");
   }, []);
 
   const onSessionResumedExtra = useCallback((payload) => {
     const code = typeof payload?.room?.code === "string" ? payload.room.code : null;
-    if (code) setResumedCode(code);
+    if (code) {
+      setResumedCode(code);
+      persistLastRoomCode("npat", code);
+    }
+  }, []);
+
+  const onReconnectFailedExtra = useCallback(() => {
+    onReconnectFailedRef.current?.();
   }, []);
 
   const socket = useGameSocket({
@@ -77,18 +90,20 @@ export function NpatProvider({ children }) {
     mapGame: "npat",
     enabled: Boolean(!authLoading && user && getSocketBase()),
     mergeRoom: mergeWithEval,
-    shouldAcceptSessionResumed: () => shouldAcceptSessionResumed(),
+    shouldAcceptSessionResumed,
     onSessionResumedExtra,
-    onReconnectFailedExtra: () => onReconnectFailedRef.current?.(),
+    onReconnectFailedExtra,
   });
 
-  onReconnectFailedRef.current = () => {
-    socket.setRoom((prev) =>
-      /** @type {RoomSnapshot} */ (
-        prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null
-      ),
-    );
-  };
+  useEffect(() => {
+    onReconnectFailedRef.current = () => {
+      socket.setRoom((prev) =>
+        /** @type {RoomSnapshot} */ (
+          prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null
+        ),
+      );
+    };
+  }, [socket.setRoom]);
 
   const applyRoom = socket.applyRoom;
 
@@ -156,15 +171,18 @@ export function NpatProvider({ children }) {
     [socket.setSocketError],
   );
 
+  useEffect(() => {
+    if (!user?.id) return;
+    clearResumeSuppress("npat");
+  }, [user?.id]);
+
   const clearResumedCode = useCallback(() => setResumedCode(null), []);
 
   const createRoom = useCallback(
     async (mode) => {
       const result = await emitAck(socket.socketRef.current, "create_room", { mode });
       if (result.ok) {
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem("npat_suppress_resume");
-        }
+        clearResumeSuppress("npat");
         applyRoom(/** @type {Record<string, unknown> | null} */ (result.data?.room ?? null));
       }
       return result;
@@ -188,9 +206,7 @@ export function NpatProvider({ children }) {
       }
       const result = await emitAck(socket.socketRef.current, "join_room", { code });
       if (result.ok) {
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem("npat_suppress_resume");
-        }
+        clearResumeSuppress("npat");
         applyRoom(/** @type {Record<string, unknown> | null} */ (result.data?.room ?? null));
       }
       return result;
@@ -204,18 +220,14 @@ export function NpatProvider({ children }) {
       socket.resetRoomState();
       setEvaluationSource(null);
       setResumedCode(null);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("npat_suppress_resume", "1");
-      }
+      setResumeSuppressed("npat", true);
       return { ok: true, data: { left: true } };
     }
     const result = await emitAck(s, "leave_room", null);
     socket.resetRoomState();
     setEvaluationSource(null);
     setResumedCode(null);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("npat_suppress_resume", "1");
-    }
+    setResumeSuppressed("npat", true);
     return result;
   }, [socket.resetRoomState, socket.socketRef]);
 
