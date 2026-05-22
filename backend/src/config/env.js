@@ -189,6 +189,14 @@ export const envSchema = z
     }, z.string().url().optional()),
     OAUTH_TICKET_EXPIRY: z.string().min(1).default('180s'),
     OAUTH_SIGNUP_TICKET_EXPIRY: z.string().min(1).default('10m'),
+
+    /**
+     * Declared replica count for this deploy (ops must set when scaling horizontally).
+     * Production with INSTANCE_COUNT > 1 requires REDIS_URL until Tier B adapter ships (prompt 038).
+     */
+    INSTANCE_COUNT: z.coerce.number().int().min(1).max(64).default(1),
+    /** Optional Redis URL for Socket.IO adapter (required when INSTANCE_COUNT > 1 in production). */
+    REDIS_URL: z.preprocess((v) => nonemptyOrUndefined(v), z.string().url().optional()),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
@@ -217,6 +225,14 @@ export const envSchema = z
           code: z.ZodIssueCode.custom,
           message: 'JWT_REFRESH_SECRET must be at least 32 characters in production',
           path: ['JWT_REFRESH_SECRET'],
+        });
+      }
+      if (data.INSTANCE_COUNT > 1 && !data.REDIS_URL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'INSTANCE_COUNT > 1 requires REDIS_URL (Socket.IO Redis adapter). Until Tier B is live, run a single replica (INSTANCE_COUNT=1) and set Railway max instances = 1. See deploy-replica-limit.md.',
+          path: ['INSTANCE_COUNT'],
         });
       }
     }
