@@ -1,5 +1,7 @@
 # Ops smoke test (~15 minutes)
 
+Per-prompt manual test guides (what changed, expected UI, step-by-step checks): [`plan/manual-verification/README.md`](plan/manual-verification/README.md). This document is the **full-platform** smoke pass after multiple prompts.
+
 Run on **staging** (or local with production-like env: same-origin proxy, `NEXT_PUBLIC_SOCKET_URL`, single backend replica). One tester, one browser; use a second device/tab only where noted.
 
 ## Pre-flight (2 min)

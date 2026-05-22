@@ -40,6 +40,12 @@ export async function connectMongoose() {
   await mongoose.connect(uri);
 }
 
+export async function disconnectMongoose() {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+}
+
 export async function dropAllCollections() {
   const db = mongoose.connection.db;
   if (!db) return;

@@ -12,6 +12,7 @@ import {
 } from '../repositories/userStatsRepository.js';
 import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
 import { dailyTypingSeedFromDate, utcDateString } from '../lib/dailyTypingSeed.js';
+import { requireMongoReady } from './requireMongoReady.js';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -87,6 +88,7 @@ function mapEntries(entries, skip, primaryField, extraFields = []) {
  */
 export function createLeaderboardRouter({ env }) {
   const router = Router();
+  router.use(requireMongoReady);
   const tokenService = createTokenService(env);
 
   /** Optional auth — attach user if logged in, proceed either way. */

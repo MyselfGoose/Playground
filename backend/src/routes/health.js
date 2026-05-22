@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import mongoose from 'mongoose';
 import { Router } from 'express';
+import { isMongoReady } from './requireMongoReady.js';
 import { getAggregatedHealth, getAiHealth, getNpatEvaluationStats } from '../observability/serviceHealth.js';
 import { getPlatformMetrics, getPrometheusMetrics } from '../observability/platformMetrics.js';
 import { isProcessDegraded, getLastUnhandledAt } from '../processHandlers.js';
@@ -38,7 +39,7 @@ export function createHealthRouter({ env }) {
 
   /** Ready to serve DB-backed traffic (Mongo connected). */
   healthRouter.get('/health/ready', (_req, res) => {
-    const db = mongoose.connection.readyState === 1;
+    const db = isMongoReady();
     if (!db) {
       return res.status(503).json({
         ok: false,

@@ -6,6 +6,7 @@ import { HANGMAN_LEADERBOARD_MIN_GAMES, userStatsRepository } from '../repositor
 import { typingAttemptRepository } from '../repositories/typingAttemptRepository.js';
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { getMatchHistoryForUser } from '../services/matchHistoryService.js';
+import { requireMongoReady } from './requireMongoReady.js';
 
 const cache = new Map();
 const CACHE_TTL = 45_000;
@@ -94,6 +95,7 @@ function mapNpatActivity(entry) {
 
 export function createUsersRouter() {
   const router = Router();
+  router.use(requireMongoReady);
 
   router.get(
     '/:id/profile',

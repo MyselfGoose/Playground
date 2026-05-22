@@ -16,12 +16,14 @@ import {
   decodeFeedbackScreenshot,
   uploadFeedbackScreenshotToRepo,
 } from '../services/feedbackScreenshot.js';
+import { requireMongoReady } from './requireMongoReady.js';
 
 /**
  * @param {{ env: import('../config/env.js').Env }} params
  */
 export function createFeedbackRouter({ env }) {
   const router = Router();
+  router.use(requireMongoReady);
   const tokenService = createTokenService(env);
 
   router.use((req, res, next) => {

@@ -122,6 +122,9 @@ async function main() {
 
   bootTrace('TRACE_BEFORE_DB_BACKGROUND');
   startMongoConnectionBackground({ mongoUri: env.MONGO_URI, logger });
+  mongoose.connection.once('connected', () => {
+    logger.info({ event: 'mongodb_ready', mongoReadyState: 1 }, 'mongodb_ready_for_db_routes');
+  });
   logger.warn(
     { mode: 'degraded_until_mongo' },
     'mongodb_connection_started_in_background_server_not_blocked',

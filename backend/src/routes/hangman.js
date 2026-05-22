@@ -9,6 +9,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { hangmanWordRepository } from '../repositories/hangmanWordRepository.js';
 import { persistHangmanGameResult } from '../services/hangmanStatsService.js';
 import { HANGMAN_WORD_MAX, HANGMAN_WORD_MIN } from '../games/hangman/constants.js';
+import { requireMongoReady } from './requireMongoReady.js';
 
 const randomWordQuerySchema = z.object({
   datasetVersion: z.string().trim().min(1).max(64).optional(),
@@ -31,6 +32,7 @@ const soloResultSchema = z.object({
  */
 export function createHangmanRouter({ env }) {
   const router = Router();
+  router.use(requireMongoReady);
   const tokenService = createTokenService(env);
 
   const randomLimiter = rateLimit({

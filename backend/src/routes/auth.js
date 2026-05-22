@@ -16,12 +16,14 @@ import {
   oauthCompleteBodySchema,
   oauthRegisterBodySchema,
 } from '../validation/auth.schemas.js';
+import { requireMongoReady } from './requireMongoReady.js';
 
 /**
  * @param {{ env: import('../config/env.js').Env }} params
  */
 export function createAuthRouter({ env }) {
   const router = Router();
+  router.use(requireMongoReady);
 
   router.use((req, res, next) => {
     if (req.method === 'OPTIONS') {
