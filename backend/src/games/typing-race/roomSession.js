@@ -357,6 +357,12 @@ export class TypingRaceRoom {
     if (this.phase !== "racing") {
       return;
     }
+    const now = Date.now();
+    for (const p of this.players.values()) {
+      if (p.finishedAtMs == null) {
+        p.finishedAtMs = now;
+      }
+    }
     this.phase = "finished";
     this._clearTimers();
     this.logger.info(
@@ -440,7 +446,8 @@ export class TypingRaceRoom {
       return this.toPublicSnapshot();
     }
     const passageLen = this.raceConfig?.passage?.length ?? 0;
-    if (p.cursor < passageLen) {
+    const effectiveCursor = Math.max(p.cursor ?? 0, p.cursorDisplay ?? 0);
+    if (effectiveCursor < passageLen) {
       const err = new Error("Passage not complete");
       /** @type {any} */ (err).code = "NOT_DONE";
       throw err;

@@ -10,7 +10,7 @@ import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
 import { MultiRaceTrack } from "./MultiRaceTrack.jsx";
-import { MultiRaceTyping } from "./MultiRaceTyping.jsx";
+import { RaceTypingStage } from "./RaceTypingStage.jsx";
 
 /**
  * @param {{ roomCode: string }} props
@@ -38,6 +38,10 @@ export function MultiRaceRoomView({ roomCode }) {
   const [raceLocalStats, setRaceLocalStats] = useState(
     /** @type {{ wpm: number; rawWpm: number; accuracy: number; errorCount: number; elapsedSec: number } | null} */ (null),
   );
+  const [frozenEngine, setFrozenEngine] = useState(
+    /** @type {{ passage: string; cursor: number; errorStack: string } | null} */ (null),
+  );
+  const [finishErr, setFinishErr] = useState(/** @type {string | null} */ (null));
 
   useEffect(() => {
     if (!connected) {
@@ -99,8 +103,13 @@ export function MultiRaceRoomView({ roomCode }) {
   useEffect(() => {
     if (phase !== "racing") {
       setRaceLocalStats(null);
+      setFrozenEngine(null);
+      setFinishErr(null);
     }
   }, [phase]);
+
+  const spectate =
+    phase === "racing" && (selfFinished || raceLocalStats != null);
 
   const sortedResults = useMemo(() => {
     return [...players].sort((a, b) => {
@@ -111,9 +120,12 @@ export function MultiRaceRoomView({ roomCode }) {
   }, [players]);
 
   const onRaceComplete = useCallback(
-    async (localStats) => {
+    async (localStats, engineSnap) => {
       if (localStats) {
         setRaceLocalStats(localStats);
+      }
+      if (engineSnap) {
+        setFrozenEngine(engineSnap);
       }
       const statsPayload = localStats
         ? {
@@ -125,9 +137,28 @@ export function MultiRaceRoomView({ roomCode }) {
             elapsedMs: Math.round(localStats.elapsedSec * 1000),
           }
         : undefined;
-      await finishRace(statsPayload);
+
+      const FINISH_RETRY_MS = 120;
+      const FINISH_MAX_ATTEMPTS = 4;
+      let lastResult = /** @type {{ ok: boolean; error?: { code?: string; message?: string } } | null} */ (
+        null
+      );
+      for (let attempt = 0; attempt < FINISH_MAX_ATTEMPTS; attempt += 1) {
+        lastResult = await finishRace(statsPayload);
+        if (lastResult.ok) {
+          setFinishErr(null);
+          return;
+        }
+        if (/** @type {any} */ (lastResult.error)?.code !== "NOT_DONE") {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, FINISH_RETRY_MS));
+      }
+      if (lastResult && !lastResult.ok) {
+        setFinishErr(typingRaceUserFacingError(lastResult.error));
+      }
     },
-    [finishRace],
+    [finishRace, typingRaceUserFacingError],
   );
 
   const handleKick = useCallback(
@@ -273,26 +304,38 @@ export function MultiRaceRoomView({ roomCode }) {
       )}
 
       {phase === "racing" && rc && (
-        <div className="multi-phase-enter mt-4">
+        <div className="multi-phase-enter mt-4 typing-race-root typing-race-root--active">
+          <div aria-live="polite" className="sr-only">
+            {spectate ? "You finished the race. Spectating other players." : "Race in progress."}
+          </div>
           <MultiRaceTrack players={players} selfId={selfId} />
 
-          {selfFinished ? (
-            <div className="multi-phase-enter mt-6">
-              <SelfFinishCard
-                player={selfPlayer}
-                localStats={raceLocalStats}
-                raceStartAtMs={room.raceStartAtMs}
-              />
-              <WaitingForOthers players={players} selfId={selfId} />
-            </div>
-          ) : (
-            <MultiRaceTyping
-              raceConfig={rc}
-              isRacing
-              onDone={onRaceComplete}
-              peerCursors={players.filter((p) => p.userId !== selfId)}
-            />
+          {finishErr && (
+            <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-center text-xs text-red-300">
+              {finishErr} — still syncing with server…
+            </p>
           )}
+
+          <RaceTypingStage
+            raceConfig={rc}
+            isRacing
+            spectate={spectate}
+            frozenEngine={frozenEngine}
+            onDone={onRaceComplete}
+            peerCursors={players.filter((p) => p.userId !== selfId)}
+            sidebar={
+              spectate ? (
+                <>
+                  <SelfFinishCard
+                    player={selfPlayer}
+                    localStats={raceLocalStats}
+                    raceStartAtMs={room.raceStartAtMs}
+                  />
+                  <WaitingForOthers players={players} selfId={selfId} compact />
+                </>
+              ) : null
+            }
+          />
 
           {isHost && (
             <div className="mt-4 text-center">
@@ -315,9 +358,10 @@ export function MultiRaceRoomView({ roomCode }) {
 
       {phase === "finished" && (
         <ResultGate
+          displayMs={1200}
           title={
-            sortedResults.find((p) => p.rank === 1)?.username
-              ? `${sortedResults.find((p) => p.rank === 1)?.username} wins the race!`
+            sortedResults.find((p) => p.rank === 1)?.displayName
+              ? `${sortedResults.find((p) => p.rank === 1)?.displayName} wins the race!`
               : "Race complete"
           }
           subtitle="Fastest fingers take the crown."
@@ -422,13 +466,15 @@ function SelfFinishCard({ player, localStats, raceStartAtMs }) {
   );
 }
 
-function WaitingForOthers({ players, selfId }) {
+function WaitingForOthers({ players, selfId, compact = false }) {
   const still = players.filter((p) => p.finishedAtMs == null);
   const done = players.filter((p) => p.finishedAtMs != null);
   if (still.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-[var(--tt-radius-md)] border border-[var(--tt-ink-muted)]/10 bg-[var(--tt-bg-elevated)]/60 px-4 py-3">
+    <div
+      className={`${compact ? "" : "mt-4"} rounded-[var(--tt-radius-md)] border border-[var(--tt-ink-muted)]/10 bg-[var(--tt-bg-elevated)]/60 px-4 py-3`}
+    >
       <p className="text-xs font-medium text-[var(--tt-ink-muted)]">
         Waiting for {still.length} other player{still.length > 1 ? "s" : ""} to finish&hellip;
       </p>

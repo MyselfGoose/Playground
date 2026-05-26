@@ -1,5 +1,5 @@
-import Script from "next/script";
 import { Nunito } from "next/font/google";
+import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript.js";
 import "./globals.css";
 import { UserProvider } from "../lib/context/UserContext.jsx";
 import { GameSessionProvider } from "../lib/session/GameSessionContext.jsx";
@@ -36,9 +36,9 @@ export default function RootLayout({ children }) {
     >
       <head>
         <meta name="color-scheme" content="light dark" />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full font-sans bg-background">
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
         <RuntimeConfig />
         <ErrorReporterInit />
         <ThemeProvider>

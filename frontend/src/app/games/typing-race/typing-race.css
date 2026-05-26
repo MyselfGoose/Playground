@@ -33,6 +33,125 @@
   min-height: calc(100dvh - 4rem);
 }
 
+.typing-race-root--active {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  overflow: hidden;
+  height: calc(100dvh - 4rem);
+  max-height: calc(100dvh - 4rem);
+}
+
+.typing-race-root--active > .tt-typing-stage {
+  grid-row: 4;
+}
+
+html.typing-scroll-lock {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+html.typing-scroll-lock body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.tt-viewport {
+  position: relative;
+  width: 100%;
+  max-width: min(76ch, 100% - 1.5rem);
+  margin-inline: auto;
+  height: calc(var(--tt-line-height-px, 1.75em) * var(--tt-visible-lines, 4));
+  overflow: hidden;
+  touch-action: none;
+  padding-bottom: 2px;
+}
+
+.tt-viewport--active {
+  touch-action: none;
+}
+
+.tt-viewport-inner {
+  position: relative;
+  will-change: transform;
+}
+
+.tt-viewport-inner--motion {
+  transition: transform 0.08s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-viewport-inner--motion {
+    transition: none;
+  }
+}
+
+.tt-viewport-fade {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.5em;
+  background: linear-gradient(to bottom, transparent, var(--tt-bg) 85%);
+  z-index: 2;
+  opacity: 0.35;
+}
+
+.tt-typing-stage {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 0;
+  padding-top: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.tt-passage-skeleton {
+  width: 100%;
+  max-width: min(76ch, 100% - 1.5rem);
+  margin-inline: auto;
+  height: calc(var(--tt-line-height-px, 1.75em) * var(--tt-visible-lines, 4));
+}
+
+.tt-typing-stage-grid {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .tt-typing-stage-grid--spectate {
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr);
+  }
+}
+
+.tt-language-label {
+  margin-bottom: 0.75rem;
+  text-align: center;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--tt-ink-faint);
+}
+
+.tt-restart-hint {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--tt-ink-faint);
+}
+
+.tt-restart-hint kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  background: var(--tt-bg-elevated);
+  color: var(--tt-ink-muted);
+}
+
 .typing-hidden-input {
   position: absolute;
   opacity: 0;

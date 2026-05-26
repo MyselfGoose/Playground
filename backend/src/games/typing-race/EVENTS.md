@@ -46,6 +46,13 @@ If a socket drops during `racing`, the player stays in the room with `connected:
 - Max players per room: `TYPING_RACE_MAX_PLAYERS` (8).  
 - For manual fan-out checks, open several browser sessions (or use a Socket.IO load harness with valid JWTs) and watch CPU during `typing_progress_update` bursts; server throttles per-socket updates in handlers.
 
+## Client UX (typing viewport + spectate)
+
+- **Solo and multiplayer** use a fixed **3-line typing viewport** (`TypingViewport`): the page does not scroll during an active test or race; only the passage layer moves via `translateY` driven by caret position.
+- **Mobile keyboard:** clients should use visual-viewport **padding-only** mode (no `scrollIntoView` on the document during typing).
+- **After self-finish (multiplayer):** the finisher keeps the passage visible in **spectate mode** with live peer carets on the track until `typing_race_finished`. A sidebar shows personal stats (`SelfFinishCard`) and who is still typing.
+- **`typing_finish`:** the server accepts finish when `max(cursor, cursorDisplay) >= passage.length` so throttled progress updates do not cause spurious `NOT_DONE`. Clients flush pending progress and retry finish briefly on `NOT_DONE`.
+
 ## Production deployment
 
 Rooms live in an **in-memory** registry inside each Node process (`roomRegistry.js` in this folder). For correct behavior:

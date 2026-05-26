@@ -8,6 +8,7 @@ import { createContext, useContext } from "react";
  * @typedef {{
  *   engine: TypingEngineState;
  *   nowMs: number;
+ *   passageReady: boolean;
  *   focusMode: boolean;
  *   useSentences: boolean;
  *   testMode: 'time' | 'words';

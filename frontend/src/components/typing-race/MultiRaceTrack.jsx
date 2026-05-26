@@ -42,8 +42,11 @@ function MultiRaceTrackInner({ players, selfId }) {
                   <span className="truncate text-xs font-medium text-[var(--tt-ink)]">
                     {p.displayName}
                   </span>
-                  {finished && p.rank != null && (
-                    <span className="multi-badge multi-badge--ready text-[9px]">#{p.rank}</span>
+                  {finished && (
+                    <span className="multi-badge multi-badge--ready text-[9px]">
+                      Finished
+                      {p.rank != null ? ` · #${p.rank}` : " · DNF"}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

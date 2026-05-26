@@ -13,17 +13,28 @@ import { generatePassage } from "../../lib/typing-test/text-gen.js";
 import { typingTestReducer } from "./typingTestReducer.js";
 import { TypingTestContext } from "./TypingTestContext.jsx";
 
+const PLACEHOLDER_SEED = 1;
+
 function randomSeed() {
   return (Math.random() * 2 ** 31) >>> 0;
 }
 
-function buildInitialEngine({
+/**
+ * @param {{
+ *   testMode: 'time' | 'words';
+ *   timeLimitSec: number;
+ *   wordTarget: number;
+ *   useSentences: boolean;
+ *   seed?: number;
+ * }} opts
+ */
+function buildEngineFromSettings({
   testMode,
   timeLimitSec,
   wordTarget,
   useSentences,
+  seed = PLACEHOLDER_SEED,
 }) {
-  const seed = randomSeed();
   const passage = generatePassage({
     mode: testMode,
     seed,
@@ -40,6 +51,11 @@ function buildInitialEngine({
   });
 }
 
+/** SSR/hydration-safe deterministic initial state. */
+function buildPlaceholderEngine(settings) {
+  return buildEngineFromSettings({ ...settings, seed: PLACEHOLDER_SEED });
+}
+
 /** @param {{ children: React.ReactNode }} props */
 export function TypingTestProvider({ children }) {
   const [testMode, setTestMode] = useState(
@@ -51,25 +67,30 @@ export function TypingTestProvider({ children }) {
   const [focusMode, setFocusMode] = useState(false);
   const [tabArmed, setTabArmed] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
+  const [passageReady, setPassageReady] = useState(false);
+
+  const settings = useMemo(
+    () => ({ testMode, timeLimitSec, wordTarget, useSentences }),
+    [testMode, timeLimitSec, wordTarget, useSentences],
+  );
 
   const [engine, dispatch] = useReducer(
     typingTestReducer,
-    { testMode, timeLimitSec, wordTarget, useSentences },
-    (s) =>
-      buildInitialEngine({
-        testMode: s.testMode,
-        timeLimitSec: s.timeLimitSec,
-        wordTarget: s.wordTarget,
-        useSentences: s.useSentences,
-      }),
+    settings,
+    buildPlaceholderEngine,
   );
 
   const [nowMs, setNowMs] = useState(0);
 
   const inputRef = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const rafRef = useRef(0);
+  const clientInitRef = useRef(false);
 
-  const restart = useCallback(() => {
+  useEffect(() => {
+    if (clientInitRef.current) {
+      return;
+    }
+    clientInitRef.current = true;
     dispatch({
       type: "RESTART",
       seed: randomSeed(),
@@ -78,20 +99,34 @@ export function TypingTestProvider({ children }) {
       wordTarget,
       useSentences,
     });
-    setTabArmed(false);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [testMode, timeLimitSec, wordTarget, useSentences]);
+    setPassageReady(true);
+    // Client-only random passage after hydration-safe placeholder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional once on mount
+  }, []);
 
-  const refreshWith = useCallback((partial = {}) => {
+  const restart = useCallback(() => {
     dispatch({
       type: "RESTART",
       seed: randomSeed(),
-      testMode: partial.testMode ?? testMode,
-      timeLimitSec: partial.timeLimitSec ?? timeLimitSec,
-      wordTarget: partial.wordTarget ?? wordTarget,
-      useSentences: partial.useSentences ?? useSentences,
+      ...settings,
     });
-  }, [testMode, timeLimitSec, wordTarget, useSentences]);
+    setTabArmed(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [settings]);
+
+  const refreshWith = useCallback(
+    (partial = {}) => {
+      dispatch({
+        type: "RESTART",
+        seed: randomSeed(),
+        testMode: partial.testMode ?? testMode,
+        timeLimitSec: partial.timeLimitSec ?? timeLimitSec,
+        wordTarget: partial.wordTarget ?? wordTarget,
+        useSentences: partial.useSentences ?? useSentences,
+      });
+    },
+    [testMode, timeLimitSec, wordTarget, useSentences],
+  );
 
   const refreshPassageIfIdle = useCallback(() => {
     refreshWith({});
@@ -102,15 +137,13 @@ export function TypingTestProvider({ children }) {
       dispatch({
         type: "RESTART",
         seed: (Number(seed) >>> 0) || 1,
-        testMode,
-        timeLimitSec,
-        wordTarget,
-        useSentences,
+        ...settings,
       });
+      setPassageReady(true);
       setTabArmed(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [testMode, timeLimitSec, wordTarget, useSentences],
+    [settings],
   );
 
   useEffect(() => {
@@ -130,6 +163,7 @@ export function TypingTestProvider({ children }) {
     () => ({
       engine,
       nowMs,
+      passageReady,
       focusMode,
       useSentences,
       testMode,
@@ -154,6 +188,7 @@ export function TypingTestProvider({ children }) {
     [
       engine,
       nowMs,
+      passageReady,
       focusMode,
       useSentences,
       testMode,
@@ -161,7 +196,6 @@ export function TypingTestProvider({ children }) {
       wordTarget,
       tabArmed,
       isComposing,
-      dispatch,
       restart,
       refreshPassageIfIdle,
       refreshWith,

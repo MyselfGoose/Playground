@@ -112,6 +112,21 @@ export function useTypingInputCapture({ inputRef, active, isComposing, onCapture
     }
   }, [active, focusInput]);
 
+  useEffect(() => {
+    if (!active || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        requestAnimationFrame(() => focusInput());
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [active, focusInput]);
+
   const bindInputFocus = useCallback(
     () => ({
       onFocus: () => setInputFocused(true),

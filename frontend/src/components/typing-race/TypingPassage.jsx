@@ -11,6 +11,7 @@ import {
 import { useReducedMotion } from "framer-motion";
 import { TypingChar } from "./TypingChar.jsx";
 import { findActiveWordPartIndex, splitPassageWords } from "./typing-passage-build.js";
+import { measurePassageLineHeightPx } from "../../lib/typing-test/usePassageLineWindow.js";
 
 /**
  * @param {{
@@ -19,9 +20,25 @@ import { findActiveWordPartIndex, splitPassageWords } from "./typing-passage-bui
  *   errorStack: string;
  *   peerCursors?: Array<{ userId: string; displayName: string; color?: string; cursorDisplay?: number; finishedAtMs?: number | null }>;
  *   ariaDescribedBy?: string;
+ *   passageContainerRef?: React.MutableRefObject<HTMLDivElement | null>;
+ *   caretAnchorRef?: React.MutableRefObject<HTMLElement | null>;
+ *   caretLayoutRef?: React.MutableRefObject<{ top: number; height: number; lineHeightPx: number } | null>;
+ *   onCaretLayout?: () => void;
+ *   compact?: boolean;
  * }} props
  */
-function TypingPassageInner({ passage, cursor, errorStack, peerCursors, ariaDescribedBy }) {
+function TypingPassageInner({
+  passage,
+  cursor,
+  errorStack,
+  peerCursors,
+  ariaDescribedBy,
+  passageContainerRef,
+  caretAnchorRef,
+  caretLayoutRef,
+  onCaretLayout,
+  compact = false,
+}) {
   const reduce = useReducedMotion();
   const containerRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const currentCharRef = useRef(/** @type {HTMLSpanElement | null} */ (null));
@@ -94,7 +111,20 @@ function TypingPassageInner({ passage, cursor, errorStack, peerCursors, ariaDesc
       height,
       visible: height > 0 && er.width >= 0,
     });
-  }, [cursor, passage.length]);
+
+    if (passageContainerRef) {
+      passageContainerRef.current = container;
+    }
+    if (caretAnchorRef) {
+      caretAnchorRef.current = anchor;
+    }
+
+    const lineHeightPx = measurePassageLineHeightPx(container);
+    if (caretLayoutRef) {
+      caretLayoutRef.current = { top, height, lineHeightPx };
+    }
+    onCaretLayout?.();
+  }, [cursor, passage.length, passageContainerRef, caretAnchorRef, caretLayoutRef, onCaretLayout]);
 
   const updatePeerCarets = useCallback(() => {
     const container = containerRef.current;
@@ -159,7 +189,7 @@ function TypingPassageInner({ passage, cursor, errorStack, peerCursors, ariaDesc
 
   return (
     <div
-      className="typing-passage-wrap mx-auto w-full max-w-[min(76ch,100%-1.5rem)] px-3 py-8 sm:px-6"
+      className={`typing-passage-wrap mx-auto w-full max-w-[min(76ch,100%-1.5rem)] px-3 sm:px-6 ${compact ? "py-2" : "py-8"}`}
       aria-describedby={ariaDescribedBy}
     >
       <div
@@ -172,7 +202,7 @@ function TypingPassageInner({ passage, cursor, errorStack, peerCursors, ariaDesc
         {/* Self caret */}
         <div
           aria-hidden
-          className={`tt-caret-overlay pointer-events-none ${reduce ? "" : "tt-caret-overlay--motion tt-caret-blink"}`}
+          className={`tt-caret-overlay pointer-events-none z-[3] ${reduce ? "" : "tt-caret-overlay--motion tt-caret-blink"}`}
           style={{
             left: caret.left,
             top: caret.top,

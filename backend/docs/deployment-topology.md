@@ -2,6 +2,8 @@
 
 This backend hosts **Socket.IO namespaces** with **in-memory room state** for several games (typing race, hangman, taboo, CAH). NPAT hydrates room metadata from Mongo but still keeps active engines in process memory.
 
+**Typing race** additionally relies on the fixed viewport + in-room spectate UX documented in `backend/src/games/typing-race/EVENTS.md`. Treat typing-race sockets like other party games: **one replica or sticky sessions** until room state is externalized (Tier B/C).
+
 ## Tier A — Single replica or sticky sessions (current baseline)
 
 - Run **one backend instance**, **or**

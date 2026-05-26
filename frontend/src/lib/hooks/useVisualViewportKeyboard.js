@@ -18,11 +18,11 @@ export function computeKeyboardOffset(visualViewport, windowInnerHeight = typeof
  * Tracks virtual keyboard via visualViewport and exposes --keyboard-offset on documentElement.
  *
  * @param {import('react').RefObject<HTMLElement | null>} scrollTargetRef
- * @param {{ enabled?: boolean; setOnDocument?: boolean; refocusInputRef?: import('react').RefObject<HTMLTextAreaElement | null> }} [options]
+ * @param {{ enabled?: boolean; setOnDocument?: boolean; refocusInputRef?: import('react').RefObject<HTMLTextAreaElement | null>; scrollMode?: 'legacy' | 'padding-only' }} [options]
  */
 export function useVisualViewportKeyboard(
   scrollTargetRef,
-  { enabled = true, setOnDocument = true, refocusInputRef } = {},
+  { enabled = true, setOnDocument = true, refocusInputRef, scrollMode = "legacy" } = {},
 ) {
   const lastOffsetRef = useRef(0);
 
@@ -38,7 +38,12 @@ export function useVisualViewportKeyboard(
       document.documentElement.style.setProperty("--keyboard-offset", `${offset}px`);
     }
 
-    if (enabled && offset > 0 && scrollTargetRef.current) {
+    if (
+      scrollMode === "legacy" &&
+      enabled &&
+      offset > 0 &&
+      scrollTargetRef.current
+    ) {
       const reduceMotion =
         typeof window.matchMedia === "function" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -49,6 +54,8 @@ export function useVisualViewportKeyboard(
       });
     }
 
+    const wasKeyboardOpen = lastOffsetRef.current > 0;
+
     if (enabled && refocusInputRef?.current) {
       try {
         refocusInputRef.current.focus({ preventScroll: true });
@@ -57,8 +64,12 @@ export function useVisualViewportKeyboard(
       }
     }
 
+    if (scrollMode === "padding-only" && enabled && wasKeyboardOpen && offset === 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" in window ? "instant" : "auto" });
+    }
+
     lastOffsetRef.current = offset;
-  }, [enabled, scrollTargetRef, setOnDocument, refocusInputRef]);
+  }, [enabled, scrollTargetRef, setOnDocument, refocusInputRef, scrollMode]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !enabled) {
