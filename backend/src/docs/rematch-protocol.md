@@ -48,6 +48,12 @@ Clients must merge `room` snapshots using monotonic `stateVersion` (ignore older
 - Transitions engine `FINISHED` → `WAITING` on the **same code**.
 - Clears rounds, results, timers, and submissions; resets player `ready`.
 - Persists reset state to Mongo.
+- New games start automatically when all connected players are ready:
+  - `WAITING` → `STARTING` (3s pre-round countdown)
+  - `STARTING` → `IN_ROUND` (`roundPhase='collecting'`)
+- Countdown contracts:
+  - `startingEndsAt` is for lobby/start countdown only.
+  - `timerEndsAt` is for in-round finish countdown only (`roundPhase='countdown'`).
 
 ### Taboo / CAH `return_to_lobby`
 

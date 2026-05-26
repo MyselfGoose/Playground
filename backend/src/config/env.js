@@ -123,7 +123,7 @@ export const envSchema = z
     NPAT_SWITCH_TEAM_RATE_MS: z.coerce.number().int().min(100).max(10_000).default(600),
     NPAT_ROUND_END_COUNTDOWN_MS: z.coerce.number().int().min(1000).max(120_000).default(10_000),
     NPAT_BETWEEN_ROUNDS_MS: z.coerce.number().int().min(1000).max(120_000).default(5000),
-    NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(1000),
+    NPAT_STARTING_MS: z.coerce.number().int().min(200).max(10_000).default(3000),
 
     /** Cards Against Humanity — max distinct players per lobby (host included). */
     CAH_MAX_PLAYERS: z.coerce.number().int().min(3).max(24).default(10),

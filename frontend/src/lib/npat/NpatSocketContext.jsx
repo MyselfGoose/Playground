@@ -39,6 +39,7 @@ function mergeNpatRoom(incoming, { setRoom, roomVersionRef, setEvaluationSource 
   }
   const nextVersion = Number(incoming.stateVersion || 0);
   const prevVersion = roomVersionRef.current;
+  if (prevVersion > 0 && nextVersion === 0) return;
   if (nextVersion > 0 && nextVersion < prevVersion) return;
   if (nextVersion > 0) roomVersionRef.current = nextVersion;
   const results = incoming.results;

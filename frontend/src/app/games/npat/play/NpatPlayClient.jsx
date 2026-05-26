@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,8 +45,6 @@ export function NpatPlayClient() {
   const connectTimedOut = useConnectionTimeout(connected);
   const [joinError, setJoinError] = useState(/** @type {string | null} */ (null));
   const [joinRetryToken, setJoinRetryToken] = useState(0);
-  const [showRoundCountdownStrip, setShowRoundCountdownStrip] = useState(false);
-  const prevRoundPhaseRef = useRef("none");
   const { variant: fieldFeedbackVariant, pulseFieldComplete } = useNpatFieldFeedback({
     reduceMotion: Boolean(reduce),
   });
@@ -119,6 +117,11 @@ export function NpatPlayClient() {
     if (typeof end !== "number") return null;
     return Math.max(0, end - now);
   }, [room?.betweenRoundsEndsAt, now]);
+  const startingLeft = useMemo(() => {
+    const end = room?.startingEndsAt;
+    if (typeof end !== "number") return null;
+    return Math.max(0, end - now);
+  }, [room?.startingEndsAt, now]);
 
   const letter = room?.currentLetter ?? "—";
   const state = room?.state ?? "";
@@ -130,13 +133,6 @@ export function NpatPlayClient() {
       setLetterAnnouncement(`Round letter ${letter}`);
     }
   }, [letter, state]);
-
-  useEffect(() => {
-    if (roundPhase === "countdown" && prevRoundPhaseRef.current !== "countdown") {
-      setShowRoundCountdownStrip(true);
-    }
-    prevRoundPhaseRef.current = roundPhase;
-  }, [roundPhase]);
 
   const submissions =
     room?.submissions && typeof room.submissions === "object"
@@ -152,6 +148,8 @@ export function NpatPlayClient() {
   /** Full-duration red pulse while the “everyone finish up” countdown is running */
   const countdownActive =
     state === "IN_ROUND" && roundPhase === "countdown" && typeof msLeft === "number" && msLeft > 0;
+  const startCountdownActive =
+    state === "STARTING" && typeof startingLeft === "number" && startingLeft > 0;
   const urgent = countdownActive;
 
   const countdownTriggerId =
@@ -167,6 +165,8 @@ export function NpatPlayClient() {
       ? "Evaluating"
       : state === "BETWEEN_ROUNDS"
         ? "Between rounds"
+        : state === "STARTING"
+          ? "Starting game"
         : state === "IN_ROUND" && roundPhase === "countdown"
           ? "Closing round"
           : state === "IN_ROUND" && roundPhase === "collecting"
@@ -257,10 +257,10 @@ export function NpatPlayClient() {
       ) : null}
       <GameFeedbackOverlay variant={fieldFeedbackVariant} reduceMotion={Boolean(reduce)} />
       <AnimatePresence>
-        {showRoundCountdownStrip && countdownActive ? (
+        {startCountdownActive ? (
           <CountdownStrip
-            label="Finish your answers"
-            onComplete={() => setShowRoundCountdownStrip(false)}
+            label="Game starting"
+            durationMs={Math.max(400, startingLeft ?? 3000)}
           />
         ) : null}
       </AnimatePresence>

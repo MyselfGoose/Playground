@@ -27,7 +27,6 @@ export function NpatLobbyClient() {
     leaveRoom,
     setReady,
     switchTeam,
-    startGame,
     socketError,
     clearSocketError,
     localUserId,
@@ -39,7 +38,6 @@ export function NpatLobbyClient() {
     /** @type {import("../../../../lib/errors/mapConnectionError.js").ConnectionErrorResult | null} */ (null),
   );
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null));
-  const [starting, setStarting] = useState(false);
   const [readyPending, setReadyPending] = useState(false);
   const [joinRetryToken, setJoinRetryToken] = useState(0);
 
@@ -97,7 +95,6 @@ export function NpatLobbyClient() {
     router.replace(`/games/npat/play?code=${room.code}`);
   }, [joinPhase, room?.state, room?.code, normalizedCode, router]);
 
-  const isHost = Boolean(localUserId && room?.hostUserId === localUserId);
   const players = Array.isArray(room?.players) ? room.players : [];
   const roomSynced = joinPhase === "ready" && normalizedCode && room?.code === normalizedCode;
   const isTeam = isNpatTeamMode(room?.mode);
@@ -144,9 +141,7 @@ export function NpatLobbyClient() {
 
   const startRules = needMore
     ? "Share the room code or invite link so friends can join."
-    : isHost
-      ? "When everyone is ready, start the game."
-      : "Waiting for the host to start when everyone is ready.";
+    : "When everyone connected is ready, the game starts automatically.";
 
   const handleLeave = useCallback(async () => {
     await leaveRoom();
@@ -269,15 +264,13 @@ export function NpatLobbyClient() {
     </div>
   ) : null;
 
-  const allReady = !needMore && connectedCount > 0 && readyCount === connectedCount;
-
   return (
     <PartyLobby
       gameSlug="npat"
       code={room?.code ?? normalizedCode}
       players={partyPlayers}
       localUserId={localUserId}
-      startPolicy="host"
+      startPolicy="auto"
       startRules={startRules}
       statusLine={`${formatNpatMode(room?.mode)} · ${statusLine}`}
       minPlayers={minPlayers}
@@ -302,16 +295,11 @@ export function NpatLobbyClient() {
         setReadyPending(false);
         if (!r.ok) setActionError(r.error?.message ?? "Could not update ready state");
       }}
-      canStart={isHost && allReady && room?.state === "WAITING"}
+      canStart={false}
       onStart={async () => {
         setActionError(null);
-        clearSocketError();
-        setStarting(true);
-        const r = await startGame();
-        setStarting(false);
-        if (!r.ok) setActionError(r.error?.message ?? "Could not start game");
       }}
-      startPending={starting}
+      startPending={false}
       onLeave={() => void handleLeave()}
       error={lobbyError}
       footer={

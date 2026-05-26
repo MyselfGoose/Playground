@@ -49,6 +49,11 @@
  *   mode?: string;
  *   maxRounds?: number;
  *   players?: RoomPlayerBase[];
+ *   startingEndsAt?: number | null;
+ *   timerEndsAt?: number | null;
+ *   betweenRoundsEndsAt?: number | null;
+ *   roundPhase?: string;
+ *   countdownTriggeredByUserId?: string | null;
  *   results?: { rounds?: unknown[]; evaluationSource?: 'gemini' | 'fallback' };
  * }} NpatRoom
  */

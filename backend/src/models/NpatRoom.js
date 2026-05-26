@@ -72,6 +72,8 @@ const npatRoomSchema = new mongoose.Schema(
     letterPool: { type: [String], default: [] },
     currentRoundIndex: { type: Number, default: -1 },
     currentLetter: { type: String, default: '' },
+    /** Absolute timestamp for STARTING countdown completion. */
+    startingEndsAt: { type: Date, default: null },
     /** Who caused the final countdown to start (solo: first to finish all four fields). */
     countdownTriggeredByUserId: { type: String, default: '' },
     currentRound: { type: currentRoundSchema, default: () => ({}) },

@@ -165,6 +165,7 @@ export class NpatRoomEngine {
     this._betweenTimer = null;
 
     this.roundStartAt = null;
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
@@ -235,6 +236,7 @@ export class NpatRoomEngine {
       }
     }
     engine.roundStartAt = cr.startsAt ? new Date(cr.startsAt).getTime() : null;
+    engine.startingEndsAt = doc.startingEndsAt ? new Date(doc.startingEndsAt).getTime() : null;
     engine.roundEndDeadline = cr.endsAt ? new Date(cr.endsAt).getTime() : null;
     engine._countdownStarted = engine.roundPhase === 'countdown';
 
@@ -290,8 +292,10 @@ export class NpatRoomEngine {
     const now = Date.now();
     switch (this.state) {
       case GAME_STATES.STARTING: {
-        const startsAt = this.roundStartAt ?? now;
-        const remaining = Math.max(0, startsAt + this.env.NPAT_STARTING_MS - now);
+        const endsAt =
+          this.startingEndsAt ??
+          (this.roundStartAt ? this.roundStartAt + this.env.NPAT_STARTING_MS : now + this.env.NPAT_STARTING_MS);
+        const remaining = Math.max(0, endsAt - now);
         this._startingTimer = setTimeout(() => this._enterFirstRound(), remaining);
         return;
       }
@@ -376,6 +380,7 @@ export class NpatRoomEngine {
     this.earlyFinishProposal = null;
     this.countdownTriggeredByUserId = null;
     this.roundStartAt = null;
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
@@ -404,6 +409,7 @@ export class NpatRoomEngine {
       players: this.playersToMongo(),
       teams: this.teams,
       lastPublicSnapshot: this.toPublicDto(),
+      startingEndsAt: this.startingEndsAt ? new Date(this.startingEndsAt) : null,
       earlyFinishProposal: this.earlyFinishProposal,
       countdownTriggeredByUserId: this.countdownTriggeredByUserId ?? '',
     };
@@ -477,6 +483,7 @@ export class NpatRoomEngine {
     if (!p) return;
     p.socketId = socketId;
     p.connected = true;
+    this._tryAutoStartFromReady();
   }
 
   /**
@@ -556,9 +563,75 @@ export class NpatRoomEngine {
   }
 
   /**
+   * @returns {boolean}
+   */
+  _canStartFromReadyState() {
+    if (this.state !== GAME_STATES.WAITING) return false;
+    const connected = [...this.players.values()].filter((p) => p.connected);
+    if (connected.length < this.env.NPAT_MIN_PLAYERS_TO_START) return false;
+    if (this.mode === NPAT_MODE_TEAM) {
+      const teamIds = new Set(this.teams.map((t) => t.id));
+      for (const tid of teamIds) {
+        if (!connected.some((p) => p.teamId === tid)) return false;
+      }
+    }
+    return connected.every((p) => p.ready);
+  }
+
+  _tryAutoStartFromReady() {
+    if (!this._canStartFromReadyState()) return false;
+    this._startGameCore();
+    return true;
+  }
+
+  _startGameCore() {
+    if (this.state !== GAME_STATES.WAITING) return;
+    if (this._startingTimer) return;
+
+    assertTransition(this.state, GAME_STATES.STARTING);
+    this.state = GAME_STATES.STARTING;
+    this.letterPool = shuffleLetters().slice(0, this.maxRounds);
+    this.usedLetters = [];
+    this.currentRoundIndex = -1;
+    this.currentLetter = null;
+    this.submissions = new Map();
+    this.results = { rounds: [] };
+    this.roundPhase = 'none';
+    this.roundStartAt = Date.now();
+    this.startingEndsAt = this.roundStartAt + this.env.NPAT_STARTING_MS;
+    this.roundEndDeadline = null;
+    this.betweenEndDeadline = null;
+    this.earlyFinishProposal = null;
+    this.countdownTriggeredByUserId = null;
+    this._countdownStarted = false;
+
+    void this.persist(
+      {
+        engineState: this.state,
+        letterPool: this.letterPool,
+        usedLetters: this.usedLetters,
+        currentRoundIndex: this.currentRoundIndex,
+        currentLetter: '',
+        roundsHistory: [],
+        currentRound: this._currentRoundDoc(),
+        startingEndsAt: this.startingEndsAt ? new Date(this.startingEndsAt) : null,
+        earlyFinishProposal: null,
+        countdownTriggeredByUserId: '',
+      },
+      undefined,
+    );
+
+    this.emit('game_started', { room: this.toPublicDto(), endsAt: this.startingEndsAt });
+    this._startingTimer = setTimeout(() => this._enterFirstRound(), this.env.NPAT_STARTING_MS);
+  }
+
+  /**
    * @param {string} userId
    */
   tryStartGame(userId) {
+    if (this.state === GAME_STATES.STARTING) {
+      return;
+    }
     if (userId !== this.hostUserId) {
       const err = new Error('Only the host can start the game');
       /** @type {any} */ (err).code = 'NOT_HOST';
@@ -593,36 +666,7 @@ export class NpatRoomEngine {
       throw err;
     }
 
-    assertTransition(this.state, GAME_STATES.STARTING);
-    this.state = GAME_STATES.STARTING;
-    this.letterPool = shuffleLetters().slice(0, this.maxRounds);
-    this.usedLetters = [];
-    this.currentRoundIndex = -1;
-    this.currentLetter = null;
-    this.submissions = new Map();
-    this.results = { rounds: [] };
-    this.roundStartAt = Date.now();
-    this.earlyFinishProposal = null;
-    this.countdownTriggeredByUserId = null;
-
-    void this.persist(
-      {
-        engineState: this.state,
-        letterPool: this.letterPool,
-        usedLetters: this.usedLetters,
-        currentRoundIndex: this.currentRoundIndex,
-        currentLetter: '',
-        roundsHistory: [],
-        currentRound: this._currentRoundDoc(),
-        earlyFinishProposal: null,
-        countdownTriggeredByUserId: '',
-      },
-      undefined,
-    );
-
-    this.emit('game_started', { room: this.toPublicDto() });
-
-    this._startingTimer = setTimeout(() => this._enterFirstRound(), this.env.NPAT_STARTING_MS);
+    this._startGameCore();
   }
 
   _enterFirstRound() {
@@ -630,6 +674,7 @@ export class NpatRoomEngine {
     if (this.state !== GAME_STATES.STARTING) return;
     assertTransition(this.state, GAME_STATES.IN_ROUND);
     this.state = GAME_STATES.IN_ROUND;
+    this.startingEndsAt = null;
     this._beginNewRound();
   }
 
@@ -644,6 +689,7 @@ export class NpatRoomEngine {
     this.usedLetters.push(letter);
     this.roundPhase = 'collecting';
     this.roundStartAt = Date.now();
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this._countdownStarted = false;
@@ -662,6 +708,7 @@ export class NpatRoomEngine {
         currentRoundIndex: this.currentRoundIndex,
         currentLetter: letter,
         currentRound: this._currentRoundDoc(),
+        startingEndsAt: null,
         countdownTriggeredByUserId: '',
       },
       undefined,
@@ -989,6 +1036,7 @@ export class NpatRoomEngine {
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
     this.roundStartAt = null;
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this.currentLetter = null;
@@ -1056,6 +1104,7 @@ export class NpatRoomEngine {
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
     this.roundStartAt = null;
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this.currentLetter = null;
@@ -1128,6 +1177,7 @@ export class NpatRoomEngine {
     this.state = GAME_STATES.FINISHED;
     this.roundPhase = 'none';
     this.roundStartAt = null;
+    this.startingEndsAt = null;
     this.roundEndDeadline = null;
     this.betweenEndDeadline = null;
     this.currentLetter = null;
@@ -1315,6 +1365,7 @@ export class NpatRoomEngine {
     }
     p.ready = ready;
     void this.persist({ players: this.playersToMongo() }, undefined);
+    this._tryAutoStartFromReady();
     this.emit('room_update', { room: this.toPublicDto() });
   }
 
@@ -1354,6 +1405,7 @@ export class NpatRoomEngine {
       currentLetter: this.currentLetter,
       usedLetters: [...this.usedLetters],
       submissions: subs,
+      startingEndsAt: this.startingEndsAt,
       timerEndsAt: this.roundEndDeadline,
       betweenRoundsEndsAt: this.betweenEndDeadline,
       letterPoolRemaining: this.letterPool.length,
