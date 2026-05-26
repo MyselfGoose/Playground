@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../../../components/Button.jsx";
+import {
+  npatFallbackReasonMessage,
+  resolveNpatGameFailureClass,
+} from "../../../lib/npat/evaluationFallbackMessage.js";
 
 const FIELDS = [
   { key: "name", label: "Name" },
@@ -31,6 +35,15 @@ export function ResultsCarousel({ room, rounds }) {
     () => [...rounds].sort((a, b) => (a.roundIndex ?? 0) - (b.roundIndex ?? 0)),
     [rounds],
   );
+
+  const usesFallback = useMemo(
+    () => sorted.some((r) => r?.evaluationSource === "fallback"),
+    [sorted],
+  );
+  const fallbackHint = useMemo(() => {
+    if (!usesFallback) return null;
+    return npatFallbackReasonMessage(resolveNpatGameFailureClass(sorted));
+  }, [sorted, usesFallback]);
 
   const [playerIdx, setPlayerIdx] = useState(0);
 
@@ -127,6 +140,15 @@ export function ResultsCarousel({ room, rounds }) {
 
   return (
     <div className="flex flex-col gap-10">
+      {fallbackHint ? (
+        <p
+          className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm font-semibold leading-relaxed text-amber-950"
+          role="status"
+        >
+          {fallbackHint}
+        </p>
+      ) : null}
+
       {leaderboard.length > 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 6 }}

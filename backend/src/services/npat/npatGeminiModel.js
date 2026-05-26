@@ -3,9 +3,18 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 /**
  * Test-only: return a fake model from `createNpatGenerativeModel` (integration tests).
  * Must be cleared after each suite so production code paths are not affected.
- * @type {null | ((env: import('../../config/env.js').Env) => unknown)}
+ * @type {null | ((params: NpatGenerativeModelParams) => unknown)}
  */
 let createNpatGenerativeModelOverride = null;
+
+/**
+ * @typedef {{
+ *   apiKey: string,
+ *   modelId: string,
+ *   maxOutputTokens: number,
+ *   geminiMockMode?: boolean,
+ * }} NpatGenerativeModelParams
+ */
 
 /** @param {typeof createNpatGenerativeModelOverride} fn */
 export function setNpatGenerativeModelOverrideForTests(fn) {
@@ -44,13 +53,13 @@ export function createDeterministicGeminiMockResponse() {
  * Gemini model configured for NPAT judging: JSON output, room for long batch
  * responses, and permissive safety (user-submitted words/places must be scored).
  *
- * @param {import('../../config/env.js').Env} env
+ * @param {NpatGenerativeModelParams} params
  */
-export function createNpatGenerativeModel(env) {
+export function createNpatGenerativeModel(params) {
   if (createNpatGenerativeModelOverride) {
-    return createNpatGenerativeModelOverride(env);
+    return createNpatGenerativeModelOverride(params);
   }
-  if (env.GEMINI_MOCK_MODE) {
+  if (params.geminiMockMode) {
     return {
       generateContent: async () => ({
         response: {
@@ -59,9 +68,9 @@ export function createNpatGenerativeModel(env) {
       }),
     };
   }
-  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(params.apiKey);
   return genAI.getGenerativeModel({
-    model: env.GEMINI_MODEL,
+    model: params.modelId,
     safetySettings: [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -71,7 +80,7 @@ export function createNpatGenerativeModel(env) {
     ],
     generationConfig: {
       responseMimeType: 'application/json',
-      maxOutputTokens: env.NPAT_EVAL_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: params.maxOutputTokens,
       temperature: 0.2,
     },
   });

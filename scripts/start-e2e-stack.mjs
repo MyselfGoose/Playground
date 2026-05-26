@@ -101,7 +101,7 @@ async function main() {
   const envWithCors = applyTestEnv({
     MONGO_URI: mongoUri,
     GEMINI_MOCK_MODE: 'true',
-    NPAT_AI_MOCK: 'true',
+    GEMINI_MOCK_MODE: 'true',
     CORS_ORIGIN: corsOrigin,
   });
   stack = await startSocketTestStack(envWithCors);

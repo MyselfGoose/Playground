@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
 import { evaluateNpatFullGameFallback } from '../../services/npat/npatGameEvaluationService.js';
 import { evaluateNpatFullGameWithStrictService } from '../../services/ai/npatEvaluationService.js';
+import { resolveGeminiApiKeys } from '../../services/npat/npatGeminiRouter.js';
+import { bumpMetric } from '../../observability/platformMetrics.js';
 import { persistNpatResults } from '../../services/leaderboardStatsService.js';
 import { GAME_STATES, assertTransition } from './stateMachine.js';
 import { DEFAULT_TEAMS, NPAT_DEFAULT_MAX_ROUNDS, NPAT_FIELDS } from './constants.js';
@@ -863,7 +865,7 @@ export class NpatRoomEngine {
           evaluationSource: stamped,
           source: stamped,
         });
-        if (source === 'fallback' && this.env.GEMINI_API_KEY?.trim()) {
+        if (source === 'fallback' && resolveGeminiApiKeys(this.env).length > 0) {
           this._upgradeEvaluationInBackground().catch((err) => {
             this.logger.warn({ err, event: 'npat_background_upgrade_failed' }, 'npat_room');
           });
@@ -929,6 +931,7 @@ export class NpatRoomEngine {
         evaluationError: null,
       }).catch(() => {});
     }
+    bumpMetric('npat_background_upgrade_success');
     this.logger.info({ event: 'npat_background_upgrade_applied', roomCode: this.code }, 'npat_room');
     this.emit('room_update', { room: this.toPublicDto() });
     const stamped = this._stampResultsEvaluationSource('gemini');

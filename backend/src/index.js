@@ -99,7 +99,7 @@ async function main() {
       cookieSecure: env.COOKIE_SECURE,
       cookieSameSite: env.COOKIE_SAME_SITE,
       cookieDomain: env.COOKIE_DOMAIN ?? '(unset)',
-      gemini: Boolean(env.GEMINI_API_KEY),
+      gemini: Boolean(env.GEMINI_API_KEY?.trim()) || Boolean(env.GEMINI_API_KEY_FALLBACKS?.trim()),
     },
     'boot_config',
   );

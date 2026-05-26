@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, afterEach } from 'node:test';
 import { classifyFailure, evaluateNpatFullGameWithStrictService } from './ai/npatEvaluationService.js';
 import {
@@ -8,6 +11,7 @@ import {
 
 const baseEnv = {
   GEMINI_API_KEY: 'test-key-abcdefghijklmnopqrstuvwxyz',
+  GEMINI_MODEL: 'gemini-2.5-flash',
   NPAT_EVAL_INTERACTIVE_TIMEOUT_MS: 50,
   NPAT_EVAL_INTERACTIVE_MAX_RETRIES: 0,
   NPAT_EVAL_INTERACTIVE_MAX_OUTPUT_TOKENS: 1024,
@@ -51,10 +55,77 @@ describe('npatEvaluationService', () => {
     assert.equal(classifyFailure(new Error('rate limit exceeded')), 'rate_limit');
     assert.equal(classifyFailure(new Error('quota exhausted')), 'quota');
     assert.equal(classifyFailure(new Error('api key invalid')), 'auth');
+    assert.equal(classifyFailure(new Error('models/gemini-2.0-flash is not found')), 'model_not_found');
+    assert.equal(classifyFailure(new Error('404 model unavailable')), 'model_not_found');
     assert.equal(classifyFailure(new Error('json parse failed')), 'parse_error');
     assert.equal(classifyFailure(new Error('schema_error: missing field')), 'schema_error');
     assert.equal(classifyFailure(new Error('integrity_error: missing_player')), 'integrity_error');
     assert.equal(classifyFailure(new Error('unknown upstream failure')), 'provider_error');
+  });
+
+  it('fails over to the next model when primary returns model_not_found', async () => {
+    const fixturePath = join(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../tests/fixtures/npat-gemini-batch-minimal.json',
+    );
+    const jsonText = readFileSync(fixturePath, 'utf8');
+    const singlePlayerEngine = {
+      code: 'T123',
+      players: new Map([['u1', { username: 'Alice' }]]),
+      results: {
+        rounds: [
+          {
+            roundIndex: 0,
+            letter: 'A',
+            submissions: {
+              u1: { name: 'Amy', place: 'Austin', animal: 'Ant', thing: 'Apple' },
+            },
+          },
+        ],
+      },
+    };
+    setNpatGenerativeModelOverrideForTests((params) => {
+      if (params.modelId === 'bad-model') {
+        return {
+          generateContent: async () => {
+            throw new Error('models/bad-model is not found');
+          },
+        };
+      }
+      return {
+        generateContent: async () => ({
+          response: { text: () => jsonText },
+        }),
+      };
+    });
+    const out = await evaluateNpatFullGameWithStrictService(
+      {
+        ...baseEnv,
+        GEMINI_MODEL: 'bad-model',
+        GEMINI_MODEL_FALLBACKS: 'good-model',
+        NPAT_EVAL_INTERACTIVE_MAX_RETRIES: 0,
+      },
+      singlePlayerEngine,
+      logger,
+      { mode: 'interactive' },
+    );
+    assert.equal(out.source, 'gemini');
+    assert.equal(out.modelUsed, 'good-model');
+  });
+
+  it('returns invalid_model when model chain is empty after blocklist', async () => {
+    const out = await evaluateNpatFullGameWithStrictService(
+      {
+        ...baseEnv,
+        GEMINI_MODEL: 'gemini-2.5-flash',
+        GEMINI_MODEL_BLOCKLIST: 'gemini-2.5-flash',
+      },
+      buildEngine(),
+      logger,
+      { mode: 'interactive' },
+    );
+    assert.equal(out.source, 'offline_fallback');
+    assert.equal(out.failureClass, 'invalid_model');
   });
 
   it('returns offline fallback with integrity_error when player coverage is incomplete', async () => {

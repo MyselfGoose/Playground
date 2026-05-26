@@ -14,6 +14,10 @@ import {
 } from "../../../../lib/errors/mapConnectionError.js";
 import { ResultGate } from "../../../../components/game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../../../../components/game/ResultActions.jsx";
+import {
+  npatFallbackReasonMessage,
+  resolveNpatGameFailureClass,
+} from "../../../../lib/npat/evaluationFallbackMessage.js";
 
 /** @typedef {'idle' | 'joining' | 'ready' | 'failed'} JoinPhase */
 
@@ -109,6 +113,9 @@ export function NpatResultClient() {
       : gameEvalSource === "fallback"
         ? "Overall: Rules scored"
         : null;
+  const failureClass = useMemo(() => resolveNpatGameFailureClass(list), [list]);
+  const fallbackHint =
+    gameEvalSource === "fallback" ? npatFallbackReasonMessage(failureClass) : null;
 
   /** Still show results from the last `game_finished` / join snapshot while the socket is reconnecting. */
   const hasFinishedSnapshot =
@@ -244,6 +251,11 @@ export function NpatResultClient() {
           {overallBadge ? (
             <p className="mt-4 inline-flex rounded-full border border-foreground/15 bg-background/80 px-4 py-1.5 text-sm font-bold text-ink-muted">
               {overallBadge}
+            </p>
+          ) : null}
+          {fallbackHint ? (
+            <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-relaxed text-amber-950">
+              {fallbackHint}
             </p>
           ) : null}
         </motion.header>

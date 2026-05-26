@@ -1,15 +1,40 @@
 import mongoose from 'mongoose';
+import { resolveGeminiApiKeys, resolveGeminiModelChain } from '../services/npat/npatGeminiRouter.js';
 
-/** @type {{ ok: boolean, checkedAt: string|null, reason: string|null, state: string }} */
+/** @type {{
+ *   ok: boolean,
+ *   checkedAt: string|null,
+ *   reason: string|null,
+ *   state: string,
+ *   activeModel: string|null,
+ *   modelChain: string[],
+ *   keyCount: number,
+ *   lastFailureClass: string|null,
+ *   lastProbeModel: string|null,
+ * }} */
 let aiState = {
   ok: false,
   checkedAt: null,
   reason: 'not_checked',
   state: 'unknown',
+  activeModel: null,
+  modelChain: [],
+  keyCount: 0,
+  lastFailureClass: null,
+  lastProbeModel: null,
 };
 
 /**
- * @param {{ ok: boolean, reason?: string, state?: string }} next
+ * @param {{
+ *   ok: boolean,
+ *   reason?: string,
+ *   state?: string,
+ *   activeModel?: string | null,
+ *   modelChain?: string[],
+ *   keyCount?: number,
+ *   lastFailureClass?: string | null,
+ *   lastProbeModel?: string | null,
+ * }} next
  */
 export function setAiHealth(next) {
   aiState = {
@@ -17,6 +42,11 @@ export function setAiHealth(next) {
     checkedAt: new Date().toISOString(),
     reason: next.reason ?? (next.ok ? null : 'unknown'),
     state: next.state ?? (next.ok ? 'healthy' : 'degraded_unknown'),
+    activeModel: next.activeModel ?? (next.ok ? aiState.activeModel : null),
+    modelChain: next.modelChain ?? aiState.modelChain,
+    keyCount: next.keyCount ?? aiState.keyCount,
+    lastFailureClass: next.lastFailureClass ?? (next.ok ? null : aiState.lastFailureClass),
+    lastProbeModel: next.lastProbeModel ?? (next.ok ? next.activeModel ?? null : aiState.lastProbeModel),
   };
 }
 
@@ -74,12 +104,38 @@ export function getNpatEvaluationStats() {
 /**
  * @param {import('../config/env.js').Env} env
  */
+export function isGeminiConfigured(env) {
+  if (env.GEMINI_MOCK_MODE) return true;
+  return resolveGeminiApiKeys(env).length > 0;
+}
+
+/**
+ * @param {import('../config/env.js').Env} env
+ */
 export function getAggregatedHealth(env) {
   const db = mongoose.connection.readyState === 1;
-  const ai = getAiHealth().ok || !env.GEMINI_API_KEY?.trim() ? !env.GEMINI_API_KEY?.trim() || getAiHealth().ok : false;
   const auth = Boolean(env.JWT_ACCESS_SECRET?.trim() && env.JWT_REFRESH_SECRET?.trim());
-  const services = { db, ai, auth };
+  const geminiConfigured = isGeminiConfigured(env);
+  const aiHealthy = !geminiConfigured || getAiHealth().ok;
+  const services = { db, ai: aiHealthy, auth };
   const all = Object.values(services);
   const status = all.every(Boolean) ? 'ok' : all.some(Boolean) ? 'degraded' : 'fail';
   return { status, services };
+}
+
+/**
+ * @param {import('../config/env.js').Env} env
+ */
+export function syncAiHealthConfigFromEnv(env) {
+  const current = getAiHealth();
+  setAiHealth({
+    ok: current.ok,
+    reason: current.reason ?? undefined,
+    state: current.state,
+    activeModel: current.activeModel,
+    modelChain: resolveGeminiModelChain(env),
+    keyCount: resolveGeminiApiKeys(env).length,
+    lastFailureClass: current.lastFailureClass,
+    lastProbeModel: current.lastProbeModel,
+  });
 }

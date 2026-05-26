@@ -132,15 +132,21 @@ export const envSchema = z
 
     /** Google Gemini (server-only). Optional: rounds fall back to heuristic scoring if unset. */
     GEMINI_API_KEY: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    /** Comma-separated standby API keys (tried after primary key exhausts model chain). */
+    GEMINI_API_KEY_FALLBACKS: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
     GEMINI_MOCK_MODE: z.preprocess((v) => {
       if (v === undefined || v === null || String(v).trim() === '') return false;
       const s = String(v).toLowerCase().trim();
       return s === 'true' || s === '1';
     }, z.boolean().default(false)),
-    GEMINI_MODEL: z.string().min(1).default('gemini-2.0-flash'),
+    GEMINI_MODEL: z.string().min(1).default('gemini-2.5-flash'),
+    /** Comma-separated model IDs tried after primary fails (same key). */
+    GEMINI_MODEL_FALLBACKS: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    /** Comma-separated model IDs to skip (emergency kill switch). */
+    GEMINI_MODEL_BLOCKLIST: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
     NPAT_EVAL_INTERACTIVE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
-    NPAT_EVAL_INTERACTIVE_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(0),
-    NPAT_EVAL_INTERACTIVE_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(16_384).default(3072),
+    NPAT_EVAL_INTERACTIVE_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
+    NPAT_EVAL_INTERACTIVE_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(16_384).default(6144),
     NPAT_EVAL_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120_000).default(25_000),
     NPAT_EVAL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     NPAT_EVAL_MAX_ANSWER_CHARS: z.coerce.number().int().min(20).max(500).default(120),

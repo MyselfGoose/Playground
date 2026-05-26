@@ -14,6 +14,10 @@ const counters = {
   socket_handshake_fail: 0,
   leaderboard_cron_complete: 0,
   unhandled_rejection: 0,
+  npat_eval_gemini_success_total: 0,
+  npat_eval_fallback_total: 0,
+  npat_eval_model_failover_total: 0,
+  npat_background_upgrade_success: 0,
 };
 
 /**
