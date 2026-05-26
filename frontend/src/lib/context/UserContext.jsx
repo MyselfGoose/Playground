@@ -14,6 +14,12 @@ import { ApiError, apiFetch } from "../api.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
 import { notifyRefreshCompleted, subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
 import {
+  startAccessTokenScheduler,
+  stopAccessTokenScheduler,
+  refreshOnVisibilityIfStale,
+  setAccessTokenSchedulerInGame,
+} from "../session/accessTokenScheduler.js";
+import {
   dispatchSessionInvalidated,
   SESSION_CROSS_TAB_KEY,
   subscribeSessionInvalidated,
@@ -164,6 +170,22 @@ export function UserProvider({ children }) {
         if (!mountedRef.current) return;
         clearRecoveringUiTimer();
         if (e instanceof ApiError && e.status === 401) {
+          if (hadUser) {
+            try {
+              await apiFetch("/api/v1/auth/refresh", { method: "POST" });
+              notifyRefreshCompleted();
+              const retry = await apiFetch("/api/v1/auth/me");
+              if (!mountedRef.current) return;
+              setUserState((prev) => mergeUserState(prev, mapUser(retry?.data?.user)));
+              invalidateDerivedCaches();
+              setSessionError(null);
+              setSessionNotice(null);
+              setLifecycle("SYNCED");
+              return;
+            } catch {
+              /* fall through to signed-out */
+            }
+          }
           setUserState(null);
           setSessionError(null);
           setLifecycle("SYNCED");
@@ -240,6 +262,18 @@ export function UserProvider({ children }) {
   }, [clearRecoveringUiTimer]);
 
   useEffect(() => {
+    if (lifecycle === "SYNCED" && user) {
+      startAccessTokenScheduler();
+    } else if (!user) {
+      stopAccessTokenScheduler();
+      setAccessTokenSchedulerInGame({ inGame: false });
+    }
+    return () => {
+      stopAccessTokenScheduler();
+    };
+  }, [lifecycle, user]);
+
+  useEffect(() => {
     const unsub = subscribeReconcile(({ reason }) => {
       scheduleReconcile(reason ?? "event");
     });
@@ -284,6 +318,7 @@ export function UserProvider({ children }) {
         !userRef.current && !sessionErrorRef.current && !sessionNoticeRef.current;
       if (isGuest) return;
       const hadIssue = lifecycleRef.current === "DEGRADED" || Boolean(sessionErrorRef.current);
+      refreshOnVisibilityIfStale();
       if (hadIssue) {
         void (async () => {
           try {

@@ -4,7 +4,9 @@ export const TYPING_RACE_MIN_PLAYERS = 2;
 export const TYPING_RACE_COUNTDOWN_MS = 5000;
 /** Wall clock cap so abandoned rooms eventually end */
 export const TYPING_RACE_MAX_WALL_MS = 10 * 60 * 1000;
-export const TYPING_RACE_DISCONNECT_GRACE_MS = 60_000;
+import { PLAYER_DISCONNECT_GRACE_MS } from '../../realtime/constants.js';
+
+export const TYPING_RACE_DISCONNECT_GRACE_MS = PLAYER_DISCONNECT_GRACE_MS;
 
 /** @type {readonly string[]} */
 export const PLAYER_COLORS = [

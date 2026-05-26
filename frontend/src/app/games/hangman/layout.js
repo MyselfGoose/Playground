@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { HangmanProvider } from "../../../lib/hangman/HangmanSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
-import { AuthGate } from "../../../components/AuthGate.jsx";
+import { GameAuthGate } from "../../../components/GameAuthGate.jsx";
 import { HangmanConnectionBanner } from "../../../components/connection/HangmanConnectionBanner.jsx";
 
 function HangmanMultiplayerGate({ children }) {
@@ -14,12 +14,10 @@ function HangmanMultiplayerGate({ children }) {
   const loginNext = search ? `${pathname}?${search}` : pathname ?? "/games/hangman";
 
   return (
-    <AuthGate loginNext={loginNext}>
-      <HangmanProvider>
-        <HangmanConnectionBanner />
-        {children}
-      </HangmanProvider>
-    </AuthGate>
+    <GameAuthGate gameId="hangman" loginNext={loginNext}>
+      <HangmanConnectionBanner />
+      {children}
+    </GameAuthGate>
   );
 }
 
@@ -33,15 +31,17 @@ export default function HangmanLayout({ children }) {
 
   return (
     <ErrorBoundary level="game">
-      <Suspense
-        fallback={
-          <div className="flex min-h-[60vh] items-center justify-center px-4 text-sm font-semibold text-foreground/60">
-            Loading…
-          </div>
-        }
-      >
-        <HangmanMultiplayerGate>{children}</HangmanMultiplayerGate>
-      </Suspense>
+      <HangmanProvider>
+        <Suspense
+          fallback={
+            <div className="flex min-h-[60vh] items-center justify-center px-4 text-sm font-semibold text-foreground/60">
+              Loading…
+            </div>
+          }
+        >
+          <HangmanMultiplayerGate>{children}</HangmanMultiplayerGate>
+        </Suspense>
+      </HangmanProvider>
     </ErrorBoundary>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { PlayerPresenceBadge } from "../../../../components/party/PlayerPresenceBadge.jsx";
 
 export function scoreRows(players) {
   return [...(players ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
@@ -16,11 +17,17 @@ export const ScoreboardRail = memo(function ScoreboardRail({ players, judgeUserI
       <div className="mt-3 space-y-2">
         {scoreRows(players ?? []).map((p) => {
           const isJudge = judgeUserId && p.userId === judgeUserId;
+          const pending = p.presenceStatus === "disconnect_pending";
+          const gone = p.presenceStatus === "gone" || p.connected === false;
           return (
             <div
               key={p.userId}
               className={`flex items-center justify-between rounded-lg px-3 py-2 ring-1 ${
-                isJudge
+                pending
+                  ? "bg-amber-500/10 ring-amber-500/35 opacity-90"
+                  : gone
+                    ? "bg-muted-bright/15 ring-foreground/10 opacity-60"
+                    : isJudge
                   ? "bg-primary/10 ring-primary/35"
                   : "bg-muted-bright/25 ring-foreground/10"
               }`}
@@ -29,6 +36,13 @@ export const ScoreboardRail = memo(function ScoreboardRail({ players, judgeUserI
                 <p className="truncate text-sm font-bold text-foreground">{p.username}</p>
                 {isJudge ? (
                   <p className="text-xs font-black uppercase tracking-wide text-primary">Card Czar</p>
+                ) : null}
+                {pending || gone ? (
+                  <PlayerPresenceBadge
+                    presenceStatus={gone ? "gone" : p.presenceStatus}
+                    graceEndsAtMs={p.graceEndsAtMs}
+                    graceSecondsRemaining={p.graceSecondsRemaining}
+                  />
                 ) : null}
               </div>
               <p className="text-lg font-black text-primary">{p.score ?? 0}</p>

@@ -3,6 +3,8 @@
  * or the API signals requires_reauth.
  */
 
+import { shouldSuppressSocketTeardown } from "./gameSessionTeardown.js";
+
 export const SESSION_INVALIDATED_EVENT = "playgrounds:session-invalidated";
 
 /** localStorage key pinged on logout so other tabs tear down sockets and auth. */
@@ -27,6 +29,7 @@ export function registerSocketTeardown(fn) {
 
 /** @param {string} [reason] */
 export function runSocketTeardowns(reason = "session_invalidated") {
+  if (shouldSuppressSocketTeardown()) return;
   for (const fn of socketTeardowns) {
     try {
       fn(reason);

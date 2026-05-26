@@ -1,6 +1,7 @@
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
+import { PLAYER_DISCONNECT_GRACE_MS } from '../../realtime/constants.js';
 import { HANGMAN_SETTER_PICK_TIMEOUT_MS } from './constants.js';
 import { autoAssignSetterWord, guessLetter, nextRound, setterSubmitWord, startGame } from './gameManager.js';
 import { createHangmanRoomManager } from './roomManager.js';
@@ -212,10 +213,42 @@ test('soft disconnect timer does not mark user disconnected while another tab is
   startGame(room);
 
   await manager.leaveRoom(tabA, { hardLeave: false });
-  mock.timers.tick(8000);
+  mock.timers.tick(PLAYER_DISCONNECT_GRACE_MS + 1000);
   const hostPlayer = room.players.find((p) => p.userId === 'u1');
-  assert.equal(hostPlayer?.connected, true);
+  assert.equal(hostPlayer?.presenceStatus, 'connected');
 
   await manager.leaveRoom(tabB, { hardLeave: true });
+  await manager.leaveRoom(guest, { hardLeave: true });
+});
+
+test('soft disconnect grace preserves in-progress game until expiry', async (t) => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  t.after(() => {
+    mock.timers.reset();
+  });
+
+  const ns = makeNs();
+  const manager = createHangmanRoomManager({ hangmanNs: ns, logger: console });
+  const host = makeSocket('s1', 'u1', 'host');
+  const guest = makeSocket('s2', 'u2', 'guest');
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+
+  const room = await manager.createRoom(host, {});
+  await manager.joinRoom(guest, room.code);
+  room.players.forEach((p) => {
+    p.ready = true;
+  });
+  startGame(room);
+  assert.equal(room.game?.phase, 'setter_pick');
+
+  await manager.leaveRoom(host, { hardLeave: false });
+  const hostPlayer = room.players.find((p) => p.userId === 'u1');
+  assert.equal(hostPlayer?.presenceStatus, 'disconnect_pending');
+  assert.equal(room.game?.phase, 'setter_pick');
+
+  mock.timers.tick(PLAYER_DISCONNECT_GRACE_MS);
+  assert.equal(hostPlayer?.presenceStatus, 'gone');
+
   await manager.leaveRoom(guest, { hardLeave: true });
 });

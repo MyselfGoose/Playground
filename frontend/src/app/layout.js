@@ -2,6 +2,7 @@ import Script from "next/script";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "../lib/context/UserContext.jsx";
+import { GameSessionProvider } from "../lib/session/GameSessionContext.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { ThemeProvider } from "../lib/theme/ThemeProvider.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
@@ -43,7 +44,9 @@ export default function RootLayout({ children }) {
         <ThemeProvider>
           <ErrorBoundary level="app">
             <UserProvider>
-              <Shell>{children}</Shell>
+              <GameSessionProvider>
+                <Shell>{children}</Shell>
+              </GameSessionProvider>
             </UserProvider>
           </ErrorBoundary>
         </ThemeProvider>

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DEFAULT_HANGMAN_DATASET_VERSION } from '../../config/hangmanDefaults.js';
 import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
+import { activePlayersInRoom, snapshotPresenceFields } from '../../realtime/playerPresence.js';
 import {
   HANGMAN_MAX_WRONG,
   HANGMAN_MIN_PLAYERS,
@@ -26,7 +27,7 @@ function sanitizeDatasetVersion(v) {
 }
 
 export function activePlayers(room) {
-  return room.players.filter((p) => p.connected !== false);
+  return activePlayersInRoom(room);
 }
 
 function currentSetterId(game) {
@@ -524,7 +525,7 @@ export function snapshotFor(room, viewerUserId) {
       userId: p.userId,
       username: p.username,
       ready: p.ready,
-      connected: p.connected,
+      ...snapshotPresenceFields(p, now),
     })),
     stateVersion: room.stateVersion,
     me: room.players.find((p) => p.userId === viewerUserId) ?? null,

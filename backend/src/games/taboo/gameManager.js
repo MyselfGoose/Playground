@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { activePlayersInRoom, isPlayerActiveInGame, snapshotPresenceFields } from "../../realtime/playerPresence.js";
 
 const TURN_READY_DELAY_MS = 3000;
 const NEXT_ROUND_DELAY_MS = 10000;
@@ -80,7 +81,7 @@ function viewerRole(room, userId) {
 }
 
 function connectedPlayerIds(room) {
-  return room.players.filter((player) => player.connected !== false).map((player) => player.userId);
+  return activePlayersInRoom(room).map((player) => player.userId);
 }
 
 export function createDeckProvider() {
@@ -436,7 +437,9 @@ export function createGameManager() {
       return "review_resolved";
     }
     if (game.status === "waiting_to_start_turn") {
-      const clueGiverConnected = room.players.some((p) => p.userId === game.activeTurn?.playerId && p.connected !== false);
+      const clueGiverConnected = room.players.some(
+        (p) => p.userId === game.activeTurn?.playerId && isPlayerActiveInGame(p),
+      );
       if (!clueGiverConnected) {
         recordHistory(game, { action: "turn_skipped_disconnected", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
         return advancePostTurn(room, "turn_skipped_disconnected");
@@ -453,7 +456,9 @@ export function createGameManager() {
       }
     }
     if (game.status === "turn_in_progress") {
-      const clueGiverConnected = room.players.some((p) => p.userId === game.activeTurn?.playerId && p.connected !== false);
+      const clueGiverConnected = room.players.some(
+        (p) => p.userId === game.activeTurn?.playerId && isPlayerActiveInGame(p),
+      );
       if (!clueGiverConnected) {
         recordHistory(game, { action: "turn_aborted_disconnected", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
         return advancePostTurn(room, "turn_aborted_disconnected");
@@ -546,7 +551,13 @@ export function createGameManager() {
       stateVersion: Number(room.stateVersion || 0),
       hostId: room.hostId,
       hostName: room.hostName,
-      players: room.players.map((p) => ({ id: p.userId, name: p.username, team: p.team, ready: p.ready, connected: p.connected !== false })),
+      players: room.players.map((p) => ({
+        id: p.userId,
+        name: p.username,
+        team: p.team,
+        ready: p.ready,
+        ...snapshotPresenceFields(p),
+      })),
       teams: {
         A: room.players.filter((p) => p.team === "A").map((p) => p.username),
         B: room.players.filter((p) => p.team === "B").map((p) => p.username),

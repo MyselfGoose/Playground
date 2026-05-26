@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
 import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
+import { RejoinRoomPrompt } from "../../../components/party/RejoinRoomPrompt.jsx";
+import { clearLastRoomCode, readLastRoomCode } from "../../../lib/session/RoomSession.js";
 
 function normalizeCode(code) {
   return normalizePartyCode(code).slice(0, 4);
@@ -17,7 +19,9 @@ export function CahEntry() {
   const inviteCodeParam = searchParams.get("code") ?? "";
   const normalizedInvite = inviteCodeParam ? normalizeCode(inviteCodeParam) : "";
 
-  const { connected, socketError, createRoom, joinRoom } = useCah();
+  const { connected, socketError, createRoom, joinRoom, room } = useCah();
+  const lastRoomCode = readLastRoomCode("cah");
+  const showRejoin = connected && lastRoomCode && !room?.code;
   const [joinCode, setJoinCode] = useState(normalizedInvite);
   const [error, setError] = useState("");
   const [settings, setSettings] = useState({ maxRounds: 10 });
@@ -56,6 +60,21 @@ export function CahEntry() {
           <code className="rounded bg-muted-bright/40 px-1.5 py-0.5 text-xs">/games/cah/join?code=XXXX</code>
         </p>
       </section>
+
+      {showRejoin ? (
+        <RejoinRoomPrompt
+          roomCode={lastRoomCode}
+          lobbyHref="/games/cah/lobby"
+          onRejoin={() =>
+            void run(async () => {
+              const res = await joinRoom(lastRoomCode);
+              if (res.ok) router.push("/games/cah/lobby");
+              return res;
+            })
+          }
+          onLeave={() => clearLastRoomCode("cah")}
+        />
+      ) : null}
 
       {(socketError || error) && (
         <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">

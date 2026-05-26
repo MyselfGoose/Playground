@@ -9,6 +9,10 @@ This backend hosts **Socket.IO namespaces** with **in-memory room state** for se
 
 **What breaks without stickiness:** players hit different nodes → “room not found”, partial broadcasts, mid-game disconnects.
 
+**Operational checklist:** Before investigating “random logouts” or lost rounds in production, confirm the API/socket tier is running **exactly one replica** (or verified sticky sessions). Split-brain across nodes mimics disconnect and session loss.
+
+**Player disconnect grace:** All party games use a **60s** server-side grace (`PLAYER_DISCONNECT_GRACE_MS`) before a disconnected player is removed from active play. Clients show a shared countdown via `graceEndsAtMs` in room snapshots.
+
 ## Tier B — Horizontal sockets
 
 Requirements:

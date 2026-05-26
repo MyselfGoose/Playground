@@ -1,3 +1,8 @@
+import { createDisconnectGraceRegistry } from '../../realtime/playerPresence.js';
+import {
+  markPlayerConnected,
+  markPlayerGone,
+} from '../../realtime/playerPresence.js';
 import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
@@ -56,8 +61,13 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
   const socketToCode = new Map();
   const userToCode = new Map();
   const userToSocketIds = new Map();
+  const disconnectGrace = createDisconnectGraceRegistry();
   /** @type {Map<string, NodeJS.Timeout>} */
   const revealingTimers = new Map();
+
+  function hasAnyConnectedSocketInRoom(room, userId) {
+    return [...room.socketIds].some((sid) => cahNs.sockets.get(sid)?.data?.userId === userId);
+  }
 
   function clearRevealingTimer(code) {
     const t = revealingTimers.get(code);
@@ -115,6 +125,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
   }
 
   function trackUserSocket(userId, socketId) {
+    disconnectGrace.clearGrace(userId);
     const set = userToSocketIds.get(userId) ?? new Set();
     set.add(socketId);
     userToSocketIds.set(userId, set);
@@ -187,16 +198,18 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     }
     await leaveRoom(socket, { hardLeave: false });
     if (existing) {
-      existing.connected = true;
+      markPlayerConnected(existing);
       existing.username = socket.data.username;
     } else {
-      room.players.push({
+      const newbie = {
         userId: socket.data.userId,
         username: socket.data.username,
         ready: false,
         connected: true,
         score: 0,
-      });
+      };
+      markPlayerConnected(newbie);
+      room.players.push(newbie);
     }
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, normalized);
@@ -218,25 +231,48 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     room.socketIds.delete(socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
+      const userId = socket.data.userId;
       if (hardLeave) {
-        const otherSockets = [...room.socketIds].some(
-          (sid) => cahNs.sockets.get(sid)?.data?.userId === socket.data.userId,
-        );
-        if (!otherSockets) {
-          room.players = room.players.filter((p) => p.userId !== socket.data.userId);
-          userToCode.delete(socket.data.userId);
+        disconnectGrace.clearGrace(userId);
+        if (!hasAnyConnectedSocketInRoom(room, userId)) {
+          room.players = room.players.filter((p) => p.userId !== userId);
+          userToCode.delete(userId);
         } else {
-          player.connected = true;
+          markPlayerConnected(player);
         }
+        if (room.hostId === userId && room.players.length) {
+          const connectedHost = room.players.find((p) => p.presenceStatus === 'connected');
+          room.hostId = connectedHost?.userId ?? room.players[0].userId;
+        }
+        await reconcileRoomAfterMembershipChange(room);
+        bumpStateVersion(room);
       } else {
-        player.connected = false;
+        disconnectGrace.clearGrace(userId);
+        if (hasAnyConnectedSocketInRoom(room, userId)) {
+          markPlayerConnected(player);
+          bumpStateVersion(room);
+        } else {
+          disconnectGrace.scheduleGrace(userId, player, async () => {
+            const expectedCode = userToCode.get(userId);
+            if (!expectedCode || expectedCode !== code) return;
+            const pendingRoom = rooms.get(code);
+            if (!pendingRoom) return;
+            if (hasAnyConnectedSocketInRoom(pendingRoom, userId)) return;
+            const pendingPlayer = pendingRoom.players.find((p) => p.userId === userId);
+            if (!pendingPlayer) return;
+            markPlayerGone(pendingPlayer);
+            if (pendingRoom.hostId === userId && pendingRoom.players.length) {
+              const connectedHost = pendingRoom.players.find((p) => p.presenceStatus === 'connected');
+              pendingRoom.hostId = connectedHost?.userId ?? pendingRoom.players[0].userId;
+            }
+            await reconcileRoomAfterMembershipChange(pendingRoom);
+            bumpStateVersion(pendingRoom);
+            emitRoom(code, 'member_disconnected');
+          });
+          bumpStateVersion(room);
+          emitRoom(code, 'player_disconnect_pending');
+        }
       }
-      if (room.hostId === socket.data.userId && room.players.length) {
-        const connectedHost = room.players.find((p) => p.connected !== false);
-        room.hostId = connectedHost?.userId ?? room.players[0].userId;
-      }
-      await reconcileRoomAfterMembershipChange(room);
-      bumpStateVersion(room);
     }
     if (!room.players.length) rooms.delete(code);
   }
@@ -251,7 +287,9 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     socket.join(code);
     trackUserSocket(socket.data.userId, socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
-    if (player) player.connected = true;
+    if (player) {
+      markPlayerConnected(player);
+    }
     await reconcileRoomAfterMembershipChange(room);
     bumpStateVersion(room);
     return room;

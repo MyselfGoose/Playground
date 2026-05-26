@@ -12,6 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
+import { useGameSession } from "../session/GameSessionContext.jsx";
 import { formatJoinCodeForServer } from "./roomCode.js";
 import { emitAck } from "../socket/socketUtils.js";
 import { useGameSocket } from "../socket/useGameSocket.js";
@@ -53,6 +54,7 @@ function mergeNpatRoom(incoming, { setRoom, roomVersionRef, setEvaluationSource 
 
 export function NpatProvider({ children }) {
   const { user, loading: authLoading } = useUser();
+  const { holdActive } = useGameSession();
   const pathname = usePathname();
   const [evaluationSource, setEvaluationSource] = useState(
     /** @type {'gemini' | 'fallback' | null} */ (null),
@@ -88,7 +90,7 @@ export function NpatProvider({ children }) {
     namespace: "/npat",
     gameTag: "npat",
     mapGame: "npat",
-    enabled: Boolean(!authLoading && user && getSocketBase()),
+    enabled: Boolean(!authLoading && getSocketBase() && (user?.id || holdActive)),
     mergeRoom: mergeWithEval,
     shouldAcceptSessionResumed,
     onSessionResumedExtra,

@@ -2,18 +2,18 @@
 
 import { NpatProvider } from "../../../lib/npat/NpatSocketContext.jsx";
 import { ErrorBoundary } from "../../../components/ErrorBoundary.jsx";
-import { AuthGate } from "../../../components/AuthGate.jsx";
+import { GameAuthGate } from "../../../components/GameAuthGate.jsx";
 import { NpatConnectionBanner } from "../../../components/connection/NpatConnectionBanner.jsx";
 
 export default function NpatGameShell({ children }) {
   return (
     <ErrorBoundary level="game">
-      <AuthGate loginNext="/games/npat">
-        <NpatProvider>
+      <NpatProvider>
+        <GameAuthGate gameId="npat" loginNext="/games/npat">
           <NpatConnectionBanner />
           {children}
-        </NpatProvider>
-      </AuthGate>
+        </GameAuthGate>
+      </NpatProvider>
     </ErrorBoundary>
   );
 }

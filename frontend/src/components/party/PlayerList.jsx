@@ -4,6 +4,7 @@ import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { Avatar } from "../Avatar.jsx";
+import { PlayerPresenceBadge } from "./PlayerPresenceBadge.jsx";
 
 /**
  * @typedef {{
@@ -12,6 +13,9 @@ import { Avatar } from "../Avatar.jsx";
  *   avatarUrl?: string | null,
  *   ready?: boolean,
  *   connected?: boolean,
+ *   presenceStatus?: string,
+ *   graceEndsAtMs?: number | null,
+ *   graceSecondsRemaining?: number,
  *   isHost?: boolean,
  * }} PartyPlayer
  */
@@ -29,7 +33,8 @@ export const PlayerList = memo(function PlayerList({ players, localUserId = null
       <AnimatePresence initial={false}>
         {players.map((p, i) => {
           const isMe = localUserId != null && p.id === localUserId;
-          const disconnected = p.connected === false;
+          const pending = p.presenceStatus === "disconnect_pending";
+          const disconnected = p.presenceStatus === "gone" || (p.connected === false && !pending);
           return (
             <motion.li
               key={p.id}
@@ -39,7 +44,9 @@ export const PlayerList = memo(function PlayerList({ players, localUserId = null
               exit={{ opacity: 0, x: 12 }}
               transition={{ delay: i * 0.04 }}
               className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
-                disconnected
+                pending
+                  ? "border-amber-500/35 bg-amber-500/10 opacity-90"
+                  : disconnected
                   ? "border-foreground/10 bg-muted-bright/10 opacity-60"
                   : p.ready
                     ? "border-accent-mint/40 bg-accent-mint/10 ring-1 ring-accent-mint/30"
@@ -53,7 +60,19 @@ export const PlayerList = memo(function PlayerList({ players, localUserId = null
                   {isMe ? <span className="text-foreground/50"> (you)</span> : null}
                 </p>
                 <p className="text-xs font-semibold text-foreground/55">
-                  {disconnected ? "Disconnected" : p.ready ? "Ready" : "Not ready"}
+                  {pending ? (
+                    <PlayerPresenceBadge
+                      presenceStatus={p.presenceStatus}
+                      graceEndsAtMs={p.graceEndsAtMs}
+                      graceSecondsRemaining={p.graceSecondsRemaining}
+                    />
+                  ) : disconnected ? (
+                    "Left"
+                  ) : p.ready ? (
+                    "Ready"
+                  ) : (
+                    "Not ready"
+                  )}
                 </p>
               </motion.div>
               {p.isHost ? (

@@ -4,7 +4,7 @@ import "./typing-multi.css";
 import { Suspense } from "react";
 import { TypingRaceProvider } from "../../../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { ErrorBoundary } from "../../../../components/ErrorBoundary.jsx";
-import { AuthGate } from "../../../../components/AuthGate.jsx";
+import { GameAuthGate } from "../../../../components/GameAuthGate.jsx";
 import { TypingConnectionBanner } from "../../../../components/connection/TypingConnectionBanner.jsx";
 
 export default function TypingMultiLayout({ children }) {
@@ -20,9 +20,9 @@ export default function TypingMultiLayout({ children }) {
               </div>
             }
           >
-            <AuthGate loginNext="/games/typing-race/multi">
+            <GameAuthGate gameId="typing-race" loginNext="/games/typing-race/multi">
               <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-            </AuthGate>
+            </GameAuthGate>
           </Suspense>
         </div>
       </TypingRaceProvider>

@@ -22,11 +22,18 @@ export function useHangmanRoom(view) {
 
   const scoreRows = useMemo(() => {
     const entries = Object.entries(game?.scores ?? {}).sort((a, b) => b[1] - a[1]);
-    return entries.map(([uid, score]) => ({
-      uid,
-      score,
-      name: room?.players?.find((p) => p.userId === uid)?.username ?? uid,
-    }));
+    return entries.map(([uid, score]) => {
+      const pl = room?.players?.find((p) => p.userId === uid);
+      return {
+        uid,
+        score,
+        name: pl?.username ?? uid,
+        presenceStatus: pl?.presenceStatus,
+        graceEndsAtMs: pl?.graceEndsAtMs,
+        graceSecondsRemaining: pl?.graceSecondsRemaining,
+        connected: pl?.connected,
+      };
+    });
   }, [game?.scores, room?.players]);
 
   const activePlayer = useMemo(() => {
@@ -36,12 +43,21 @@ export function useHangmanRoom(view) {
   }, [game?.currentTurnUserId, room?.players]);
 
   const readyCount = useMemo(
-    () => (room?.players ?? []).filter((p) => p.ready && p.connected !== false).length,
+    () =>
+      (room?.players ?? []).filter(
+        (p) => p.ready && p.presenceStatus !== "gone" && p.connected !== false,
+      ).length,
     [room?.players],
   );
 
   const connectedCount = useMemo(
-    () => (room?.players ?? []).filter((p) => p.connected !== false).length,
+    () =>
+      (room?.players ?? []).filter(
+        (p) =>
+          p.presenceStatus === "connected" ||
+          p.presenceStatus === "disconnect_pending" ||
+          (p.presenceStatus == null && p.connected !== false),
+      ).length,
     [room?.players],
   );
 

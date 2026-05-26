@@ -1,3 +1,8 @@
+import { createDisconnectGraceRegistry } from "../../realtime/playerPresence.js";
+import {
+  markPlayerConnected,
+  markPlayerGone,
+} from "../../realtime/playerPresence.js";
 import { createDeckProvider, createGameManager } from "./gameManager.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -76,8 +81,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
   const userToCode = new Map();
   /** @type {Map<string, Set<string>>} */
   const userToSocketIds = new Map();
+  const disconnectGrace = createDisconnectGraceRegistry();
+
+  function hasAnyConnectedSocketInRoom(room, userId) {
+    return [...room.socketIds].some((sid) => tabooNs.sockets.get(sid)?.data?.userId === userId);
+  }
 
   function trackUserSocket(userId, socketId) {
+    disconnectGrace.clearGrace(userId);
     const set = userToSocketIds.get(userId) ?? new Set();
     set.add(socketId);
     userToSocketIds.set(userId, set);
@@ -190,12 +201,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     }
     leaveRoom(socket, { hardLeave: false });
     if (existing) {
-      existing.connected = true;
+      markPlayerConnected(existing);
       existing.username = username;
     } else {
       const countA = room.players.filter((p) => p.team === "A").length;
       const countB = room.players.filter((p) => p.team === "B").length;
-      room.players.push({ userId, username, team: countA <= countB ? "A" : "B", ready: false, connected: true });
+      const newbie = { userId, username, team: countA <= countB ? "A" : "B", ready: false, connected: true };
+      markPlayerConnected(newbie);
+      room.players.push(newbie);
     }
     bumpStateVersion(room);
     room.socketIds.add(socket.id);
@@ -220,18 +233,41 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const player = room.players.find((p) => p.userId === userId);
     if (player) {
       if (hardLeave) {
-        const hasOtherSockets = [...room.socketIds].some((sid) => tabooNs.sockets.get(sid)?.data?.userId === userId);
-        if (!hasOtherSockets) {
+        disconnectGrace.clearGrace(userId);
+        if (!hasAnyConnectedSocketInRoom(room, userId)) {
           room.players = room.players.filter((p) => p.userId !== userId);
           userToCode.delete(userId);
         } else {
-          player.connected = true;
+          markPlayerConnected(player);
         }
+        bumpStateVersion(room);
+        room.updatedAt = Date.now();
+        emitRoom(code, "room_update");
       } else {
-        player.connected = false;
+        disconnectGrace.clearGrace(userId);
+        if (hasAnyConnectedSocketInRoom(room, userId)) {
+          markPlayerConnected(player);
+          bumpStateVersion(room);
+          room.updatedAt = Date.now();
+        } else {
+          disconnectGrace.scheduleGrace(userId, player, () => {
+            const expectedCode = userToCode.get(userId);
+            if (!expectedCode || expectedCode !== code) return;
+            const pendingRoom = rooms.get(code);
+            if (!pendingRoom) return;
+            if (hasAnyConnectedSocketInRoom(pendingRoom, userId)) return;
+            const pendingPlayer = pendingRoom.players.find((p) => p.userId === userId);
+            if (!pendingPlayer) return;
+            markPlayerGone(pendingPlayer);
+            bumpStateVersion(pendingRoom);
+            pendingRoom.updatedAt = Date.now();
+            emitRoom(code, "member_disconnected");
+          });
+          bumpStateVersion(room);
+          room.updatedAt = Date.now();
+          emitRoom(code, "player_disconnect_pending");
+        }
       }
-      bumpStateVersion(room);
-      room.updatedAt = Date.now();
     }
     if (!room.players.length) rooms.delete(code);
   }
@@ -247,7 +283,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     trackUserSocket(socket.data.userId, socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
-      player.connected = true;
+      markPlayerConnected(player);
       bumpStateVersion(room);
       room.updatedAt = Date.now();
     }

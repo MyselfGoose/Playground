@@ -7,6 +7,11 @@ import {
   HANGMAN_WORD_MAX,
   HANGMAN_WORD_MIN,
 } from './constants.js';
+import { createDisconnectGraceRegistry } from '../../realtime/playerPresence.js';
+import {
+  markPlayerConnected,
+  markPlayerGone,
+} from '../../realtime/playerPresence.js';
 import {
   abortRoundSetterLeft,
   activePlayers,
@@ -135,10 +140,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   const socketToCode = new Map();
   const userToCode = new Map();
   const userToSocketIds = new Map();
-  const softDisconnectTimers = new Map();
+  const disconnectGrace = createDisconnectGraceRegistry();
   /** @type {Map<string, { countdownTimeout?: NodeJS.Timeout, countdownInterval?: NodeJS.Timeout, turnTimeout?: NodeJS.Timeout, setterPickTimeout?: NodeJS.Timeout }>} */
   const roomTimers = new Map();
-  const SOFT_DISCONNECT_GRACE_MS = 7000;
 
   function bumpStateVersion(room) {
     room.stateVersion = Number(room.stateVersion || 0) + 1;
@@ -146,7 +150,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   }
 
   function trackUserSocket(userId, socketId) {
-    clearSoftDisconnect(userId);
+    disconnectGrace.clearGrace(userId);
     const set = userToSocketIds.get(userId) ?? new Set();
     set.add(socketId);
     userToSocketIds.set(userId, set);
@@ -157,13 +161,6 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!set) return;
     set.delete(socketId);
     if (!set.size) userToSocketIds.delete(userId);
-  }
-
-  function clearSoftDisconnect(userId) {
-    const timer = softDisconnectTimers.get(userId);
-    if (!timer) return;
-    clearTimeout(timer);
-    softDisconnectTimers.delete(userId);
   }
 
   function hasAnyConnectedSocketInRoom(room, userId) {
@@ -414,15 +411,17 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
 
     await leaveRoom(socket, { hardLeave: false });
     if (existing) {
-      existing.connected = true;
+      markPlayerConnected(existing);
       existing.username = socket.data.username;
     } else {
-      room.players.push({
+      const newbie = {
         userId: socket.data.userId,
         username: socket.data.username,
         ready: false,
         connected: true,
-      });
+      };
+      markPlayerConnected(newbie);
+      room.players.push(newbie);
     }
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, normalized);
@@ -451,21 +450,20 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     const player = room.players.find((p) => p.userId === userId);
     if (player) {
       if (hardLeave) {
-        clearSoftDisconnect(userId);
+        disconnectGrace.clearGrace(userId);
         const otherSockets = hasAnyConnectedSocketInRoom(room, userId);
         if (!otherSockets) {
           room.players = room.players.filter((p) => p.userId !== userId);
           userToCode.delete(userId);
         } else {
-          player.connected = true;
+          markPlayerConnected(player);
         }
       } else {
-        clearSoftDisconnect(userId);
+        disconnectGrace.clearGrace(userId);
         if (hasAnyConnectedSocketInRoom(room, userId)) {
-          player.connected = true;
+          markPlayerConnected(player);
         } else {
-          const timer = setTimeout(() => {
-            softDisconnectTimers.delete(userId);
+          disconnectGrace.scheduleGrace(userId, player, () => {
             const expectedCode = userToCode.get(userId);
             if (!expectedCode || expectedCode !== code) return;
             const pendingRoom = rooms.get(code);
@@ -473,9 +471,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
             if (hasAnyConnectedSocketInRoom(pendingRoom, userId)) return;
             const pendingPlayer = pendingRoom.players.find((p) => p.userId === userId);
             if (!pendingPlayer) return;
-            pendingPlayer.connected = false;
+            markPlayerGone(pendingPlayer);
             if (pendingRoom.hostId === userId && pendingRoom.players.length) {
-              const connectedHost = pendingRoom.players.find((p) => p.connected !== false);
+              const connectedHost = pendingRoom.players.find((p) => p.presenceStatus === 'connected');
               pendingRoom.hostId = connectedHost?.userId ?? pendingRoom.players[0].userId;
             }
             reconcileRoomAfterMembershipChange(pendingRoom);
@@ -486,10 +484,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
               clearRoomTimers(code);
               rooms.delete(code);
             }
-          }, SOFT_DISCONNECT_GRACE_MS);
-          timer.unref?.();
-          // RC-05: timer cleared on reconnect via trackUserSocket; re-check sockets before marking disconnected.
-          softDisconnectTimers.set(userId, timer);
+          });
+          bumpStateVersion(room);
+          emitRoom(code, 'player_disconnect_pending');
           return;
         }
       }
@@ -517,7 +514,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     socket.join(code);
     trackUserSocket(socket.data.userId, socket.id);
     const player = room.players.find((p) => p.userId === socket.data.userId);
-    if (player) player.connected = true;
+    if (player) {
+      markPlayerConnected(player);
+    }
     reconcileRoomAfterMembershipChange(room);
     bumpStateVersion(room);
     syncLobbyOrTurnTimers(room);

@@ -84,4 +84,31 @@ describe('Auth API', () => {
     const meAfter = await request(app).get('/api/v1/auth/me').set('Cookie', rotatedCookies).expect(200);
     assert.equal(meAfter.body?.data?.user?.email, email);
   });
+
+  it('parallel refresh within grace merges without TOKEN_REUSE', async () => {
+    const email = `parallel_${Date.now()}@example.com`;
+    const register = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        username: `par${Date.now()}`,
+        email,
+        password: strongPassword,
+      })
+      .expect(201);
+    const cookies = register.headers['set-cookie'];
+    assert.ok(Array.isArray(cookies));
+
+    const [a, b] = await Promise.all([
+      request(app).post('/api/v1/auth/refresh').set('Cookie', cookies),
+      request(app).post('/api/v1/auth/refresh').set('Cookie', cookies),
+    ]);
+
+    const statuses = [a.status, b.status].sort();
+    assert.ok(statuses.includes(200), `expected one 200, got ${statuses.join(',')}`);
+    assert.ok(!statuses.every((s) => s === 401), 'should not both fail with TOKEN_REUSE');
+
+    const winnerCookies = a.status === 200 ? a.headers['set-cookie'] : b.headers['set-cookie'];
+    assert.ok(Array.isArray(winnerCookies));
+    await request(app).get('/api/v1/auth/me').set('Cookie', winnerCookies).expect(200);
+  });
 });
