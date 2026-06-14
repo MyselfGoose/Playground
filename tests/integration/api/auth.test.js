@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { applyTestEnv } from '../../support/testEnv.js';
 import { createTestApp } from '../../support/appFactory.js';
+import { refreshSessionRepository } from '../../../backend/src/repositories/refreshSessionRepository.js';
 import {
   startMongoMemoryServer,
   stopMongoMemoryServer,
@@ -110,5 +111,46 @@ describe('Auth API', () => {
     const winnerCookies = a.status === 200 ? a.headers['set-cookie'] : b.headers['set-cookie'];
     assert.ok(Array.isArray(winnerCookies));
     await request(app).get('/api/v1/auth/me').set('Cookie', winnerCookies).expect(200);
+  });
+
+  it('grace merge survives delayed createSession without TOKEN_REUSE', async () => {
+    const email = `delay_${Date.now()}@example.com`;
+    const register = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        username: `dly${Date.now()}`,
+        email,
+        password: strongPassword,
+      })
+      .expect(201);
+    const cookies = register.headers['set-cookie'];
+    assert.ok(Array.isArray(cookies));
+
+    const originalCreate = refreshSessionRepository.createSession.bind(refreshSessionRepository);
+    refreshSessionRepository.createSession = async (params) => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+      return originalCreate(params);
+    };
+
+    try {
+      const [a, b] = await Promise.all([
+        request(app).post('/api/v1/auth/refresh').set('Cookie', cookies),
+        request(app).post('/api/v1/auth/refresh').set('Cookie', cookies),
+      ]);
+
+      const codes = [a.body?.error?.code, b.body?.error?.code].filter(Boolean);
+      assert.ok(!codes.includes('TOKEN_REUSE'), `unexpected TOKEN_REUSE: ${JSON.stringify(codes)}`);
+
+      const statuses = [a.status, b.status].sort();
+      assert.ok(statuses.includes(200), `expected one 200, got ${statuses.join(',')}`);
+
+      const winnerCookies = a.status === 200 ? a.headers['set-cookie'] : b.headers['set-cookie'];
+      assert.ok(Array.isArray(winnerCookies));
+      await request(app).get('/api/v1/auth/me').set('Cookie', winnerCookies).expect(200);
+    } finally {
+      refreshSessionRepository.createSession = originalCreate;
+    }
   });
 });

@@ -5,8 +5,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "../lib/context/UserContext.jsx";
-import { apiFetch, ApiError } from "../lib/api.js";
-import { notifyRefreshCompleted } from "../lib/reconciliation/reconciliationEvents.js";
+import { ApiError } from "../lib/api.js";
+import { coordinatedRefresh } from "../lib/session/coordinatedRefresh.js";
 import {
   GAME_SESSION_HOLD_MS,
   useGameSession,
@@ -39,6 +39,7 @@ export function GameAuthGate({
   const next = loginNext ?? pathname ?? `/games/${gameId}`;
 
   const hadUserRef = useRef(false);
+  const recoveringRef = useRef(false);
   const recoveryStartedRef = useRef(false);
   const [recovering, setRecovering] = useState(false);
   const [recoverySecondsLeft, setRecoverySecondsLeft] = useState(
@@ -50,14 +51,18 @@ export function GameAuthGate({
   }, [user]);
 
   useEffect(() => {
+    recoveringRef.current = recovering;
+  }, [recovering]);
+
+  useEffect(() => {
     if (loading) return;
     if (user) {
-      if (recovering) {
+      if (recoveringRef.current) {
         setRecovering(false);
         endSessionHold();
         recoveryStartedRef.current = false;
       }
-      const code = readLastRoomCode(gameId);
+      const code = readLastRoomCode(gameId, user.id);
       if (code) setActiveRoom(gameId, code);
       return;
     }
@@ -87,8 +92,7 @@ export function GameAuthGate({
     void (async () => {
       while (Date.now() < deadline) {
         try {
-          await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-          notifyRefreshCompleted();
+          await coordinatedRefresh();
           await reconcileNow("game_auth_recovery", { forceVisible: true });
           clearInterval(tick);
           setRecovering(false);
@@ -104,12 +108,15 @@ export function GameAuthGate({
         }
       }
       clearInterval(tick);
+      setRecovering(false);
       endSessionHold();
+      recoveryStartedRef.current = false;
       router.replace(`/login?next=${encodeURIComponent(next)}`);
     })();
 
     return () => {
       clearInterval(tick);
+      endSessionHold();
     };
   }, [
     loading,
@@ -117,7 +124,6 @@ export function GameAuthGate({
     router,
     next,
     gameId,
-    recovering,
     beginSessionHold,
     endSessionHold,
     reconcileNow,

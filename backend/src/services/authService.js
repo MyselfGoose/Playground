@@ -46,6 +46,45 @@ export function createAuthService({ env, passwordService, tokenService }) {
     return Boolean(err && typeof err === 'object' && /** @type {any} */ (err).code === 11000);
   }
 
+  const GRACE_MERGE_MAX_RETRIES = 5;
+  const GRACE_MERGE_RETRY_DELAY_MS = 15;
+
+  /**
+   * @param {number} delayMs
+   */
+  function sleepMs(delayMs) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+  }
+
+  /**
+   * When a concurrent refresh wins rotation, the loser's merge path may run before
+   * `createSession` finishes. Retry briefly instead of treating as TOKEN_REUSE.
+   *
+   * @param {string} sub
+   * @param {string} replacedByJti
+   */
+  async function findWinningSessionForGraceMerge(sub, replacedByJti) {
+    for (let attempt = 0; attempt < GRACE_MERGE_MAX_RETRIES; attempt += 1) {
+      const newRow = await refreshSessionRepository.findByJti(replacedByJti);
+      const nowDate = new Date();
+      if (
+        newRow &&
+        !newRow.revokedAt &&
+        !newRow.replacedByJti &&
+        new Date(newRow.expiresAt) > nowDate &&
+        String(newRow.userId) === sub
+      ) {
+        return newRow;
+      }
+      if (attempt < GRACE_MERGE_MAX_RETRIES - 1) {
+        await sleepMs(GRACE_MERGE_RETRY_DELAY_MS);
+      }
+    }
+    return null;
+  }
+
   return {
     /**
      * @param {{ username: string, email: string, password: string }} input
@@ -155,15 +194,8 @@ export function createAuthService({ env, passwordService, tokenService }) {
             ageMs < concurrentRefreshGraceMs() &&
             String(stale.userId) === sub
           ) {
-            const newRow = await refreshSessionRepository.findByJti(stale.replacedByJti);
-            const nowDate = new Date();
-            if (
-              newRow &&
-              !newRow.revokedAt &&
-              !newRow.replacedByJti &&
-              new Date(newRow.expiresAt) > nowDate &&
-              String(newRow.userId) === sub
-            ) {
+            const newRow = await findWinningSessionForGraceMerge(sub, stale.replacedByJti);
+            if (newRow) {
               const user = await userRepository.findByIdLean(sub);
               if (!user?.isActive) {
                 await refreshSessionRepository.revokeByJti(newRow.jti);
@@ -194,17 +226,22 @@ export function createAuthService({ env, passwordService, tokenService }) {
       }
 
       const expiresAt = new Date(Date.now() + refreshTtlMs());
-      await refreshSessionRepository.createSession({
-        userId: rotated.userId,
-        jti: newSessionJti,
-        expiresAt,
-        userAgent: meta.userAgent,
-        createdFromIp: meta.ip,
-      });
+      try {
+        await refreshSessionRepository.createSession({
+          userId: rotated.userId,
+          jti: newSessionJti,
+          expiresAt,
+          userAgent: meta.userAgent,
+          createdFromIp: meta.ip,
+        });
+      } catch (createErr) {
+        // Rollback: undo the atomic rotation so the old session remains usable
+        await refreshSessionRepository.undoRotation(jti, newSessionJti).catch(() => {});
+        throw createErr;
+      }
 
       const user = await userRepository.findByIdLean(sub);
       if (!user?.isActive) {
-        // User was deactivated between refreshes. Keep rotation state tidy.
         await refreshSessionRepository.revokeByJti(newSessionJti);
         throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
       }

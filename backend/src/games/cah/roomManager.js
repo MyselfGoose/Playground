@@ -268,13 +268,20 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
             await reconcileRoomAfterMembershipChange(pendingRoom);
             bumpStateVersion(pendingRoom);
             emitRoom(code, 'member_disconnected');
+            if (!pendingRoom.players.filter((p) => p.presenceStatus !== 'gone').length) {
+              clearRevealingTimer(code);
+              rooms.delete(code);
+            }
           });
           bumpStateVersion(room);
           emitRoom(code, 'player_disconnect_pending');
         }
       }
     }
-    if (!room.players.length) rooms.delete(code);
+    if (!room.players.length) {
+      clearRevealingTimer(code);
+      rooms.delete(code);
+    }
   }
 
   async function attachActiveRoomForUser(socket) {

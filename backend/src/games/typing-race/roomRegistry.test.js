@@ -37,7 +37,9 @@ function mockSocket(id, userId = "user-default") {
     join(room) {
       this.joined.push(room);
     },
-    leave() {},
+    leave(room) {
+      this.joined = this.joined.filter((r) => r !== room);
+    },
     /** @param {string} event @param {unknown} payload */
     emit(event, payload) {
       this.emitted.push([event, payload]);
@@ -135,6 +137,38 @@ test("kickPlayer rejects non-host", () => {
     () => registry.kickPlayer(guest, "host-1"),
     (e) => /** @type {any} */ (e).code === "FORBIDDEN",
   );
+});
+
+test("same-user reconnect evicts superseded socket from room channel", () => {
+  const registry = freshRegistry();
+  const s1 = mockSocket("sock-a", "u1");
+  const s2 = mockSocket("sock-b", "u1");
+  const { code } = registry.createRoom(s1, "u1", "Alice");
+  assert.ok(s1.joined.includes(code));
+
+  registry.attachActiveRoomForUser(s2);
+
+  assert.ok(!s1.joined.includes(code), "old socket must leave room channel");
+  assert.ok(s2.joined.includes(code));
+  assert.ok(
+    s1.emitted.some(([event]) => event === "typing_session_superseded"),
+    "superseded socket receives typing_session_superseded",
+  );
+  assert.equal(registry.socketToRoom.get(s1.id), undefined);
+  assert.equal(registry.socketToRoom.get(s2.id), code);
+});
+
+test("toPublicSnapshot includes monotonic stateVersion", () => {
+  const registry = freshRegistry();
+  const socket = mockSocket("sock-version", "u1");
+  const { code } = registry.createRoom(socket, "u1", "Alice");
+  const room = registry.rooms.get(code);
+  assert.ok(room);
+  const v1 = room.toPublicSnapshot().stateVersion;
+  room.emitRoom();
+  const v2 = room.toPublicSnapshot().stateVersion;
+  assert.ok(typeof v1 === "number");
+  assert.ok(v2 > v1);
 });
 
 test("resetLobby rejects non-host", () => {

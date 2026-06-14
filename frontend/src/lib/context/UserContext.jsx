@@ -11,8 +11,9 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
+import { refreshSession } from "../session/coordinatedRefresh.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
-import { notifyRefreshCompleted, subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
+import { clearAllLastRoomCodesForUser } from "../lib/session/RoomSession.js";
 import {
   startAccessTokenScheduler,
   stopAccessTokenScheduler,
@@ -172,8 +173,7 @@ export function UserProvider({ children }) {
         if (e instanceof ApiError && e.status === 401) {
           if (hadUser) {
             try {
-              await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-              notifyRefreshCompleted();
+              await refreshSession();
               const retry = await apiFetch("/api/v1/auth/me");
               if (!mountedRef.current) return;
               setUserState((prev) => mergeUserState(prev, mapUser(retry?.data?.user)));
@@ -322,8 +322,7 @@ export function UserProvider({ children }) {
       if (hadIssue) {
         void (async () => {
           try {
-            await apiFetch("/api/v1/auth/refresh", { method: "POST" });
-            notifyRefreshCompleted();
+            await refreshSession();
           } catch {
             /* ignore — reconcile may still recover or surface 401 */
           }
@@ -449,6 +448,9 @@ export function UserProvider({ children }) {
       // Still drop client state; server clears cookies when reachable.
     }
     dispatchSessionInvalidated("logout");
+    if (userRef.current?.id) {
+      clearAllLastRoomCodesForUser(userRef.current.id);
+    }
     setUserState(null);
     invalidateDerivedCaches();
     setSessionError(null);

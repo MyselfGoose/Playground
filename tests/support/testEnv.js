@@ -19,8 +19,10 @@ export function applyTestEnv(overrides = {}) {
     AUTH_RATE_LIMIT_MAX: '100000',
     COOKIE_SECURE: 'false',
     COOKIE_SAME_SITE: 'lax',
+    INSTANCE_COUNT: '1',
     ...overrides,
   };
+  delete process.env.REDIS_URL;
   for (const [k, v] of Object.entries(base)) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;

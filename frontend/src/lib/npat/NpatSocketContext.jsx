@@ -22,6 +22,7 @@ import {
   persistLastRoomCode,
   setResumeSuppressed,
 } from "../session/RoomSession.js";
+import { useActiveGameRoom } from "../session/useActiveGameRoom.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -77,11 +78,11 @@ export function NpatProvider({ children }) {
 
   const onSessionResumedExtra = useCallback((payload) => {
     const code = typeof payload?.room?.code === "string" ? payload.room.code : null;
-    if (code) {
+    if (code && user?.id) {
       setResumedCode(code);
-      persistLastRoomCode("npat", code);
+      persistLastRoomCode("npat", code, user.id);
     }
-  }, []);
+  }, [user?.id]);
 
   const onReconnectFailedExtra = useCallback(() => {
     onReconnectFailedRef.current?.();
@@ -100,13 +101,13 @@ export function NpatProvider({ children }) {
 
   useEffect(() => {
     onReconnectFailedRef.current = () => {
-      socket.setRoom((prev) =>
-        /** @type {RoomSnapshot} */ (
-          prev?.state === "FINISHED" || prev?.state === "EVALUATING" ? prev : null
-        ),
-      );
+      socket.setRoom((prev) => {
+        if (prev?.state === "FINISHED" || prev?.state === "EVALUATING") return prev;
+        socket.resetRoomState();
+        return null;
+      });
     };
-  }, [socket.setRoom]);
+  }, [socket.setRoom, socket.resetRoomState]);
 
   const applyRoom = socket.applyRoom;
 
@@ -173,6 +174,9 @@ export function NpatProvider({ children }) {
     },
     [socket.setSocketError],
   );
+
+  const npatRoomCode = /** @type {string | null} */ (socket.room?.code ?? null);
+  useActiveGameRoom("npat", npatRoomCode);
 
   useEffect(() => {
     if (!user?.id) return;

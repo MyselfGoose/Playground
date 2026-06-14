@@ -13,7 +13,9 @@ import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
 import { normalizePartyCode } from "../../../../lib/party/buildInviteUrl.js";
 import { RejoinRoomPrompt } from "../../../../components/party/RejoinRoomPrompt.jsx";
+import { useUser } from "../../../../lib/context/UserContext.jsx";
 import { clearLastRoomCode, readLastRoomCode } from "../../../../lib/session/RoomSession.js";
+import { useHangman } from "../../../../lib/hangman/HangmanSocketContext.jsx";
 
 export function HangmanEntryScreen() {
   const searchParams = useSearchParams();
@@ -21,7 +23,9 @@ export function HangmanEntryScreen() {
   const normalizedInvite = inviteCodeParam ? normalizePartyCode(inviteCodeParam).slice(0, 4) : "";
 
   const { connected, socketError, room } = useHangmanRoom("entry");
-  const lastRoomCode = readLastRoomCode("hangman");
+  const { leaveRoom } = useHangman();
+  const { user } = useUser();
+  const lastRoomCode = readLastRoomCode("hangman", user?.id);
   const showRejoin = connected && lastRoomCode && !room?.code;
   const { error, createLobby, joinLobby } = useHangmanActions();
   const [joinCode, setJoinCode] = useState(normalizedInvite);
@@ -75,7 +79,10 @@ export function HangmanEntryScreen() {
             roomCode={lastRoomCode}
             lobbyHref="/games/hangman/lobby"
             onRejoin={() => void joinLobby(lastRoomCode)}
-            onLeave={() => clearLastRoomCode("hangman")}
+            onLeave={async () => {
+              await leaveRoom();
+              clearLastRoomCode("hangman", user?.id);
+            }}
           />
         ) : null}
 

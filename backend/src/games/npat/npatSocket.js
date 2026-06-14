@@ -19,6 +19,21 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
     const username = /** @type {string} */ (socket.data.username);
     logger.info({ event: 'npat_connected', userId, socketId: socket.id }, 'npat_socket');
 
+    // Attach before handlers so get_room_state on connect never races session_resumed.
+    try {
+      const engine = await registry.attachActiveRoomForUser(userId, username, socket);
+      if (engine) {
+        const room = engine.toPublicDto();
+        socket.emit('session_resumed', { room });
+        engine.emit('room_update', { room });
+      }
+    } catch (err) {
+      logger.warn(
+        { err, event: 'npat_session_resume_failed', userId, socketId: socket.id },
+        'npat_socket',
+      );
+    }
+
     installHandlers({ socket, registry, env, logger });
 
     socket.on('disconnect', async (reason) => {
@@ -35,23 +50,6 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
         );
       }
     });
-
-    // attachActiveRoomForUser runs before session_resumed so reconnect always sees consistent room state.
-    // Opportunistically reattach to any active room the user belongs to. If this succeeds we
-    // notify the client with `session_resumed` so it can navigate without user action.
-    try {
-      const engine = await registry.attachActiveRoomForUser(userId, username, socket);
-      if (engine) {
-        const room = engine.toPublicDto();
-        socket.emit('session_resumed', { room });
-        engine.emit('room_update', { room });
-      }
-    } catch (err) {
-      logger.warn(
-        { err, event: 'npat_session_resume_failed', userId, socketId: socket.id },
-        'npat_socket',
-      );
-    }
   });
 }
 

@@ -34,6 +34,7 @@ export function TabooProvider({ children }) {
     gameTag: "taboo",
     mapGame: "taboo",
     enabled: Boolean(!loading && getSocketBase() && (user?.id || holdActive)),
+    trackSyncState: true,
     mergeRoom: mergeTabooRoom,
   });
 
@@ -51,9 +52,9 @@ export function TabooProvider({ children }) {
 
   const leaveRoom = useCallback(async () => {
     const result = await socket.leaveRoom();
-    if (result.ok) clearActiveGameRoom("taboo");
+    if (result.ok) clearActiveGameRoom("taboo", user?.id);
     return result;
-  }, [socket.leaveRoom]);
+  }, [socket.leaveRoom, user?.id]);
 
   const getCategories = useCallback(async () => {
     const result = await socket.send("get_categories", {});

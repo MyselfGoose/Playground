@@ -259,14 +259,26 @@ export function createTabooRoomManager({ tabooNs, logger }) {
             const pendingPlayer = pendingRoom.players.find((p) => p.userId === userId);
             if (!pendingPlayer) return;
             markPlayerGone(pendingPlayer);
+            if (pendingRoom.hostId === userId && pendingRoom.players.length) {
+              const connectedHost = pendingRoom.players.find((p) => p.presenceStatus === 'connected');
+              pendingRoom.hostId = connectedHost?.userId ?? pendingRoom.players[0].userId;
+            }
+            game.reconcileRoomAfterMembershipChange(pendingRoom);
             bumpStateVersion(pendingRoom);
             pendingRoom.updatedAt = Date.now();
             emitRoom(code, "member_disconnected");
+            if (!pendingRoom.players.filter((p) => p.presenceStatus !== 'gone').length) {
+              rooms.delete(code);
+            }
           });
           bumpStateVersion(room);
           room.updatedAt = Date.now();
           emitRoom(code, "player_disconnect_pending");
         }
+      }
+      if (hardLeave && room.hostId === userId && room.players.length) {
+        const connectedHost = room.players.find((p) => p.presenceStatus === 'connected');
+        room.hostId = connectedHost?.userId ?? room.players[0].userId;
       }
     }
     if (!room.players.length) rooms.delete(code);
@@ -411,6 +423,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
   }
 
   function shutdown() {
+    for (const userId of userToCode.keys()) disconnectGrace.clearGrace(userId);
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();

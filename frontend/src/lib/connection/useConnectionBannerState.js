@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** @typedef {'npat' | 'cah' | 'taboo' | 'hangman' | 'typing-race' | 'generic'} GameContext */
 
@@ -18,12 +18,14 @@ const SESSION_ENDED_CODES = new Set([
 const BANNER_COPY = {
   connecting: "Joining party…",
   reconnecting: "Back in a sec…",
+  reconnecting_extended: "Still trying to reconnect…",
   offline: "Connection lost",
   "session-ended": "Session ended — Sign in again",
   reconnected: "You're back",
 };
 
 const RECONNECT_PULSE_MS = 2000;
+const EXTENDED_RECONNECT_THRESHOLD_MS = 15_000;
 
 /**
  * @param {{
@@ -45,22 +47,52 @@ export function useConnectionBannerState({
   socketErrorCode,
   reconnectedAt,
 }) {
-  const [reconnectedPulse, setReconnectedPulse] = useState(false);
+  const [tick, setTick] = useState(0);
+  const pulseActiveRef = useRef(false);
+  const extendedActiveRef = useRef(false);
+  const pulseTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const extendedTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
 
   useEffect(() => {
     if (!reconnectedAt) return undefined;
-    setReconnectedPulse(true);
-    const t = setTimeout(() => setReconnectedPulse(false), RECONNECT_PULSE_MS);
-    return () => clearTimeout(t);
+    pulseActiveRef.current = true;
+    setTick((t) => t + 1);
+    if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+    pulseTimerRef.current = setTimeout(() => {
+      pulseActiveRef.current = false;
+      setTick((t) => t + 1);
+    }, RECONNECT_PULSE_MS);
+    return () => {
+      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+    };
   }, [reconnectedAt]);
+
+  const isReconnecting =
+    connectionState === "reconnecting" || socketLifecycle === "RECONNECTING";
+
+  useEffect(() => {
+    if (isReconnecting && !connected) {
+      if (extendedTimerRef.current) clearTimeout(extendedTimerRef.current);
+      extendedTimerRef.current = setTimeout(() => {
+        extendedActiveRef.current = true;
+        setTick((t) => t + 1);
+      }, EXTENDED_RECONNECT_THRESHOLD_MS);
+      return () => {
+        if (extendedTimerRef.current) clearTimeout(extendedTimerRef.current);
+      };
+    }
+    if (extendedTimerRef.current) clearTimeout(extendedTimerRef.current);
+    extendedActiveRef.current = false;
+    return undefined;
+  }, [isReconnecting, connected]);
+
+  const reconnectedPulse = pulseActiveRef.current;
+  const extendedReconnect = extendedActiveRef.current;
 
   return useMemo(() => {
     const isSessionEnded =
       (socketErrorCode && SESSION_ENDED_CODES.has(socketErrorCode)) ||
       /sign in again/i.test(socketError ?? "");
-
-    const isReconnecting =
-      connectionState === "reconnecting" || socketLifecycle === "RECONNECTING";
 
     if (reconnectedPulse && connected && !isSessionEnded) {
       return {
@@ -99,9 +131,13 @@ export function useConnectionBannerState({
       return {
         visible: true,
         state: /** @type {BannerState} */ ("reconnecting"),
-        message: BANNER_COPY.reconnecting,
+        message: extendedReconnect
+          ? BANNER_COPY.reconnecting_extended
+          : BANNER_COPY.reconnecting,
         recoverable: true,
-        actions: /** @type {ConnectionActionId[]} */ (["retry"]),
+        actions: extendedReconnect
+          ? /** @type {ConnectionActionId[]} */ (["retry"])
+          : /** @type {ConnectionActionId[]} */ ([]),
         showReconnected: false,
       };
     }
@@ -140,12 +176,14 @@ export function useConnectionBannerState({
       actions: /** @type {ConnectionActionId[]} */ (["retry"]),
       showReconnected: false,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     connected,
-    connectionState,
-    socketLifecycle,
     socketError,
     socketErrorCode,
     reconnectedPulse,
+    isReconnecting,
+    extendedReconnect,
+    tick,
   ]);
 }

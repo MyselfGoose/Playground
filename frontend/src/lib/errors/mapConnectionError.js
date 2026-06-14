@@ -102,10 +102,11 @@ export function resolveErrorCode(err) {
 
 /**
  * @param {GameContext} game
- * @param {'missing_socket_url'} kind
+ * @param {'missing_socket_url' | 'connection_lost'} kind
  */
 export function connectionMessage(game, kind) {
   if (kind === "missing_socket_url") return MISSING_SOCKET_URL;
+  if (kind === "connection_lost") return CONNECT_FAILED[game] ?? CONNECT_FAILED.generic;
   return NOT_CONNECTED[game] ?? NOT_CONNECTED.generic;
 }
 

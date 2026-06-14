@@ -12,9 +12,9 @@ import {
 import { useRouter } from "next/navigation";
 import { getSocketBase, apiFetch, ApiError } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
-import { dispatchReconcile } from "../reconciliation/reconciliationEvents.js";
 import { connectGameSocket } from "../socket/createGameSocket.js";
-import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
+import { useGameSession } from "../session/GameSessionContext.jsx";
+import { persistLastRoomCode, clearLastRoomCode } from "../session/RoomSession.js";
 import { ackToResult, ACK_TIMEOUT_MS } from "../socket/socketUtils.js";
 import {
   connectionMessage,
@@ -113,6 +113,7 @@ function waitUntilSocketConnected(socket, timeoutMs) {
 
 export function TypingRaceProvider({ children }) {
   const { user, loading: authLoading } = useUser();
+  const { holdActive } = useGameSession();
   const userId = user?.id ?? "";
   const router = useRouter();
   const [room, setRoom] = useState(/** @type {RoomSnap} */ (null));
@@ -139,24 +140,34 @@ export function TypingRaceProvider({ children }) {
 
   const isConnecting = !connected && !socketError;
 
+  const roomVersionRef = useRef(0);
+
   const applyRoom = useCallback((r) => {
     if (r && typeof r === "object") {
-      const sn = /** @type {any} */ (r).serverNow;
+      const incoming = /** @type {any} */ (r);
+      const incomingVersion = typeof incoming.stateVersion === "number" ? incoming.stateVersion : 0;
+      if (incomingVersion > 0 && incomingVersion < roomVersionRef.current) {
+        return;
+      }
+      roomVersionRef.current = incomingVersion;
+      const sn = incoming.serverNow;
       if (typeof sn === "number") {
         setServerOffsetMs(sn - Date.now());
       }
-      const rc = /** @type {any} */ (r).roomCode;
+      const rc = incoming.roomCode;
       if (typeof rc === "string" && typeof sessionStorage !== "undefined") {
         const digits = rc.replace(/\D/g, "");
         if (digits.length >= 4) {
           writeStoredTypingRoomCode(digits);
+          persistLastRoomCode("typing-race", digits, user?.id);
         }
       }
       setRoom(r);
     } else {
+      roomVersionRef.current = 0;
       setRoom(null);
     }
-  }, []);
+  }, [user?.id]);
 
   const emitAck = useCallback((event, payload) => {
     return (async () => {
@@ -222,7 +233,7 @@ export function TypingRaceProvider({ children }) {
     if (authLoading) {
       return undefined;
     }
-    if (!userId) {
+    if (!userId && !holdActive) {
       return undefined;
     }
     const sockBase = getSocketBase();
@@ -325,8 +336,8 @@ export function TypingRaceProvider({ children }) {
         },
         onReconnectFailed: () => {
           if (cancelled) return;
-          setSocketError(SESSION_EXPIRED_MESSAGE);
-          setSocketErrorCode("SESSION_EXPIRED");
+          setSocketError(connectionMessage("typing-race", "connection_lost"));
+          setSocketErrorCode("CONNECTION_LOST");
           setConnected(false);
           setSocketLifecycle("FAILED");
         },
@@ -401,6 +412,8 @@ export function TypingRaceProvider({ children }) {
           return;
         }
         clearStoredTypingRoomCode();
+        clearLastRoomCode("typing-race", user?.id);
+        roomVersionRef.current = 0;
         setRoom(null);
         router.push("/games/typing-race/multi");
       };
@@ -431,7 +444,7 @@ export function TypingRaceProvider({ children }) {
       setRoom(null);
       setSocketLifecycle("DISCONNECTED");
     };
-  }, [authLoading, userId, applyRoom, router]);
+  }, [authLoading, userId, holdActive, applyRoom, router]);
 
   const serverNow = useCallback(
     () => Date.now() + serverOffsetMs,
@@ -463,11 +476,13 @@ export function TypingRaceProvider({ children }) {
   const leaveRoom = useCallback(async () => {
     const result = await emitAck("typing_leave_room", {});
     setRoom(null);
+    roomVersionRef.current = 0;
     if (typeof sessionStorage !== "undefined") {
       clearStoredTypingRoomCode();
+      clearLastRoomCode("typing-race", user?.id);
     }
     return result;
-  }, [emitAck]);
+  }, [emitAck, user?.id]);
 
   const setReady = useCallback(
     async (ready) => {

@@ -17,10 +17,8 @@ With **multiple Node replicas** and no shared adapter, in-memory room maps split
 
 ## Implementation steps (spike branch)
 
-1. **Dependency:** `npm install @socket.io/redis-adapter redis --prefix backend`
-2. **Wire adapter** in [`backend/src/realtime/socketServer.js`](backend/src/realtime/socketServer.js):
-   - Create `redis` pub/sub clients from `env.REDIS_URL`
-   - `io.adapter(createAdapter(pubClient, subClient))` on the main `Server` instance
+1. **Dependency:** `npm install @socket.io/redis-adapter redis --prefix backend` — **done**
+2. **Wire adapter** in [`backend/src/realtime/socketServer.js`](backend/src/realtime/socketServer.js) when `env.REDIS_URL` is set — **done**
 3. **Env:** add optional `REDIS_URL` to [`backend/src/config/env.js`](backend/src/config/env.js) and `.env.example`
 4. **Boot:** fail fast in production if `REDIS_URL` unset when `INSTANCE_COUNT > 1` (optional guard)
 5. **Room authority:** keep per-game registries in memory; adapter only synchronizes Socket.IO packets — **does not** merge room maps by itself

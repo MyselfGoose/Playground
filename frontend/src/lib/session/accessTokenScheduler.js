@@ -2,8 +2,7 @@
  * Proactive refresh before access JWT expiry to avoid 401 bursts mid-game.
  */
 
-import { apiFetch } from "../api.js";
-import { notifyRefreshCompleted } from "../reconciliation/reconciliationEvents.js";
+import { coordinatedRefresh } from "./coordinatedRefresh.js";
 
 /** ~80% of default 15m access TTL */
 const DEFAULT_REFRESH_INTERVAL_MS = 12 * 60 * 1000;
@@ -18,9 +17,8 @@ let inGameBoost = false;
 
 async function runProactiveRefresh() {
   try {
-    await apiFetch("/api/v1/auth/refresh", { method: "POST" });
+    await coordinatedRefresh();
     lastRefreshAt = Date.now();
-    notifyRefreshCompleted();
   } catch {
     /* UserContext / apiFetch will surface session invalidation if unrecoverable */
   }

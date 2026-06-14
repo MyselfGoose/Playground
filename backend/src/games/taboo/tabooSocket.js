@@ -8,12 +8,16 @@ export function installTabooSocketServer({ tabooNs, registry, logger, tokenServi
   tabooNs.on("connection", (socket) => {
     const room = registry.attachActiveRoomForUser(socket);
     if (room) {
+      registry.emitRoom(room.code, "player_reconnected");
       socket.emit("session_resumed", { room: registry.snapshotFor(socket) });
-      registry.emitRoom(room.code, "session_resumed");
     }
     installTabooHandlers({ socket, registry, logger });
     socket.on("disconnect", () => {
-      registry.leaveRoom(socket, { hardLeave: false });
+      try {
+        registry.leaveRoom(socket, { hardLeave: false });
+      } catch (err) {
+        logger.error({ err, socketId: socket.id }, 'taboo disconnect handler error');
+      }
     });
   });
 }

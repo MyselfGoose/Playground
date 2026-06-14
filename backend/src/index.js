@@ -137,11 +137,12 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime } = attachSocketIo({
-    server,
-    env,
-    logger,
-  });
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime } =
+    await attachSocketIo({
+      server,
+      env,
+      logger,
+    });
   bootTrace('TRACE_AFTER_SOCKET_IO');
 
   scheduleNpatBootHydrateWhenMongoReady(registry, logger);

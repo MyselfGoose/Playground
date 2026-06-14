@@ -83,4 +83,19 @@ export const refreshSessionRepository = {
       { $set: { revokedAt: new Date() } },
     );
   },
+
+  /**
+   * Undo an atomic rotation: restore the old session to active state if it was
+   * replaced by the given `newJti`. Used as a rollback when createSession fails
+   * after atomicRotate succeeds.
+   *
+   * @param {string} oldJti
+   * @param {string} newJti
+   */
+  undoRotation(oldJti, newJti) {
+    return RefreshSession.updateOne(
+      { jti: oldJti, replacedByJti: newJti },
+      { $unset: { revokedAt: 1, replacedByJti: 1 } },
+    );
+  },
 };

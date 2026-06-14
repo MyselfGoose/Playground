@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSocketBase } from "../api.js";
 import { connectGameSocket } from "./createGameSocket.js";
 import { emitAck, ACK_TIMEOUT_MS } from "./socketUtils.js";
-import { SESSION_EXPIRED_MESSAGE } from "../session/sessionInvalidation.js";
 import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 /**
@@ -210,7 +209,10 @@ export function useGameSocket({
         },
         onReconnectFailed: () => {
           if (cancelled) return;
-          setSocketError(SESSION_EXPIRED_MESSAGE, "SESSION_EXPIRED");
+          setSocketError(
+            connectionMessage(mapGame, "connection_lost"),
+            "CONNECTION_LOST",
+          );
           setConnectionState("disconnected");
           onReconnectFailedExtraRef.current?.();
         },

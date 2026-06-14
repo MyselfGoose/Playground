@@ -81,9 +81,9 @@ export function HangmanProvider({ children }) {
 
   const leaveRoom = useCallback(async () => {
     const result = await socket.leaveRoom();
-    if (result.ok) clearActiveGameRoom("hangman");
+    if (result.ok) clearActiveGameRoom("hangman", user?.id);
     return result;
-  }, [socket.leaveRoom]);
+  }, [socket.leaveRoom, user?.id]);
 
   const value = useMemo(
     () => ({

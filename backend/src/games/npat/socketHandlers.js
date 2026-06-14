@@ -195,58 +195,64 @@ export function installHandlers({ socket, registry, env, logger }) {
   register('switch_team', {
     schema: switchTeamSchema,
     rateLimit: { key: 'switch_team', intervalMs: env.NPAT_SWITCH_TEAM_RATE_MS },
-    handler: ({ data }) => {
-      const engine = requireEngine();
-      engine.switchTeam(userId, data.teamId);
-      return { room: engine.toPublicDto() };
+    handler: async ({ data }) => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.switchTeam(userId, data.teamId);
+        return { room: engine.toPublicDto() };
+      });
     },
   });
 
   register('set_ready', {
     schema: setReadySchema,
-    handler: ({ data }) => {
-      const engine = requireEngine();
-      engine.setReady(userId, data.ready);
-      return { room: engine.toPublicDto() };
+    handler: async ({ data }) => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.setReady(userId, data.ready);
+        return { room: engine.toPublicDto() };
+      });
     },
   });
 
   register('start_game', {
     schema: startGameSchema,
-    handler: () => {
-      const engine = requireEngine();
-      engine.tryStartGame(userId);
-      return { room: engine.toPublicDto() };
+    handler: async () => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.tryStartGame(userId);
+        return { room: engine.toPublicDto() };
+      });
     },
   });
 
   register('submit_field', {
     schema: submitFieldSchema,
     rateLimit: { key: 'submit_field', intervalMs: env.NPAT_SUBMIT_RATE_MS },
-    handler: ({ data }) => {
-      const engine = requireEngine();
-      engine.submitField(userId, data.field, data.value);
-      return { field: data.field };
+    handler: async ({ data }) => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.submitField(userId, data.field, data.value);
+        return { field: data.field };
+      });
     },
   });
 
   register('propose_early_finish', {
     schema: proposeEarlyFinishSchema,
     rateLimit: { key: 'propose_early_finish', intervalMs: env.NPAT_EARLY_FINISH_PROPOSE_RATE_MS },
-    handler: () => {
-      const engine = requireEngine();
-      engine.proposeEarlyFinish(userId);
-      return { room: engine.toPublicDto() };
+    handler: async () => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.proposeEarlyFinish(userId);
+        return { room: engine.toPublicDto() };
+      });
     },
   });
 
   register('vote_early_finish', {
     schema: voteEarlyFinishSchema,
     rateLimit: { key: 'vote_early_finish', intervalMs: env.NPAT_EARLY_FINISH_VOTE_RATE_MS },
-    handler: ({ data }) => {
-      const engine = requireEngine();
-      engine.voteEarlyFinish(userId, data.accept);
-      return { room: engine.toPublicDto() };
+    handler: async ({ data }) => {
+      return registry.withRoomLock(socket, (engine) => {
+        engine.voteEarlyFinish(userId, data.accept);
+        return { room: engine.toPublicDto() };
+      });
     },
   });
 

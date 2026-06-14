@@ -616,5 +616,41 @@ export function createGameManager() {
     applyAction,
     advanceRoom,
     toSnapshot,
+    reconcileRoomAfterMembershipChange(room) {
+      const activeGame = room.game;
+      if (!activeGame || activeGame.status === "finished") return;
+
+      const activeIds = new Set(connectedPlayerIds(room));
+      if (activeGame.turnOrder?.length) {
+        activeGame.turnOrder = activeGame.turnOrder.filter((turn) => activeIds.has(turn.playerId));
+        if (activeGame.turnIndex >= activeGame.turnOrder.length) {
+          activeGame.turnIndex = Math.max(0, activeGame.turnOrder.length - 1);
+        }
+        if (activeGame.turnOrder[activeGame.turnIndex]) {
+          activeGame.activeTurn = activeGame.turnOrder[activeGame.turnIndex];
+          activeGame.activeTeam = activeGame.activeTurn.team;
+        }
+      }
+
+      if (activePlayersInRoom(room).length < 2) {
+        activeGame.status = "finished";
+        activeGame.endedAt = nowMs();
+        activeGame.turnStartsAt = null;
+        activeGame.turnEndsAt = null;
+        activeGame.phaseEndsAt = null;
+        activeGame.currentCard = null;
+        activeGame.review = null;
+        recordHistory(activeGame, { action: "game_finished", team: null, playerId: null, playerName: null });
+        return;
+      }
+
+      if (
+        activeGame.activeTurn &&
+        !activeIds.has(activeGame.activeTurn.playerId) &&
+        (activeGame.status === "waiting_to_start_turn" || activeGame.status === "turn_in_progress")
+      ) {
+        advancePostTurn(room, "player_gone");
+      }
+    },
   };
 }

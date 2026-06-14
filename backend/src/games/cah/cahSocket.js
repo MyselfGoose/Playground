@@ -8,12 +8,16 @@ export function installCahSocketServer({ cahNs, registry, logger, tokenService }
   cahNs.on('connection', async (socket) => {
     const room = await registry.attachActiveRoomForUser(socket);
     if (room) {
+      registry.emitRoom(room.code, 'player_reconnected');
       socket.emit('session_resumed', { room: registry.snapshotForSocket(socket) });
-      registry.emitRoom(room.code, 'session_resumed');
     }
     installCahHandlers({ socket, registry, logger });
     socket.on('disconnect', async () => {
-      await registry.leaveRoom(socket, { hardLeave: false });
+      try {
+        await registry.leaveRoom(socket, { hardLeave: false });
+      } catch (err) {
+        logger.error({ err, socketId: socket.id }, 'cah disconnect handler error');
+      }
     });
   });
 }

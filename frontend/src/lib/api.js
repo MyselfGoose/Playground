@@ -9,9 +9,8 @@
  * (2) fixes deployments where the client bundle was built without `NEXT_PUBLIC_*` but the variable exists at runtime on the server.
  */
 
-import { dispatchReconcile, notifyRefreshCompleted } from "./reconciliation/reconciliationEvents.js";
-import { withRefreshStorageLock } from "./refreshStorageMutex.js";
 import { dispatchSessionInvalidated } from "./session/sessionInvalidation.js";
+import { refreshSession } from "./session/coordinatedRefresh.js";
 
 /**
  * Strip accidental `/api` or `/api/v1` suffix so paths like `/api/v1/auth/login` are not doubled.
@@ -229,42 +228,6 @@ async function rawFetch(path, options = {}) {
   return json;
 }
 
-/** Web Locks API name for cross-tab refresh serialization (see refreshStorageMutex for fallback). */
-const LOCK_KEY = "playgrounds-auth-refresh";
-
-/**
- * Serialize refresh across tabs via Web Locks API when available, with
- * localStorage-based mutex fallback for older browsers.
- */
-async function refreshViaCoordinator() {
-  const req = () => rawFetch("/api/v1/auth/refresh", { method: "POST" });
-
-  if (typeof navigator !== "undefined" && navigator.locks?.request) {
-    return navigator.locks.request(LOCK_KEY, req);
-  }
-  if (typeof localStorage !== "undefined") {
-    return withRefreshStorageLock(req);
-  }
-  return req();
-}
-
-/**
- * In-flight refresh singleton: concurrent 401s share a single POST /auth/refresh.
- *
- * @type {Promise<unknown> | null}
- */
-let refreshInFlight = null;
-
-/** Paths whose 401s should NOT trigger an automatic refresh. */
-/** Refresh failures with these codes mean the session cannot be recovered client-side. */
-const SESSION_DEAD_REFRESH_CODES = new Set([
-  "INVALID_REFRESH",
-  "TOKEN_REUSE",
-  "SESSION_EXPIRED",
-  "SESSION_REVOKED",
-  "UNAUTHENTICATED",
-]);
-
 const NO_AUTO_REFRESH = new Set([
   "/api/v1/auth/login",
   "/api/v1/auth/register",
@@ -291,29 +254,8 @@ export async function apiFetch(path, options = {}) {
     if (!(err instanceof ApiError) || err.status !== 401 || !shouldAutoRefresh(path, options)) {
       throw err;
     }
-    if (!refreshInFlight) {
-      refreshInFlight = (async () => {
-        try {
-          const json = await refreshViaCoordinator();
-          notifyRefreshCompleted();
-          return json;
-        } catch (e) {
-          dispatchReconcile("refresh_failed");
-          if (
-            e instanceof ApiError &&
-            (e.requires_reauth ||
-              (typeof e.code === "string" && SESSION_DEAD_REFRESH_CODES.has(e.code)))
-          ) {
-            dispatchSessionInvalidated(e.code ?? "refresh_failed");
-          }
-          throw e;
-        }
-      })().finally(() => {
-        refreshInFlight = null;
-      });
-    }
     try {
-      await refreshInFlight;
+      await refreshSession();
     } catch {
       throw err;
     }

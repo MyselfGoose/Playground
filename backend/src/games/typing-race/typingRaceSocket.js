@@ -21,6 +21,12 @@ export function installTypingRaceSocketServer({
     const userId = /** @type {string} */ (socket.data.userId);
     logger.info({ event: "typing_race_connected", userId, socketId: socket.id }, "typing_race");
 
+    const room = registry.attachActiveRoomForUser(socket);
+    if (room) {
+      room.emitRoom();
+      socket.emit("session_resumed", { room: room.toPublicSnapshot() });
+    }
+
     installTypingRaceHandlers({ socket, registry, logger });
 
     socket.on("disconnect", (reason) => {

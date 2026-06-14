@@ -7,13 +7,28 @@ const LAST_ROOM_PREFIX = "playgrounds:last-room:";
 const SUPPRESS_PREFIX = "playgrounds:suppress-resume:";
 
 /**
+ * @param {string} gameId
+ * @param {string} userId
+ */
+function scopedRoomKey(gameId, userId) {
+  return `${LAST_ROOM_PREFIX}${gameId}:${userId}`;
+}
+
+/** @param {string} gameId */
+function legacyRoomKey(gameId) {
+  return `${LAST_ROOM_PREFIX}${gameId}`;
+}
+
+/**
  * @param {string} gameId e.g. `npat`, `cah`, `taboo`
  * @param {string} code
+ * @param {string | null | undefined} userId
  */
-export function persistLastRoomCode(gameId, code) {
-  if (typeof window === "undefined" || !gameId || !code) return;
+export function persistLastRoomCode(gameId, code, userId) {
+  if (typeof window === "undefined" || !gameId || !code || !userId) return;
   try {
-    sessionStorage.setItem(`${LAST_ROOM_PREFIX}${gameId}`, String(code).toUpperCase());
+    sessionStorage.setItem(scopedRoomKey(gameId, userId), String(code).toUpperCase());
+    sessionStorage.removeItem(legacyRoomKey(gameId));
   } catch {
     /* quota / private mode */
   }
@@ -21,13 +36,18 @@ export function persistLastRoomCode(gameId, code) {
 
 /**
  * @param {string} gameId
+ * @param {string | null | undefined} [userId]
  * @returns {string | null}
  */
-export function readLastRoomCode(gameId) {
+export function readLastRoomCode(gameId, userId) {
   if (typeof window === "undefined" || !gameId) return null;
   try {
-    const v = sessionStorage.getItem(`${LAST_ROOM_PREFIX}${gameId}`);
-    return v && v.trim() ? v.trim() : null;
+    if (userId) {
+      const scoped = sessionStorage.getItem(scopedRoomKey(gameId, userId));
+      if (scoped && scoped.trim()) return scoped.trim();
+    }
+    const legacy = sessionStorage.getItem(legacyRoomKey(gameId));
+    return legacy && legacy.trim() ? legacy.trim() : null;
   } catch {
     return null;
   }
@@ -35,11 +55,38 @@ export function readLastRoomCode(gameId) {
 
 /**
  * @param {string} gameId
+ * @param {string | null | undefined} [userId]
  */
-export function clearLastRoomCode(gameId) {
+export function clearLastRoomCode(gameId, userId) {
   if (typeof window === "undefined" || !gameId) return;
   try {
-    sessionStorage.removeItem(`${LAST_ROOM_PREFIX}${gameId}`);
+    if (userId) {
+      sessionStorage.removeItem(scopedRoomKey(gameId, userId));
+    }
+    sessionStorage.removeItem(legacyRoomKey(gameId));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Remove all scoped room codes for a user (call on logout).
+ * @param {string} userId
+ */
+export function clearAllLastRoomCodesForUser(userId) {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    const suffix = `:${userId}`;
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith(LAST_ROOM_PREFIX) && key.endsWith(suffix)) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      sessionStorage.removeItem(key);
+    }
   } catch {
     /* ignore */
   }

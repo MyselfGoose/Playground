@@ -7,6 +7,7 @@ import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
 import { Button } from "../../../components/Button.jsx";
 import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
 import { RejoinRoomPrompt } from "../../../components/party/RejoinRoomPrompt.jsx";
+import { useUser } from "../../../lib/context/UserContext.jsx";
 import { clearLastRoomCode, readLastRoomCode } from "../../../lib/session/RoomSession.js";
 
 function normalizeCode(code) {
@@ -19,8 +20,9 @@ export function CahEntry() {
   const inviteCodeParam = searchParams.get("code") ?? "";
   const normalizedInvite = inviteCodeParam ? normalizeCode(inviteCodeParam) : "";
 
-  const { connected, socketError, createRoom, joinRoom, room } = useCah();
-  const lastRoomCode = readLastRoomCode("cah");
+  const { connected, socketError, createRoom, joinRoom, leaveRoom, room } = useCah();
+  const { user } = useUser();
+  const lastRoomCode = readLastRoomCode("cah", user?.id);
   const showRejoin = connected && lastRoomCode && !room?.code;
   const [joinCode, setJoinCode] = useState(normalizedInvite);
   const [error, setError] = useState("");
@@ -72,7 +74,10 @@ export function CahEntry() {
               return res;
             })
           }
-          onLeave={() => clearLastRoomCode("cah")}
+          onLeave={async () => {
+            await leaveRoom();
+            clearLastRoomCode("cah", user?.id);
+          }}
         />
       ) : null}
 

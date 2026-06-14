@@ -491,7 +491,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
         }
       }
       if (room.hostId === userId && room.players.length) {
-        const connectedHost = room.players.find((p) => p.connected !== false);
+        const connectedHost = room.players.find((p) => p.presenceStatus === 'connected');
         room.hostId = connectedHost?.userId ?? room.players[0].userId;
       }
       reconcileRoomAfterMembershipChange(room);
@@ -597,6 +597,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   function returnToLobby(socket) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    if (room.hostId !== socket.data.userId) {
+      throw Object.assign(new Error('Only host can return to lobby'), { code: 'NOT_HOST' });
+    }
     returnSessionToLobby(room);
     clearRoomTimers(room.code);
     bumpStateVersion(room);
@@ -607,6 +610,9 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   function playAgain(socket) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    if (room.hostId !== socket.data.userId) {
+      throw Object.assign(new Error('Only host can start a new session'), { code: 'NOT_HOST' });
+    }
     playAgainSession(room);
     clearRoomTimers(room.code);
     bumpStateVersion(room);
@@ -621,9 +627,8 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
   }
 
   function shutdown() {
-    for (const timer of softDisconnectTimers.values()) clearTimeout(timer);
-    softDisconnectTimers.clear();
     for (const code of roomTimers.keys()) clearRoomTimers(code);
+    for (const userId of userToCode.keys()) disconnectGrace.clearGrace(userId);
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();

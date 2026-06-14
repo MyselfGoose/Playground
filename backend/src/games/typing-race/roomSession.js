@@ -60,6 +60,8 @@ export class TypingRaceRoom {
     /** @type {ReturnType<typeof setInterval> | null} */
     this._raceTick = null;
     this._version = 1;
+    this.stateVersion = 0;
+    this.lastActivityAt = Date.now();
   }
 
   serverNow() {
@@ -75,6 +77,8 @@ export class TypingRaceRoom {
   }
 
   emitRoom() {
+    this.stateVersion += 1;
+    this.lastActivityAt = Date.now();
     this.emit("typing_room_updated", { room: this.toPublicSnapshot() });
   }
 
@@ -501,6 +505,7 @@ export class TypingRaceRoom {
       roomCode: this.roomCode,
       phase: this.phase,
       hostUserId: this.hostUserId,
+      stateVersion: this.stateVersion,
       serverNow: this.serverNow(),
       countdownEndsAtMs: this.countdownEndsAtMs,
       raceStartAtMs: this.raceStartAtMs,

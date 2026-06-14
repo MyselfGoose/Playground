@@ -29,9 +29,9 @@ export function CahProvider({ children }) {
 
   const leaveRoom = useCallback(async () => {
     const result = await socket.leaveRoom();
-    if (result.ok) clearActiveGameRoom("cah");
+    if (result.ok) clearActiveGameRoom("cah", user?.id);
     return result;
-  }, [socket.leaveRoom]);
+  }, [socket.leaveRoom, user?.id]);
 
   const getPacks = useCallback(async () => {
     const result = await socket.send("get_packs", {});

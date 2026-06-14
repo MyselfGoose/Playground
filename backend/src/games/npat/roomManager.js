@@ -109,6 +109,8 @@ function keyedSerialQueue() {
 export function createNpatRoomRegistry({ env, logger, npatNs }) {
   /** @type {Map<string, NpatRoomEngine>} */
   const engines = new Map();
+  /** @type {Map<string, number>} Mongo persist version per room code */
+  const roomPersistVersion = new Map();
   /** @type {Map<string, string>} */
   const socketToRoom = new Map();
   /**
@@ -164,12 +166,29 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         update.$push = { roundsHistory: pushRound };
       }
       if (Object.keys(update).length === 0) return;
-      update.$inc = { ...(update.$inc ?? {}), version: 1 };
-      try {
-        await npatRoomRepository.updateByCode(code, update);
-      } catch (err) {
-        logger.warn({ err, code, event: 'npat_persist_failed' }, 'npat_persist');
+
+      const maxRetries = 3;
+      for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+        let expected = roomPersistVersion.get(code);
+        if (expected === undefined) {
+          const doc = await npatRoomRepository.findByCode(code);
+          expected = typeof doc?.version === 'number' ? doc.version : 0;
+          roomPersistVersion.set(code, expected);
+        }
+
+        const ok = await npatRoomRepository.updateByCodeVersioned(code, expected, update);
+        if (ok) {
+          roomPersistVersion.set(code, expected + 1);
+          return;
+        }
+
+        const fresh = await npatRoomRepository.findByCode(code);
+        if (fresh && typeof fresh.version === 'number') {
+          roomPersistVersion.set(code, fresh.version);
+        }
       }
+
+      logger.warn({ code, event: 'npat_persist_version_conflict' }, 'npat_persist');
     };
   }
 
@@ -214,6 +233,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       if (cached2) return cached2;
       const doc = await npatRoomRepository.findByCode(code);
       if (!doc) return null;
+      roomPersistVersion.set(doc.code, typeof doc.version === 'number' ? doc.version : 0);
       const persist = makePersist(doc.code);
       const engine = NpatRoomEngine.hydrateFromDoc(doc, {
         env,
@@ -271,6 +291,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     }));
 
     return roomLock.run(code, async () => {
+      roomPersistVersion.set(code, 0);
       const persist = makePersist(code);
       const engine = new NpatRoomEngine({
         code,
@@ -639,6 +660,32 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     });
   }
 
+  /**
+   * Run a function under the room lock for the room a socket is currently in.
+   * Returns null if the socket is not in any room.
+   * @template T
+   * @param {import('socket.io').Socket} socket
+   * @param {(engine: NpatRoomEngine) => T | Promise<T>} fn
+   * @returns {Promise<T>}
+   */
+  async function withRoomLock(socket, fn) {
+    const code = socketToRoom.get(socket.id);
+    if (!code) {
+      const err = new Error('Not in a room');
+      /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+      throw err;
+    }
+    return roomLock.run(code, async () => {
+      const engine = engines.get(code);
+      if (!engine) {
+        const err = new Error('Not in a room');
+        /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+        throw err;
+      }
+      return fn(engine);
+    });
+  }
+
   return {
     engines,
     socketToRoom,
@@ -649,6 +696,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     leaveRoomExplicit,
     resetRoom,
     getEngineForSocket,
+    withRoomLock,
     attachActiveRoomForUser,
     bootHydrate,
     flushAll,

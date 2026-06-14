@@ -12,7 +12,7 @@ export async function startSocketTestStack(env) {
   const logger = createSilentLogger();
   const app = createTestApp({ env, logger });
   const server = http.createServer(app);
-  const { io } = attachSocketIo({ server, env, logger });
+  const { io, registry } = await attachSocketIo({ server, env, logger });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
@@ -30,10 +30,30 @@ export async function startSocketTestStack(env) {
     baseUrl,
     async stop() {
       try {
-        io.disconnectSockets(true);
+        const sockets = await io.fetchSockets();
+        await Promise.all(
+          sockets.map(
+            (s) =>
+              new Promise((resolve) => {
+                s.once('disconnect', () => resolve(undefined));
+                s.disconnect(true);
+              }),
+          ),
+        );
       } catch {
         /* ignore */
       }
+      try {
+        if (registry?.flushAll) {
+          await registry.flushAll();
+        }
+      } catch {
+        /* ignore */
+      }
+      // NPAT persist is fire-and-forget; brief settle before Mongo teardown in tests.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 200);
+      });
       server.closeAllConnections?.();
       await new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve(undefined)));

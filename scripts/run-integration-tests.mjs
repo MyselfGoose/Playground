@@ -29,7 +29,7 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const child = spawn(process.execPath, ['--test', ...files], {
+const child = spawn(process.execPath, ['--test', '--test-concurrency=1', ...files], {
   cwd: root,
   stdio: 'inherit',
   env: process.env,

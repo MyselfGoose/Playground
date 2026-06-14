@@ -137,7 +137,13 @@ export function installCahHandlers({ socket, registry, logger }) {
   });
 
   register(socket, logger, 'get_room_state', null, async () => {
-    return { room: registry.snapshotForSocket(socket) };
+    const snap = registry.snapshotForSocket(socket);
+    if (!snap) {
+      const err = new Error('Not in a room');
+      /** @type {any} */ (err).code = 'NOT_IN_ROOM';
+      throw err;
+    }
+    return { room: snap };
   });
 
   register(socket, logger, 'return_to_lobby', null, async () => {
