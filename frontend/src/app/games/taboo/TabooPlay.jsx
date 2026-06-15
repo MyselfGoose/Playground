@@ -11,7 +11,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TimerBar } from "../../../components/game-feel/TimerBar.jsx";
 import { GameFeedbackOverlay } from "../../../components/feedback/GameFeedbackOverlay.jsx";
@@ -26,6 +26,7 @@ import { teamColors } from "../../../lib/taboo/variants.js";
 import { useFocusTrap } from "../../../lib/a11y/useFocusTrap.js";
 import { PhasePanel, ROLE_BADGES, tabooPath } from "./taboo-shared.js";
 import { TabooPhaseAnnouncer } from "./TabooPhaseAnnouncer.jsx";
+import { TabooReviewOverlay } from "./components/TabooReviewOverlay.jsx";
 
 /**
  * @param {{ room: object }} props
@@ -37,15 +38,14 @@ export function TabooPlay({ room }) {
     connectionState,
     serverNow,
     serverOffsetMs,
+    localUserId,
     startTurn,
-    holdTurnStart,
     submitGuess,
     skipCard,
     tabooCalled,
     requestReview,
     dismissReview,
     reviewVote,
-    reviewContinue,
     leaveRoom,
   } = useTaboo();
 
@@ -59,7 +59,6 @@ export function TabooPlay({ room }) {
 
   const game = room?.game;
   const review = game?.review;
-  const autoStartTurn = room?.settings?.autoStartTurn !== false;
   const teamA = teamColors("A");
   const teamB = teamColors("B");
   const role = game?.viewerRole || "spectator";
@@ -79,7 +78,6 @@ export function TabooPlay({ room }) {
 
   const feedbackVariant = useGameFeedback({
     history: game?.history,
-    review: game?.review,
     gameStatus: game?.status,
     reduceMotion,
   });
@@ -104,11 +102,16 @@ export function TabooPlay({ room }) {
   const roundDuration = room?.settings?.roundDurationSeconds ?? 60;
   const roleBadge = ROLE_BADGES[role] || ROLE_BADGES.spectator;
   const RoleIcon = roleBadge.icon;
-  const showReviewPanel = review && (review.status === "in_progress" || review.status === "resolved");
-  const reviewPaused = review?.status === "in_progress" || review?.status === "resolved";
+  const showReviewOverlay = review?.status === "in_progress";
+  const reviewPaused = review?.status === "in_progress";
+  const hasVoted = Boolean(
+    localUserId &&
+      Array.isArray(review?.votes) &&
+      review.votes.some((entry) => entry.playerId === localUserId && entry.vote),
+  );
   const activeTeamStyle = game?.activeTeam === "B" ? teamB : teamA;
 
-  useFocusTrap(Boolean(showReviewPanel), reviewPanelRef);
+  useFocusTrap(Boolean(showReviewOverlay), reviewPanelRef);
 
   return (
     <motion.div className="min-h-dvh bg-background text-foreground">
@@ -195,114 +198,25 @@ export function TabooPlay({ room }) {
           </div>
         </div>
 
-        {showReviewPanel ? (
-          <div
-            ref={reviewPanelRef}
-            className="mb-4 rounded-2xl border border-foreground/10 bg-background/90 p-5 shadow-[var(--shadow-card)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Taboo review"
-            tabIndex={-1}
-          >
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-foreground/70">Taboo review</p>
-                <p className="text-sm font-bold text-foreground">
-                  {review.status === "in_progress" ? "Review in progress" : "Review resolved"}
-                </p>
-                {review.status === "in_progress" && secondsRemaining > 0 ? (
-                  <p className="mt-1 text-xs font-semibold text-primary">Voting ends in {secondsRemaining}s</p>
-                ) : null}
-                <p className="text-xs text-foreground/75">
-                  Called by {review?.tabooCalledBy?.playerName || "Opponent"} · Team{" "}
-                  {review?.penalizedTeam === "B" ? "Beta" : "Alpha"} penalized
-                </p>
-              </div>
-              <span className="inline-flex items-center rounded-full border border-foreground/10 bg-muted-bright/30 px-3 py-1 text-xs font-semibold text-foreground/80">
-                {review?.notFairCount ?? 0} not fair · {review?.fairCount ?? 0} fair
-              </span>
-            </div>
-            {review.tabooCard ? (
-              <div className="mb-3 rounded-xl border border-foreground/10 bg-muted-bright/20 p-4">
-                <h3 className="text-center text-2xl font-black text-foreground">{review.tabooCard.question}</h3>
-                <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-                  {(review.tabooCard.taboo || []).map((word) => (
-                    <span
-                      key={word}
-                      className="rounded-lg border border-primary/30 bg-pastel-peach/80 px-2.5 py-1 text-xs font-bold text-primary dark:bg-primary/15"
-                    >
-                      {word}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              {game?.permissions?.canVoteReview ? (
-                <>
-                  <button
-                    type="button"
-                    className="min-h-11 flex-1 rounded-xl border border-success/40 bg-pastel-mint/80 px-4 py-2 text-sm font-bold text-success dark:bg-success/15"
-                    onClick={() => act(reviewVote, "fair")}
-                    disabled={!isRealtimeConnected}
-                  >
-                    Vote fair
-                  </button>
-                  <button
-                    type="button"
-                    className="min-h-11 flex-1 rounded-xl border border-primary/40 bg-pastel-peach/80 px-4 py-2 text-sm font-bold text-primary dark:bg-primary/15"
-                    onClick={() => act(reviewVote, "not_fair")}
-                    disabled={!isRealtimeConnected}
-                  >
-                    Vote not fair
-                  </button>
-                </>
-              ) : null}
-              {game?.permissions?.canContinueAfterReview ? (
-                <button
-                  type="button"
-                  className="min-h-11 w-full rounded-xl border border-accent-sky/40 bg-pastel-sky/80 px-4 py-2 text-sm font-bold text-accent-sky dark:bg-accent-sky/15"
-                  onClick={() => act(reviewContinue)}
-                  disabled={!isRealtimeConnected}
-                >
-                  Continue turn
-                </button>
-              ) : null}
-            </div>
-            {review?.status === "resolved" ? (
-              <p className="mt-3 text-xs text-foreground/55">
-                {review?.fairCount ?? 0} fair · {review?.notFairCount ?? 0} not fair · {review?.eligibleCount ?? 0}{" "}
-                total
-              </p>
-            ) : null}
-            {Array.isArray(review?.votes) && review.votes.length > 0 ? (
-              <div className="mt-3 rounded-xl border border-foreground/10 bg-muted-bright/20 p-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-foreground/50">Votes</p>
-                <motion.div className="space-y-1 text-xs text-foreground/70">
-                  {review.votes.map((voteEntry) => (
-                    <div key={voteEntry.playerId} className="flex items-center justify-between">
-                      <span>{voteEntry.playerName || "Player"}</span>
-                      <span className="font-semibold capitalize text-foreground">
-                        {voteEntry.vote ? voteEntry.vote.replace("_", " ") : "pending"}
-                      </span>
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
-            ) : null}
-          </div>
+        {showReviewOverlay ? (
+          <TabooReviewOverlay
+            review={review}
+            canVoteReview={Boolean(game?.permissions?.canVoteReview)}
+            hasVoted={hasVoted}
+            secondsRemaining={secondsRemaining}
+            isRealtimeConnected={isRealtimeConnected}
+            onVote={(vote) => act(reviewVote, vote)}
+            reduceMotion={reduceMotion}
+            panelRef={reviewPanelRef}
+          />
         ) : null}
 
         {normalizedStatus !== "turn_in_progress" ? (
           <div className="mb-4">
             <PhasePanel
               game={{ ...game, status: normalizedStatus }}
-              autoStartTurn={autoStartTurn}
-              turnStartHeld={Boolean(game?.turnStartHeld)}
               canStartTurn={Boolean(game?.permissions?.canStartTurn) && isRealtimeConnected}
-              canHoldTurnStart={Boolean(game?.permissions?.canHoldTurnStart) && isRealtimeConnected}
               onStartTurn={() => act(startTurn)}
-              onHoldTurnStart={() => act(holdTurnStart)}
               countdown={secondsRemaining}
               startTurnDisabled={!isRealtimeConnected && Boolean(game?.permissions?.canStartTurn)}
             />

@@ -168,7 +168,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       settings: {
         roundCount: Number(settings?.roundCount ?? 5),
         roundDurationSeconds: Number(settings?.roundDurationSeconds ?? 60),
-        autoStartTurn: settings?.autoStartTurn !== false,
+        autoStartTurn: settings?.autoStartTurn === true,
         categoryMode: categorySelection.categoryMode,
         categoryIds: categorySelection.categoryIds,
         categoryNames: categorySelection.categoryNames,

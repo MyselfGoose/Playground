@@ -10,6 +10,8 @@ const NEXT_ROUND_DELAY_MS = 10000;
 export const SNAPSHOT_HISTORY_MAX = 40;
 /** Resolve in-progress review if voting does not finish in time. */
 export const TABOO_REVIEW_TIMEOUT_MS = 15_000;
+/** Share of eligible voters that must vote not_fair to reverse a taboo penalty. */
+export const TABOO_REVIEW_REVERT_THRESHOLD = 0.85;
 
 class TabooError extends Error {
   constructor(message, code = "TABOO_ERROR") {
@@ -84,6 +86,16 @@ function connectedPlayerIds(room) {
   return activePlayersInRoom(room).map((player) => player.userId);
 }
 
+function reviewOutcomeFromVotes(notFairCount, eligibleCount) {
+  if (eligibleCount <= 0) return "upheld";
+  return notFairCount / eligibleCount > TABOO_REVIEW_REVERT_THRESHOLD ? "reverted" : "upheld";
+}
+
+function votesNeededToRevert(eligibleCount) {
+  if (eligibleCount <= 0) return 0;
+  return Math.floor(eligibleCount * TABOO_REVIEW_REVERT_THRESHOLD) + 1;
+}
+
 export function createDeckProvider() {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const datasetPath = path.resolve(moduleDir, "data", "taboo.json");
@@ -124,18 +136,15 @@ function drawNextCard(room) {
 }
 
 function autoStartTurnEnabled(room) {
-  return room.settings?.autoStartTurn !== false;
+  return room.settings?.autoStartTurn === true;
 }
 
 export function createGameManager() {
-  function scheduleTurnAutoStart(room) {
+  function clearWaitingTurnTimer(room) {
     const game = room.game;
-    if (!game || game.status !== "waiting_to_start_turn") return;
-    if (!autoStartTurnEnabled(room) || game.turnStartHeld) {
+    if (game?.status === "waiting_to_start_turn") {
       game.phaseEndsAt = null;
-      return;
     }
-    game.phaseEndsAt = nowMs() + TURN_READY_DELAY_MS;
   }
 
   function beginTurn(room, userId) {
@@ -152,7 +161,6 @@ export function createGameManager() {
     game.turnStartsAt = nowMs();
     game.turnEndsAt = nowMs() + room.settings.roundDurationSeconds * 1000;
     game.phaseEndsAt = null;
-    game.turnStartHeld = false;
     recordHistory(game, { action: "turn_started", team: game.activeTeam, playerId: userId, playerName: player.username });
     return "turn_started";
   }
@@ -188,10 +196,9 @@ export function createGameManager() {
       review: null,
       history: [],
       lastTurnSummary: null,
-      turnStartHeld: false,
     };
     recordHistory(room.game, { action: "game_started", team: null, playerId: null, playerName: null });
-    scheduleTurnAutoStart(room);
+    clearWaitingTurnTimer(room);
   }
 
   function recordHistory(game, entry) {
@@ -246,6 +253,21 @@ export function createGameManager() {
     return "round_completed";
   }
 
+  function continueAfterReview(room, review) {
+    const game = room.game;
+    const remainingMs = Math.max(0, Number(review.pausedRemainingMs || 0));
+    drawNextCard(room);
+    game.turnEndsAt = nowMs() + remainingMs;
+    game.review = null;
+    recordHistory(game, {
+      action: "review_continued",
+      team: game.activeTeam,
+      playerId: game.activeTurn?.playerId || null,
+      playerName: game.activeTurn?.playerName || null,
+      remainingMs,
+    });
+  }
+
   function finalizeReviewOutcome(room, review, outcome, meta = {}) {
     const notFair = meta.notFairCount ?? 0;
     const fair = meta.fairCount ?? 0;
@@ -262,6 +284,7 @@ export function createGameManager() {
       notFairCount: notFair,
       timedOut: meta.timedOut ?? false,
     });
+    continueAfterReview(room, review);
     return true;
   }
 
@@ -272,17 +295,14 @@ export function createGameManager() {
     review.eligiblePlayerIds = (Array.isArray(review.eligiblePlayerIds) ? review.eligiblePlayerIds : []).filter((pid) => connected.has(pid));
     const eligible = review.eligiblePlayerIds;
     if (!eligible.length) {
-      review.status = "resolved";
-      review.outcome = "upheld";
-      review.votes = {};
-      return true;
+      return finalizeReviewOutcome(room, review, "upheld", { fairCount: 0, notFairCount: 0 });
     }
     const votes = review.votes || {};
     const hasAllVotes = eligible.every((pid) => votes[pid] === "fair" || votes[pid] === "not_fair");
     if (!hasAllVotes) return false;
     const notFair = eligible.filter((pid) => votes[pid] === "not_fair").length;
     const fair = eligible.length - notFair;
-    const outcome = notFair > fair ? "reverted" : "upheld";
+    const outcome = reviewOutcomeFromVotes(notFair, eligible.length);
     return finalizeReviewOutcome(room, review, outcome, { fairCount: fair, notFairCount: notFair });
   }
 
@@ -293,16 +313,12 @@ export function createGameManager() {
     review.eligiblePlayerIds = (Array.isArray(review.eligiblePlayerIds) ? review.eligiblePlayerIds : []).filter((pid) => connected.has(pid));
     const eligible = review.eligiblePlayerIds;
     if (!eligible.length) {
-      return finalizeReviewOutcome(room, review, "upheld", { timedOut: true });
+      return finalizeReviewOutcome(room, review, "upheld", { fairCount: 0, notFairCount: 0, timedOut: true });
     }
     const votes = review.votes || {};
-    const cast = eligible.filter((pid) => votes[pid] === "fair" || votes[pid] === "not_fair");
-    if (!cast.length) {
-      return finalizeReviewOutcome(room, review, "upheld", { timedOut: true });
-    }
-    const notFair = cast.filter((pid) => votes[pid] === "not_fair").length;
-    const fair = cast.length - notFair;
-    const outcome = notFair > fair ? "reverted" : "upheld";
+    const notFair = eligible.filter((pid) => votes[pid] === "not_fair").length;
+    const fair = eligible.filter((pid) => votes[pid] === "fair").length;
+    const outcome = reviewOutcomeFromVotes(notFair, eligible.length);
     return finalizeReviewOutcome(room, review, outcome, { fairCount: fair, notFairCount: notFair, timedOut: true });
   }
 
@@ -314,16 +330,6 @@ export function createGameManager() {
 
     if (action === "start_turn") {
       return beginTurn(room, userId);
-    }
-
-    if (action === "hold_turn_start") {
-      if (game.status !== "waiting_to_start_turn") throw new TabooError("Turn not ready.", "TURN_NOT_READY");
-      if (game.activeTurn?.playerId !== userId) throw new TabooError("Only clue giver can hold turn start.", "NOT_CLUE_GIVER");
-      if (!autoStartTurnEnabled(room)) throw new TabooError("Auto-start is disabled.", "AUTO_START_DISABLED");
-      game.turnStartHeld = true;
-      game.phaseEndsAt = null;
-      recordHistory(game, { action: "turn_start_held", team: game.activeTeam, playerId: userId, playerName: player.username });
-      return "turn_start_held";
     }
 
     if (action === "submit_guess") {
@@ -405,18 +411,7 @@ export function createGameManager() {
       if (!game.review.eligiblePlayerIds.includes(userId)) throw new TabooError("Not eligible to vote.", "REVIEW_NOT_ELIGIBLE");
       game.review.votes[userId] = payload.vote;
       recordHistory(game, { action: "review_vote", team: player.team, playerId: userId, playerName: player.username, vote: payload.vote });
-      return resolveReview(room) ? "review_resolved" : "review_vote";
-    }
-
-    if (action === "review_continue") {
-      if (game.review?.status !== "resolved") throw new TabooError("Review not resolved.", "REVIEW_NOT_RESOLVED");
-      if (game.activeTurn?.playerId !== userId) throw new TabooError("Only clue giver can continue.", "REVIEW_CONTINUE_NOT_ALLOWED");
-      const remainingMs = Math.max(0, Number(game.review.pausedRemainingMs || 0));
-      drawNextCard(room);
-      game.turnEndsAt = nowMs() + remainingMs;
-      game.review = null;
-      recordHistory(game, { action: "review_continued", team: player.team, playerId: userId, playerName: player.username, remainingMs });
-      return "review_continued";
+      return resolveReview(room) ? "review_continued" : "review_vote";
     }
 
     throw new TabooError("Unsupported action.", "INVALID_GAME_ACTION");
@@ -431,10 +426,10 @@ export function createGameManager() {
       typeof game.review.reviewEndsAt === "number" &&
       game.review.reviewEndsAt <= now
     ) {
-      if (resolveReviewOnTimeout(room)) return "review_resolved";
+      if (resolveReviewOnTimeout(room)) return "review_continued";
     }
     if (game.review?.status === "in_progress" && resolveReview(room)) {
-      return "review_resolved";
+      return "review_continued";
     }
     if (game.status === "waiting_to_start_turn") {
       const clueGiverConnected = room.players.some(
@@ -446,7 +441,6 @@ export function createGameManager() {
       }
       if (
         autoStartTurnEnabled(room) &&
-        !game.turnStartHeld &&
         typeof game.phaseEndsAt === "number" &&
         game.phaseEndsAt <= now &&
         game.activeTurn?.playerId
@@ -472,9 +466,8 @@ export function createGameManager() {
       game.status = "waiting_to_start_turn";
       game.turnStartsAt = null;
       game.turnEndsAt = null;
-      game.turnStartHeld = false;
       recordHistory(game, { action: "next_turn_ready", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null });
-      scheduleTurnAutoStart(room);
+      clearWaitingTurnTimer(room);
       return "next_turn_ready";
     }
     if (game.status === "between_rounds" && typeof game.phaseEndsAt === "number" && game.phaseEndsAt <= now) {
@@ -491,9 +484,8 @@ export function createGameManager() {
       game.status = "waiting_to_start_turn";
       game.turnStartsAt = null;
       game.turnEndsAt = null;
-      game.turnStartHeld = false;
       recordHistory(game, { action: "round_started", team: game.activeTeam, playerId: game.activeTurn?.playerId || null, playerName: game.activeTurn?.playerName || null, roundNumber: game.roundNumber });
-      scheduleTurnAutoStart(room);
+      clearWaitingTurnTimer(room);
       return "round_started";
     }
     return null;
@@ -513,7 +505,7 @@ export function createGameManager() {
     const role = viewerRole(room, userId);
     const me = room.players.find((p) => p.userId === userId) ?? null;
     const review = game?.review;
-    const reviewPaused = review?.status === "in_progress" || review?.status === "resolved";
+    const reviewPaused = review?.status === "in_progress";
     const countdownEndsAt =
       review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
         ? review.reviewEndsAt
@@ -523,12 +515,11 @@ export function createGameManager() {
     const secondsRemaining =
       review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
         ? Math.max(0, Math.ceil((review.reviewEndsAt - nowMs()) / 1000))
-        : reviewPaused && review?.status === "resolved"
-          ? Math.max(0, Math.ceil((review?.pausedRemainingMs || 0) / 1000))
-          : countdownEndsAt
-            ? Math.max(0, Math.ceil((countdownEndsAt - nowMs()) / 1000))
-            : 0;
+        : countdownEndsAt
+          ? Math.max(0, Math.ceil((countdownEndsAt - nowMs()) / 1000))
+          : 0;
     const hideCard = !game || game.status !== "turn_in_progress" || role === "spectator" || role === "teammate_guesser";
+    const eligibleCount = (review?.eligiblePlayerIds || []).length;
     const reviewSnapshot = review ? {
       id: review.id || null,
       status: review.status,
@@ -540,10 +531,12 @@ export function createGameManager() {
         playerName: room.players.find((p) => p.userId === pid)?.username || null,
         vote: review.votes?.[pid] || null,
       })),
-      eligibleCount: (review.eligiblePlayerIds || []).length,
+      eligibleCount,
       fairCount: (review.eligiblePlayerIds || []).filter((pid) => review.votes?.[pid] === "fair").length,
       notFairCount: (review.eligiblePlayerIds || []).filter((pid) => review.votes?.[pid] === "not_fair").length,
       outcome: review.outcome || null,
+      revertThreshold: TABOO_REVIEW_REVERT_THRESHOLD,
+      votesNeededToRevert: votesNeededToRevert(eligibleCount),
     } : null;
 
     return {
@@ -566,7 +559,6 @@ export function createGameManager() {
       settings: room.settings,
       game: game ? {
         status: game.status,
-        turnStartHeld: Boolean(game.turnStartHeld),
         startedAt: game.startedAt,
         endedAt: game.endedAt,
         roundNumber: game.roundNumber,
@@ -586,18 +578,12 @@ export function createGameManager() {
         viewerRole: role,
         permissions: {
           canStartTurn: role === "clue_giver" && game.status === "waiting_to_start_turn",
-          canHoldTurnStart:
-            role === "clue_giver" &&
-            game.status === "waiting_to_start_turn" &&
-            autoStartTurnEnabled(room) &&
-            !game.turnStartHeld,
           canSubmitGuess: role === "teammate_guesser" && game.status === "turn_in_progress" && !reviewPaused,
           canSkipCard: role === "clue_giver" && game.status === "turn_in_progress" && !reviewPaused,
           canCallTaboo: role === "opponent_observer" && game.status === "turn_in_progress" && !game.currentCardMeta?.tabooUsed && !reviewPaused,
           canRequestReview: review?.status === "available" && !!me?.team && me.team === review?.penalizedTeam,
           canDismissReview: review?.status === "available" && !!me?.team && me.team === review?.penalizedTeam,
           canVoteReview: review?.status === "in_progress" && !!me && (review?.eligiblePlayerIds || []).includes(me.userId),
-          canContinueAfterReview: review?.status === "resolved" && game.activeTurn?.playerId === me?.userId,
         },
         currentCard: hideCard ? null : game.currentCard,
         cardVisibleToViewer: !hideCard,

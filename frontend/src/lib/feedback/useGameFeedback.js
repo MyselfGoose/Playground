@@ -4,14 +4,13 @@ const FEEDBACK_MS = 650;
 
 function lastEntrySignature(entry) {
   if (!entry) return "";
-  return `${entry.at}|${entry.action}|${entry.playerId || ""}|${entry.guess || ""}|${entry.matched === true ? "1" : "0"}`;
+  return `${entry.at}|${entry.action}|${entry.playerId || ""}|${entry.guess || ""}|${entry.outcome || ""}|${entry.matched === true ? "1" : "0"}`;
 }
 
-export function useGameFeedback({ history, review, gameStatus, reduceMotion }) {
+export function useGameFeedback({ history, gameStatus, reduceMotion }) {
   const [variant, setVariant] = useState(null);
   const lastEntrySigRef = useRef("");
   const historyPrimedRef = useRef(false);
-  const prevReviewOutcomeRef = useRef(null);
   const timerRef = useRef(null);
 
   useEffect(() => () => {
@@ -37,24 +36,12 @@ export function useGameFeedback({ history, review, gameStatus, reduceMotion }) {
     else if (last.action === "taboo_called") next = "taboo";
     else if (last.action === "close_guess") next = "close";
     else if (last.action === "skip_card") next = "skip";
+    else if (last.action === "review_resolved") next = last.outcome === "reverted" ? "review_reverted" : "review_upheld";
     if (!next) return;
     setVariant(next);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setVariant(null), FEEDBACK_MS);
   }, [history, gameStatus, reduceMotion]);
-
-  useEffect(() => {
-    if (reduceMotion || gameStatus === "finished") return;
-    const outcome = review?.outcome;
-    if (!outcome || outcome === prevReviewOutcomeRef.current) {
-      if (!outcome) prevReviewOutcomeRef.current = null;
-      return;
-    }
-    prevReviewOutcomeRef.current = outcome;
-    setVariant(outcome === "reverted" ? "review_reverted" : "review_upheld");
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setVariant(null), FEEDBACK_MS);
-  }, [review?.outcome, gameStatus, reduceMotion]);
 
   return variant;
 }

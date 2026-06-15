@@ -163,24 +163,16 @@ const phaseCardClass =
 /**
  * @param {{
  *   game: object,
- *   autoStartTurn?: boolean,
- *   turnStartHeld?: boolean,
  *   canStartTurn?: boolean,
- *   canHoldTurnStart?: boolean,
  *   onStartTurn?: () => void,
- *   onHoldTurnStart?: () => void,
  *   countdown?: number,
  *   startTurnDisabled?: boolean,
  * }} props
  */
 export function PhasePanel({
   game,
-  autoStartTurn = true,
-  turnStartHeld = false,
   canStartTurn = false,
-  canHoldTurnStart = false,
   onStartTurn,
-  onHoldTurnStart,
   countdown = 0,
   startTurnDisabled = false,
 }) {
@@ -189,15 +181,26 @@ export function PhasePanel({
   const summary = game?.lastTurnSummary;
 
   if (game?.status === "waiting_to_start_turn") {
-    const showManualStart = canStartTurn && (!autoStartTurn || turnStartHeld);
-    const showAutoReady = canStartTurn && autoStartTurn && !turnStartHeld;
-
     return (
       <motion.div className={phaseCardClass}>
         <p className="mb-1 text-sm font-semibold text-foreground/75">Next turn</p>
         <h2 className="mb-2 text-xl font-black text-foreground">{activeName}</h2>
         <p className="mb-4 text-sm text-foreground/75">Team {activeTeamLabel}</p>
-        {showManualStart ? (
+        {summary ? (
+          <div className="mb-4">
+            <p className="text-sm font-bold text-foreground">
+              {summary.clueGiverName} scored{" "}
+              <span className="text-success">{summary.correctGuesses}</span> point
+              {summary.correctGuesses === 1 ? "" : "s"} for Team {summary.team === "B" ? "Beta" : "Alpha"}
+            </p>
+            {summary.taboos > 0 ? (
+              <p className="mt-1 text-xs font-semibold text-primary">
+                {summary.taboos} taboo {summary.taboos === 1 ? "penalty" : "penalties"}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {canStartTurn ? (
           <button
             type="button"
             onClick={onStartTurn}
@@ -207,30 +210,10 @@ export function PhasePanel({
             <Play className="h-4 w-4" />
             Start Turn
           </button>
-        ) : showAutoReady ? (
-          <motion.div className="space-y-2">
-            <p className="text-sm font-bold text-foreground">Get ready…</p>
-            {countdown > 0 ? (
-              <p className="text-2xl font-black tabular-nums text-primary">{countdown}</p>
-            ) : null}
-            {canHoldTurnStart ? (
-              <button
-                type="button"
-                onClick={onHoldTurnStart}
-                disabled={startTurnDisabled}
-                className="text-xs font-semibold text-foreground/50 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
-              >
-                Hold — start manually
-              </button>
-            ) : null}
-          </motion.div>
         ) : startTurnDisabled ? (
           <p className="text-sm font-semibold text-warning">Reconnecting…</p>
         ) : (
-          <p className="text-sm text-foreground/75">
-            Waiting for {activeName}
-            {countdown > 0 ? ` · starting in ${countdown}s` : ""}
-          </p>
+          <p className="text-sm text-foreground/75">Waiting for {activeName} to start their turn</p>
         )}
       </motion.div>
     );

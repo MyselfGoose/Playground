@@ -63,14 +63,21 @@ test("taboo guess scoring and review flow", async () => {
   manager.applyAction(a2, "submit_guess", { guess: answer });
   assert.equal(room.game.scores.A >= 1, true);
 
+  const cardBeforeReview = room.game.currentCard?.id;
   manager.applyAction(b1, "taboo_called", {});
   assert.equal(room.game.review.status, "available");
   manager.applyAction(a2, "request_review", {});
   assert.equal(room.game.review.status, "in_progress");
   manager.applyAction(a1, "review_vote", { vote: "not_fair" });
   manager.applyAction(a2, "review_vote", { vote: "not_fair" });
-  manager.applyAction(b1, "review_vote", { vote: "fair" });
-  assert.equal(room.game.review.status, "resolved");
+  const { reason } = manager.applyAction(b1, "review_vote", { vote: "fair" });
+  assert.equal(reason, "review_continued");
+  assert.equal(room.game.review, null);
+  assert.equal(room.game.status, "turn_in_progress");
+  assert.notEqual(room.game.currentCard?.id, cardBeforeReview);
+  assert.ok(typeof room.game.turnEndsAt === "number");
+  const resolved = room.game.history.findLast((e) => e.action === "review_resolved");
+  assert.equal(resolved?.outcome, "upheld");
 });
 
 test("taboo reconnect reattaches same user to room", async () => {
@@ -130,11 +137,13 @@ test("review resolves when disconnected players are removed from voters", async 
   manager.applyAction(b1, "taboo_called", {});
   manager.applyAction(a2, "request_review", {});
 
-  manager.leaveRoom(a2, { hardLeave: false });
+  manager.leaveRoom(a2, { hardLeave: true });
   manager.applyAction(a1, "review_vote", { vote: "fair" });
   manager.applyAction(b1, "review_vote", { vote: "fair" });
   manager.tick();
-  assert.equal(room.game.review.status, "resolved");
+  assert.equal(room.game.review, null);
+  const resolved = room.game.history.findLast((e) => e.action === "review_resolved");
+  assert.equal(resolved?.outcome, "upheld");
 });
 
 test("stateVersion increases across room/game mutations", async () => {
@@ -204,9 +213,10 @@ test("review times out with upheld outcome when no votes cast", async () => {
 
   room.game.review.reviewEndsAt = Date.now() - 1;
   const updates = manager.tick();
-  assert.ok(updates.some((u) => u.reason === "review_resolved"));
-  assert.equal(room.game.review.status, "resolved");
-  assert.equal(room.game.review.outcome, "upheld");
+  assert.ok(updates.some((u) => u.reason === "review_continued"));
+  assert.equal(room.game.review, null);
+  const resolved = room.game.history.findLast((e) => e.action === "review_resolved");
+  assert.equal(resolved?.outcome, "upheld");
 });
 
 test("hard leave with another active socket keeps player in room", async () => {
@@ -248,7 +258,26 @@ test("snapshot caps history at SNAPSHOT_HISTORY_MAX and includes serverNow", asy
   const snap = manager.snapshotFor(host);
   assert.equal(snap.game.history.length, SNAPSHOT_HISTORY_MAX);
   assert.equal(typeof snap.serverNow, "number");
-  assert.ok(snap.settings.autoStartTurn);
+  assert.equal(snap.settings.autoStartTurn, false);
+});
+
+test("turn does not auto-start by default after countdown", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const host = makeSocket("s1", "u1", "host");
+  const guest = makeSocket("s2", "u2", "guest");
+  ns.sockets.set(host.id, host);
+  ns.sockets.set(guest.id, guest);
+  const room = manager.createRoom(host, "u1", "host", {});
+  manager.joinRoom(room.code, guest, "u2", "guest");
+  manager.changeTeam(guest, "B");
+  manager.setReady(host, true);
+  manager.setReady(guest, true);
+  assert.equal(room.game.status, "waiting_to_start_turn");
+  assert.equal(room.game.phaseEndsAt, null);
+
+  manager.tick();
+  assert.equal(room.game.status, "waiting_to_start_turn");
 });
 
 test("turn auto-starts after countdown when autoStartTurn enabled", async () => {
@@ -258,13 +287,13 @@ test("turn auto-starts after countdown when autoStartTurn enabled", async () => 
   const guest = makeSocket("s2", "u2", "guest");
   ns.sockets.set(host.id, host);
   ns.sockets.set(guest.id, guest);
-  const room = manager.createRoom(host, "u1", "host", {});
+  const room = manager.createRoom(host, "u1", "host", { autoStartTurn: true });
   manager.joinRoom(room.code, guest, "u2", "guest");
   manager.changeTeam(guest, "B");
   manager.setReady(host, true);
   manager.setReady(guest, true);
   assert.equal(room.game.status, "waiting_to_start_turn");
-  assert.ok(typeof room.game.phaseEndsAt === "number");
+  assert.equal(room.game.phaseEndsAt, null);
 
   room.game.phaseEndsAt = Date.now() - 1;
   const updates = manager.tick();
@@ -272,30 +301,7 @@ test("turn auto-starts after countdown when autoStartTurn enabled", async () => 
   assert.equal(room.game.status, "turn_in_progress");
 });
 
-test("hold_turn_start prevents auto-start until manual start_turn", async () => {
-  const ns = makeNs();
-  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
-  const host = makeSocket("s1", "u1", "host");
-  const guest = makeSocket("s2", "u2", "guest");
-  ns.sockets.set(host.id, host);
-  ns.sockets.set(guest.id, guest);
-  const room = manager.createRoom(host, "u1", "host", {});
-  manager.joinRoom(room.code, guest, "u2", "guest");
-  manager.changeTeam(guest, "B");
-  manager.setReady(host, true);
-  manager.setReady(guest, true);
-
-  manager.applyAction(host, "hold_turn_start", {});
-  assert.equal(room.game.turnStartHeld, true);
-  room.game.phaseEndsAt = Date.now() - 1;
-  manager.tick();
-  assert.equal(room.game.status, "waiting_to_start_turn");
-
-  manager.applyAction(host, "start_turn", {});
-  assert.equal(room.game.status, "turn_in_progress");
-});
-
-test("autoStartTurn false requires manual start_turn", async () => {
+test("manual start_turn required by default", async () => {
   const ns = makeNs();
   const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
   const host = makeSocket("s1", "u1", "host");
@@ -315,4 +321,78 @@ test("autoStartTurn false requires manual start_turn", async () => {
 
   manager.applyAction(host, "start_turn", {});
   assert.equal(room.game.status, "turn_in_progress");
+});
+
+test("review reverts taboo when more than 85% vote not fair", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const a1 = makeSocket("a1", "u1", "alpha1");
+  const a2 = makeSocket("a2", "u2", "alpha2");
+  const b1 = makeSocket("b1", "u3", "beta1");
+  const b2 = makeSocket("b2", "u4", "beta2");
+  ns.sockets.set(a1.id, a1);
+  ns.sockets.set(a2.id, a2);
+  ns.sockets.set(b1.id, b1);
+  ns.sockets.set(b2.id, b2);
+
+  const room = manager.createRoom(a1, "u1", "alpha1", { roundCount: 1, roundDurationSeconds: 60 });
+  manager.joinRoom(room.code, a2, "u2", "alpha2");
+  manager.joinRoom(room.code, b1, "u3", "beta1");
+  manager.joinRoom(room.code, b2, "u4", "beta2");
+  manager.changeTeam(a2, "A");
+  manager.changeTeam(b1, "B");
+  manager.changeTeam(b2, "B");
+  manager.setReady(a1, true);
+  manager.setReady(a2, true);
+  manager.setReady(b1, true);
+  manager.setReady(b2, true);
+  manager.applyAction(a1, "start_turn", {});
+
+  const scoreBefore = room.game.scores.A;
+  manager.applyAction(b1, "taboo_called", {});
+  assert.equal(room.game.scores.A, scoreBefore - 1);
+  manager.applyAction(a2, "request_review", {});
+  manager.applyAction(a1, "review_vote", { vote: "not_fair" });
+  manager.applyAction(a2, "review_vote", { vote: "not_fair" });
+  manager.applyAction(b1, "review_vote", { vote: "not_fair" });
+  manager.applyAction(b2, "review_vote", { vote: "not_fair" });
+
+  assert.equal(room.game.review, null);
+  const resolved = room.game.history.findLast((e) => e.action === "review_resolved");
+  assert.equal(resolved?.outcome, "reverted");
+  assert.equal(room.game.scores.A, scoreBefore);
+});
+
+test("review timeout with partial votes uses all eligible for threshold", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const a1 = makeSocket("a1", "u1", "alpha1");
+  const a2 = makeSocket("a2", "u2", "alpha2");
+  const b1 = makeSocket("b1", "u3", "beta1");
+  ns.sockets.set(a1.id, a1);
+  ns.sockets.set(a2.id, a2);
+  ns.sockets.set(b1.id, b1);
+
+  const room = manager.createRoom(a1, "u1", "alpha1", { roundCount: 1, roundDurationSeconds: 60 });
+  manager.joinRoom(room.code, a2, "u2", "alpha2");
+  manager.joinRoom(room.code, b1, "u3", "beta1");
+  manager.changeTeam(a2, "A");
+  manager.changeTeam(b1, "B");
+  manager.setReady(a1, true);
+  manager.setReady(a2, true);
+  manager.setReady(b1, true);
+  manager.applyAction(a1, "start_turn", {});
+
+  const scoreBefore = room.game.scores.A;
+  manager.applyAction(b1, "taboo_called", {});
+  manager.applyAction(a2, "request_review", {});
+  manager.applyAction(a1, "review_vote", { vote: "not_fair" });
+  manager.applyAction(a2, "review_vote", { vote: "not_fair" });
+
+  room.game.review.reviewEndsAt = Date.now() - 1;
+  manager.tick();
+
+  const resolved = room.game.history.findLast((e) => e.action === "review_resolved");
+  assert.equal(resolved?.outcome, "upheld");
+  assert.equal(room.game.scores.A, scoreBefore - 1);
 });

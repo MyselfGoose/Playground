@@ -33,7 +33,7 @@ export function TabooPhaseAnnouncer({ game }) {
       return;
     }
     if (status === "between_rounds") {
-      setAnnouncement("Round complete. Next round starting soon.");
+      setAnnouncement("Round complete. Next round ready — waiting for clue giver.");
       return;
     }
     setAnnouncement("");
