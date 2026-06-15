@@ -100,6 +100,27 @@ test("taboo reconnect reattaches same user to room", async () => {
   assert.equal(snap.players.some((p) => p.id === "u2"), true);
 });
 
+test("taboo partial tab disconnect still emits room_update", () => {
+  const ns = makeNs();
+  const emitted = /** @type {Array<[string, unknown]>} */ ([]);
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const s1 = makeSocket("s1", "u1", "p1");
+  const s2a = makeSocket("s2a", "u2", "p2");
+  const s2b = makeSocket("s2b", "u2", "p2");
+  s2b.emit = (event, payload) => {
+    emitted.push([event, payload]);
+  };
+  ns.sockets.set(s1.id, s1);
+  ns.sockets.set(s2a.id, s2a);
+  ns.sockets.set(s2b.id, s2b);
+  const room = manager.createRoom(s1, "u1", "p1", {});
+  manager.joinRoom(room.code, s2a, "u2", "p2");
+  room.socketIds.add(s2b.id);
+  emitted.length = 0;
+  manager.leaveRoom(s2a, { hardLeave: false });
+  assert.ok(emitted.some(([event]) => event === "room_update"));
+});
+
 test("cannot change team after game has started", async () => {
   const ns = makeNs();
   const manager = createTabooRoomManager({ tabooNs: ns, logger: console });

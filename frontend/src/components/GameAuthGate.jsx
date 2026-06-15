@@ -11,8 +11,39 @@ import {
   GAME_SESSION_HOLD_MS,
   useGameSession,
 } from "../lib/session/GameSessionContext.jsx";
-import { readLastRoomCode } from "../lib/session/RoomSession.js";
+import { findAnyLastRoomCode, readLastRoomCode } from "../lib/session/RoomSession.js";
 import { LoadingSkeleton } from "./LoadingSkeleton.jsx";
+
+/**
+ * @param {string} returnUrl
+ * @returns {string | null}
+ */
+function inviteCodeFromReturnUrl(returnUrl) {
+  try {
+    const base =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const u = new URL(returnUrl, base);
+    const code = u.searchParams.get("code");
+    if (!code) return null;
+    return (
+      code
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 4) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} gameId
+ * @param {string} returnUrl
+ */
+function hasPendingGameRecovery(gameId, returnUrl) {
+  return Boolean(inviteCodeFromReturnUrl(returnUrl) || findAnyLastRoomCode(gameId));
+}
 
 /**
  * Auth guard for multiplayer games: keeps children mounted during session recovery
@@ -67,13 +98,14 @@ export function GameAuthGate({
       return;
     }
 
-    if (!hadUserRef.current) {
+    const pendingRecovery = hasPendingGameRecovery(gameId, next);
+
+    if (!pendingRecovery && !hadUserRef.current) {
       router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
 
-    const lastRoom = readLastRoomCode(gameId);
-    if (!lastRoom && !recoveryStartedRef.current) {
+    if (!pendingRecovery) {
       router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }

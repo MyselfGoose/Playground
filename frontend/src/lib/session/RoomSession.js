@@ -54,6 +54,28 @@ export function readLastRoomCode(gameId, userId) {
 }
 
 /**
+ * Scan sessionStorage for any scoped last-room code for a game (userId unknown).
+ * @param {string} gameId
+ * @returns {string | null}
+ */
+export function findAnyLastRoomCode(gameId) {
+  if (typeof window === "undefined" || !gameId) return null;
+  try {
+    const prefix = `${LAST_ROOM_PREFIX}${gameId}:`;
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      const value = sessionStorage.getItem(key);
+      if (value && value.trim()) return value.trim();
+    }
+    const legacy = sessionStorage.getItem(legacyRoomKey(gameId));
+    return legacy && legacy.trim() ? legacy.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * @param {string} gameId
  * @param {string | null | undefined} [userId]
  */

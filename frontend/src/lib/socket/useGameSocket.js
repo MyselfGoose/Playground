@@ -7,7 +7,7 @@ import { emitAck, ACK_TIMEOUT_MS } from "./socketUtils.js";
 import { connectionMessage, mapConnectionError } from "../errors/mapConnectionError.js";
 
 /**
- * @typedef {'disconnected' | 'reconnecting' | 'connected'} ConnectionState
+ * @typedef {'disconnected' | 'connecting' | 'reconnecting' | 'connected'} ConnectionState
  * @typedef {'idle' | 'joining' | 'syncing' | 'ready' | 'error'} SyncState
  */
 
@@ -99,6 +99,7 @@ export function useGameSocket({
   const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
   const roomVersionRef = useRef(0);
   const roomCodeRef = useRef(/** @type {string | null} */ (null));
+  const hasConnectedOnceRef = useRef(false);
 
   const onRoomUpdateRef = useRef(onRoomUpdate);
   const onReconnectFailedExtraRef = useRef(onReconnectFailedExtra);
@@ -179,30 +180,33 @@ export function useGameSocket({
 
     try {
       if (trackSyncState) setSyncState("joining");
+      setConnectionState("connecting");
 
       const { socket, cleanup: socketCleanup } = connectGameSocket({
         namespace,
         gameTag,
         onConnect: (s) => {
           if (cancelled) return;
+          hasConnectedOnceRef.current = true;
           setConnectionState("connected");
           setSocketError(null, null);
           resyncRoom(s);
         },
         onDisconnect: () => {
           if (cancelled) return;
-          setConnectionState("reconnecting");
+          setConnectionState(hasConnectedOnceRef.current ? "reconnecting" : "connecting");
           if (trackSyncState) setSyncState("syncing");
         },
         onConnectError: (_s, msg) => {
           if (cancelled) return;
           const mapped = mapConnectionError(mapGame, msg);
-          setConnectionState("reconnecting");
+          setConnectionState(hasConnectedOnceRef.current ? "reconnecting" : "connecting");
           setSocketError(mapped.message, mapped.code);
           if (trackSyncState) setSyncState("error");
         },
         onReconnect: (s) => {
           if (cancelled) return;
+          hasConnectedOnceRef.current = true;
           setConnectionState("connected");
           setReconnectedAt(Date.now());
           resyncRoom(s);
@@ -264,6 +268,7 @@ export function useGameSocket({
       cancelled = true;
       cleanup?.();
       socketRef.current = null;
+      hasConnectedOnceRef.current = false;
       setConnectionState("disconnected");
       setReconnectedAt(null);
       if (trackSyncState) setSyncState("ready");

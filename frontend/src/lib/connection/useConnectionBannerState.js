@@ -67,8 +67,10 @@ export function useConnectionBannerState({
     };
   }, [reconnectedAt]);
 
+  const isConnecting = connectionState === "connecting";
   const isReconnecting =
     connectionState === "reconnecting" || socketLifecycle === "RECONNECTING";
+  const isTerminalDisconnect = connectionState === "disconnected" && !connected && !socketError;
 
   useEffect(() => {
     if (isReconnecting && !connected) {
@@ -142,6 +144,28 @@ export function useConnectionBannerState({
       };
     }
 
+    if (isTerminalDisconnect) {
+      return {
+        visible: true,
+        state: /** @type {BannerState} */ ("offline"),
+        message: BANNER_COPY.offline,
+        recoverable: true,
+        actions: /** @type {ConnectionActionId[]} */ (["retry"]),
+        showReconnected: false,
+      };
+    }
+
+    if (isConnecting && !socketError) {
+      return {
+        visible: true,
+        state: /** @type {BannerState} */ ("connecting"),
+        message: BANNER_COPY.connecting,
+        recoverable: false,
+        actions: /** @type {ConnectionActionId[]} */ ([]),
+        showReconnected: false,
+      };
+    }
+
     if (!connected && socketError) {
       const roomActions =
         socketErrorCode === "ROOM_NOT_FOUND" || socketErrorCode === "ROOM_EXPIRED"
@@ -182,7 +206,9 @@ export function useConnectionBannerState({
     socketError,
     socketErrorCode,
     reconnectedPulse,
+    isConnecting,
     isReconnecting,
+    isTerminalDisconnect,
     extendedReconnect,
     tick,
   ]);

@@ -153,4 +153,30 @@ describe('Auth API', () => {
       refreshSessionRepository.createSession = originalCreate;
     }
   });
+
+  it('GET /me returns 401 without access token then succeeds after refresh', async () => {
+    const email = `me_refresh_${Date.now()}@example.com`;
+    const register = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        username: `me${Date.now()}`,
+        email,
+        password: strongPassword,
+      })
+      .expect(201);
+    const cookies = register.headers['set-cookie'];
+    assert.ok(Array.isArray(cookies));
+
+    const refreshOnly = cookies.filter((c) => !c.startsWith('access_token='));
+    assert.ok(refreshOnly.some((c) => c.startsWith('refresh_token=')));
+
+    await request(app).get('/api/v1/auth/me').set('Cookie', refreshOnly).expect(401);
+
+    const refresh = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookies).expect(200);
+    const rotatedCookies = refresh.headers['set-cookie'];
+    assert.ok(Array.isArray(rotatedCookies));
+
+    const meAfter = await request(app).get('/api/v1/auth/me').set('Cookie', rotatedCookies).expect(200);
+    assert.equal(meAfter.body?.data?.user?.email, email);
+  });
 });

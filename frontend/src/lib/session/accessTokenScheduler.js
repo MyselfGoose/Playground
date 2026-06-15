@@ -14,6 +14,7 @@ const VISIBILITY_STALE_MS = 10 * 60 * 1000;
 let intervalId = null;
 let lastRefreshAt = 0;
 let inGameBoost = false;
+let guestVisibilityRefreshAttempted = false;
 
 async function runProactiveRefresh() {
   try {
@@ -59,4 +60,19 @@ export function refreshOnVisibilityIfStale() {
   if (typeof document === "undefined" || document.visibilityState !== "visible") return;
   if (Date.now() - lastRefreshAt < VISIBILITY_STALE_MS) return;
   void runProactiveRefresh();
+}
+
+/**
+ * One silent refresh attempt when tab becomes visible while logged out.
+ * Helps recover sessions where the access token expired but refresh cookie remains.
+ */
+export function refreshOnVisibilityForGuest() {
+  if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+  if (guestVisibilityRefreshAttempted) return;
+  guestVisibilityRefreshAttempted = true;
+  void runProactiveRefresh();
+}
+
+export function resetGuestVisibilityRefresh() {
+  guestVisibilityRefreshAttempted = false;
 }

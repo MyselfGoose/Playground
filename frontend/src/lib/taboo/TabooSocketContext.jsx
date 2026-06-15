@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getSocketBase } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
 import { useGameSession } from "../session/GameSessionContext.jsx";
 import { clearActiveGameRoom } from "../session/useActiveGameRoom.js";
 import { useActiveGameRoom } from "../session/useActiveGameRoom.js";
+import { clearLastRoomCode } from "../session/RoomSession.js";
 import { useGameSocket } from "../socket/useGameSocket.js";
 
 const TabooContext = createContext(null);
@@ -15,6 +16,7 @@ export function TabooProvider({ children }) {
   const { holdActive } = useGameSession();
   const [categories, setCategories] = useState([]);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
+  const onReconnectFailedRef = useRef(/** @type {(() => void) | null} */ (null));
 
   const mergeTabooRoom = useCallback((incoming, { setRoom, roomVersionRef }) => {
     if (!incoming || typeof incoming !== "object") return;
@@ -29,6 +31,10 @@ export function TabooProvider({ children }) {
     setRoom(incoming);
   }, []);
 
+  const onReconnectFailedExtra = useCallback(() => {
+    onReconnectFailedRef.current?.();
+  }, []);
+
   const socket = useGameSocket({
     namespace: "/taboo",
     gameTag: "taboo",
@@ -36,7 +42,16 @@ export function TabooProvider({ children }) {
     enabled: Boolean(!loading && getSocketBase() && (user?.id || holdActive)),
     trackSyncState: true,
     mergeRoom: mergeTabooRoom,
+    onReconnectFailedExtra,
   });
+
+  useEffect(() => {
+    onReconnectFailedRef.current = () => {
+      socket.resetRoomState();
+      clearActiveGameRoom("taboo", user?.id);
+      clearLastRoomCode("taboo", user?.id);
+    };
+  }, [socket.resetRoomState, user?.id]);
 
   const serverNow = useCallback(() => Date.now() + serverOffsetMs, [serverOffsetMs]);
 
@@ -69,6 +84,7 @@ export function TabooProvider({ children }) {
       room: socket.room,
       connected: socket.connected,
       connectionState: socket.connectionState,
+      syncState: socket.syncState,
       socketError: socket.socketError,
       socketErrorCode: socket.socketErrorCode,
       reconnectedAt: socket.reconnectedAt,
@@ -100,6 +116,7 @@ export function TabooProvider({ children }) {
       socket.room,
       socket.connected,
       socket.connectionState,
+      socket.syncState,
       socket.socketError,
       socket.socketErrorCode,
       socket.reconnectedAt,

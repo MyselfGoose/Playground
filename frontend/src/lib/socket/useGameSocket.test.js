@@ -76,10 +76,41 @@ describe("useGameSocket", () => {
     );
 
     expect(result.current.syncState).toBe("joining");
+    expect(result.current.connectionState).toBe("connecting");
     onConnect?.({ on: vi.fn(), off: vi.fn() });
     await waitFor(() => {
       expect(result.current.syncState).toBe("ready");
+      expect(result.current.connectionState).toBe("connected");
     });
+  });
+
+  it("uses reconnecting after first connect then disconnect", async () => {
+    let onConnect;
+    let onDisconnect;
+    connectGameSocket.mockImplementation(({ onConnect: oc, onDisconnect: od }) => {
+      onConnect = oc;
+      onDisconnect = od;
+      return {
+        socket: { on: vi.fn(), off: vi.fn() },
+        cleanup: vi.fn(),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useGameSocket({
+        namespace: "/taboo",
+        gameTag: "taboo",
+        mapGame: "taboo",
+        enabled: true,
+        mergeRoom: mergeRoomByStateVersion,
+      }),
+    );
+
+    expect(result.current.connectionState).toBe("connecting");
+    onConnect?.({ on: vi.fn(), off: vi.fn() });
+    await waitFor(() => expect(result.current.connectionState).toBe("connected"));
+    onDisconnect?.();
+    await waitFor(() => expect(result.current.connectionState).toBe("reconnecting"));
   });
 
   it("returns syncState ready after unmount cleanup", async () => {
@@ -106,7 +137,6 @@ describe("useGameSocket", () => {
     onConnect?.({ on: vi.fn(), off: vi.fn() });
     await waitFor(() => expect(result.current.syncState).toBe("ready"));
     unmount();
-    // Hook unmounted — no assertion on result; cleanup path sets ready before teardown
     expect(connectGameSocket.mock.results[0]?.value?.cleanup).toBeDefined();
   });
 });

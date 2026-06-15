@@ -6,17 +6,29 @@ export function installTabooSocketServer({ tabooNs, registry, logger, tokenServi
   tabooNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: "taboo" }));
 
   tabooNs.on("connection", (socket) => {
+    logger.info(
+      { userId: socket.data.userId, socketId: socket.id, ns: "taboo" },
+      "taboo socket connected",
+    );
     const room = registry.attachActiveRoomForUser(socket);
     if (room) {
+      logger.info(
+        { userId: socket.data.userId, socketId: socket.id, roomCode: room.code, resumed: true },
+        "taboo session resumed",
+      );
       registry.emitRoom(room.code, "player_reconnected");
       socket.emit("session_resumed", { room: registry.snapshotFor(socket) });
     }
     installTabooHandlers({ socket, registry, logger });
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      logger.info(
+        { userId: socket.data.userId, socketId: socket.id, reason, ns: "taboo" },
+        "taboo socket disconnected",
+      );
       try {
         registry.leaveRoom(socket, { hardLeave: false });
       } catch (err) {
-        logger.error({ err, socketId: socket.id }, 'taboo disconnect handler error');
+        logger.error({ err, socketId: socket.id }, "taboo disconnect handler error");
       }
     });
   });

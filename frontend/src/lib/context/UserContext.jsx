@@ -19,8 +19,11 @@ import {
   startAccessTokenScheduler,
   stopAccessTokenScheduler,
   refreshOnVisibilityIfStale,
+  refreshOnVisibilityForGuest,
+  resetGuestVisibilityRefresh,
   setAccessTokenSchedulerInGame,
 } from "../session/accessTokenScheduler.js";
+import { logSessionEvent } from "../session/sessionTelemetry.js";
 import {
   dispatchSessionInvalidated,
   SESSION_CROSS_TAB_KEY,
@@ -87,6 +90,29 @@ async function fetchMeWithRetries(signal, maxAttempts = 4) {
     }
   }
   throw new Error("bootstrap exhausted");
+}
+
+/**
+ * Bootstrap session: retry /me on transient errors; on 401 attempt refresh before signing out.
+ * @param {AbortSignal} signal
+ */
+async function bootstrapSession(signal) {
+  try {
+    const me = await fetchMeWithRetries(signal);
+    return mapUser(me?.data?.user);
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) throw e;
+    logSessionEvent("bootstrap_me_401");
+    try {
+      await refreshSession();
+      logSessionEvent("bootstrap_refresh_ok");
+      const retry = await apiFetch("/api/v1/auth/me", { signal });
+      return mapUser(retry?.data?.user);
+    } catch {
+      logSessionEvent("bootstrap_refresh_fail");
+      throw e;
+    }
+  }
 }
 
 export function UserProvider({ children }) {
@@ -228,9 +254,10 @@ export function UserProvider({ children }) {
       setLifecycle("HYDRATING");
       setSessionError(null);
       try {
-        const me = await fetchMeWithRetries(ac.signal);
+        const nextUser = await bootstrapSession(ac.signal);
         if (!mountedRef.current || ac.signal.aborted) return;
-        setUserState((prev) => mergeUserState(prev, mapUser(me?.data?.user)));
+        setUserState((prev) => mergeUserState(prev, nextUser));
+        resetGuestVisibilityRefresh();
         setLifecycle("SYNCED");
       } catch (e) {
         if (e?.name === "AbortError" || ac.signal.aborted) return;
@@ -317,7 +344,10 @@ export function UserProvider({ children }) {
       if (document.visibilityState !== "visible") return;
       const isGuest =
         !userRef.current && !sessionErrorRef.current && !sessionNoticeRef.current;
-      if (isGuest) return;
+      if (isGuest) {
+        refreshOnVisibilityForGuest();
+        return;
+      }
       const hadIssue = lifecycleRef.current === "DEGRADED" || Boolean(sessionErrorRef.current);
       refreshOnVisibilityIfStale();
       if (hadIssue) {
@@ -363,10 +393,24 @@ export function UserProvider({ children }) {
       setUserState((prev) => mergeUserState(prev, next));
       invalidateDerivedCaches();
       setSessionError(null);
+      resetGuestVisibilityRefresh();
       setLifecycle("SYNCED");
       return next;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
+        try {
+          await refreshSession();
+          const retry = await apiFetch("/api/v1/auth/me");
+          const next = mapUser(retry?.data?.user);
+          setUserState((prev) => mergeUserState(prev, next));
+          invalidateDerivedCaches();
+          setSessionError(null);
+          resetGuestVisibilityRefresh();
+          setLifecycle("SYNCED");
+          return next;
+        } catch {
+          /* fall through to signed-out */
+        }
         setUserState(null);
         setSessionError(null);
         setLifecycle("SYNCED");
@@ -393,6 +437,7 @@ export function UserProvider({ children }) {
     invalidateDerivedCaches();
     setSessionError(null);
     setSessionNotice(null);
+    resetGuestVisibilityRefresh();
     setLifecycle("SYNCED");
     return next;
   }, []);

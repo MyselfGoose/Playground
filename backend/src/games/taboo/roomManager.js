@@ -3,6 +3,7 @@ import {
   markPlayerConnected,
   markPlayerGone,
 } from "../../realtime/playerPresence.js";
+import { evictSupersededPartySockets } from "../../realtime/partySocketEviction.js";
 import { createDeckProvider, createGameManager } from "./gameManager.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -213,6 +214,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     bumpStateVersion(room);
     room.socketIds.add(socket.id);
     room.updatedAt = Date.now();
+    evictSupersededPartySockets(tabooNs, {
+      userId,
+      currentSocketId: socket.id,
+      roomCode: normalized,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     socketToCode.set(socket.id, normalized);
     userToCode.set(userId, normalized);
     trackUserSocket(userId, socket.id);
@@ -249,6 +258,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
           markPlayerConnected(player);
           bumpStateVersion(room);
           room.updatedAt = Date.now();
+          emitRoom(code, "room_update");
         } else {
           disconnectGrace.scheduleGrace(userId, player, () => {
             const expectedCode = userToCode.get(userId);
@@ -289,6 +299,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!code) return null;
     const room = rooms.get(code);
     if (!room) return null;
+    evictSupersededPartySockets(tabooNs, {
+      userId: socket.data.userId,
+      currentSocketId: socket.id,
+      roomCode: code,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, code);
     socket.join(code);
@@ -296,6 +314,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
       markPlayerConnected(player);
+      game.reconcileRoomAfterMembershipChange(room);
       bumpStateVersion(room);
       room.updatedAt = Date.now();
     }

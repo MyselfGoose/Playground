@@ -8,6 +8,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../../components/Button.jsx";
 import { PageHeader } from "../../../components/PageHeader.jsx";
 import { Card } from "../../../components/ui/Card.jsx";
+import { RejoinRoomPrompt } from "../../../components/party/RejoinRoomPrompt.jsx";
+import { useUser } from "../../../lib/context/UserContext.jsx";
+import { clearLastRoomCode, readLastRoomCode } from "../../../lib/session/RoomSession.js";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
@@ -23,7 +26,10 @@ export function TabooEntry({ onRoomCreated }) {
   const inviteCodeParam = searchParams.get("code") ?? "";
   const normalizedInvite = inviteCodeParam ? normalizePartyCode(inviteCodeParam).slice(0, 4) : "";
 
-  const { connected, socketError, localUsername, categories, createRoom, joinRoom, getCategories } = useTaboo();
+  const { connected, socketError, localUsername, categories, createRoom, joinRoom, leaveRoom, room, getCategories } = useTaboo();
+  const { user } = useUser();
+  const lastRoomCode = readLastRoomCode("taboo", user?.id);
+  const showRejoin = connected && lastRoomCode && !room?.code;
 
   const [createSettings, setCreateSettings] = useState({ roundCount: 5, roundDurationSeconds: 60 });
   const [joinCode, setJoinCode] = useState(normalizedInvite);
@@ -116,6 +122,27 @@ export function TabooEntry({ onRoomCreated }) {
             {socketError || error}
           </p>
         )}
+
+        {showRejoin ? (
+          <RejoinRoomPrompt
+            roomCode={lastRoomCode}
+            lobbyHref={tabooPath("/games/taboo/lobby", lastRoomCode)}
+            onRejoin={async () => {
+              const result = await joinRoom(lastRoomCode);
+              if (!result.ok) {
+                setError(result.error.message);
+                return result;
+              }
+              setError("");
+              router.push(tabooPath("/games/taboo/lobby", lastRoomCode));
+              return result;
+            }}
+            onLeave={async () => {
+              await leaveRoom();
+              clearLastRoomCode("taboo", user?.id);
+            }}
+          />
+        ) : null}
 
         <Card variant="elevated" className="overflow-hidden p-0">
           <div className="flex border-b border-foreground/10">

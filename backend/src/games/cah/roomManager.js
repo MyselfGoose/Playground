@@ -3,6 +3,7 @@ import {
   markPlayerConnected,
   markPlayerGone,
 } from '../../realtime/playerPresence.js';
+import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
 import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
@@ -212,6 +213,14 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
       room.players.push(newbie);
     }
     room.socketIds.add(socket.id);
+    evictSupersededPartySockets(cahNs, {
+      userId: socket.data.userId,
+      currentSocketId: socket.id,
+      roomCode: normalized,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     socketToCode.set(socket.id, normalized);
     userToCode.set(socket.data.userId, normalized);
     trackUserSocket(socket.data.userId, socket.id);
@@ -251,6 +260,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
         if (hasAnyConnectedSocketInRoom(room, userId)) {
           markPlayerConnected(player);
           bumpStateVersion(room);
+          emitRoom(code, 'room_update');
         } else {
           disconnectGrace.scheduleGrace(userId, player, async () => {
             const expectedCode = userToCode.get(userId);
@@ -289,6 +299,14 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     if (!code) return null;
     const room = rooms.get(code);
     if (!room) return null;
+    evictSupersededPartySockets(cahNs, {
+      userId: socket.data.userId,
+      currentSocketId: socket.id,
+      roomCode: code,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, code);
     socket.join(code);
@@ -417,6 +435,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
   function shutdown() {
     for (const t of revealingTimers.values()) clearTimeout(t);
     revealingTimers.clear();
+    for (const userId of userToCode.keys()) disconnectGrace.clearGrace(userId);
     rooms.clear();
     socketToCode.clear();
     userToCode.clear();

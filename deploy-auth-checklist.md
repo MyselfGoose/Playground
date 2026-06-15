@@ -22,6 +22,8 @@ Browsers treat `Set-Cookie` from the **same host** as the Next.js app as first-p
 | Variable | Value |
 |----------|--------|
 | `CORS_ORIGIN` | Exact Vercel URL(s), e.g. `https://your-app.vercel.app` (comma-separated if multiple) |
+| **Max instances** | **1** until party games use an external room store (in-memory rooms are single-instance) |
+| **Health check** | `/health/ready` (waits for MongoDB auth; do not use `/health` alone) |
 | `COOKIE_DOMAIN` | **Leave unset** for same-origin proxy |
 | `NODE_ENV` | `production` |
 
@@ -53,6 +55,14 @@ npm run smoke:auth-proxy
 ```
 
 Set `FRONTEND_URL` and `API_PROXY_TARGET` (or backend URL) per script docs.
+
+Run after every production deploy (manual or post-deploy hook):
+
+```bash
+npm run smoke:auth-proxy
+```
+
+If the smoke test fails, do not promote the deployment until env vars and Railway replica count are corrected.
 
 ## Further reading
 

@@ -12,6 +12,7 @@ import {
   markPlayerConnected,
   markPlayerGone,
 } from '../../realtime/playerPresence.js';
+import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
 import {
   abortRoundSetterLeft,
   activePlayers,
@@ -424,6 +425,14 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
       room.players.push(newbie);
     }
     room.socketIds.add(socket.id);
+    evictSupersededPartySockets(hangmanNs, {
+      userId: socket.data.userId,
+      currentSocketId: socket.id,
+      roomCode: normalized,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     socketToCode.set(socket.id, normalized);
     userToCode.set(socket.data.userId, normalized);
     trackUserSocket(socket.data.userId, socket.id);
@@ -462,6 +471,8 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
         disconnectGrace.clearGrace(userId);
         if (hasAnyConnectedSocketInRoom(room, userId)) {
           markPlayerConnected(player);
+          bumpStateVersion(room);
+          emitRoom(code, 'room_update');
         } else {
           disconnectGrace.scheduleGrace(userId, player, () => {
             const expectedCode = userToCode.get(userId);
@@ -509,6 +520,14 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!code) return null;
     const room = rooms.get(code);
     if (!room) return null;
+    evictSupersededPartySockets(hangmanNs, {
+      userId: socket.data.userId,
+      currentSocketId: socket.id,
+      roomCode: code,
+      socketToCode,
+      room,
+      userToSocketIds,
+    });
     room.socketIds.add(socket.id);
     socketToCode.set(socket.id, code);
     socket.join(code);
