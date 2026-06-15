@@ -13,7 +13,8 @@ import { usePathname } from "next/navigation";
 import { ApiError, apiFetch } from "../api.js";
 import { refreshSession } from "../session/coordinatedRefresh.js";
 import { invalidateDerivedCaches } from "../reconciliation/leaderboardInvalidation.js";
-import { clearAllLastRoomCodesForUser } from "../lib/session/RoomSession.js";
+import { subscribeReconcile } from "../reconciliation/reconciliationEvents.js";
+import { clearAllLastRoomCodesForUser } from "../session/RoomSession.js";
 import {
   startAccessTokenScheduler,
   stopAccessTokenScheduler,
