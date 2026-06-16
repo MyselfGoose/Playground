@@ -9,6 +9,7 @@ import { useUser } from "../lib/context/UserContext.jsx";
 import { useTheme } from "../lib/theme/ThemeContext.jsx";
 import { getEnabled, play, setEnabled } from "../lib/sound/soundManager.js";
 import { Avatar } from "./Avatar.jsx";
+import { FriendsNavButton } from "./friends/FriendsNavButton.jsx";
 
 const links = [
   { href: "/", label: "Home" },
@@ -89,6 +90,7 @@ export function Navbar() {
             </span>
           ) : user ? (
             <div className="flex items-center gap-2 sm:gap-3">
+              <FriendsNavButton />
               <Link
                 href="/profile"
                 className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-3 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright/50"
@@ -229,6 +231,9 @@ export function Navbar() {
               ) : null}
               {!loading && user ? (
                 <>
+                  <div className="px-2 py-1">
+                    <FriendsNavButton />
+                  </div>
                   <Link
                     href="/profile"
                     onClick={() => setOpen(false)}

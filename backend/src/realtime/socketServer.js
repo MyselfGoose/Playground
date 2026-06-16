@@ -9,6 +9,7 @@ import { installTypingRaceSocketServer } from '../games/typing-race/typingRaceSo
 import { attachTabooNamespace } from '../games/taboo/tabooSocket.js';
 import { attachCahNamespace } from '../games/cah/cahSocket.js';
 import { attachHangmanNamespace } from '../games/hangman/hangmanSocket.js';
+import { attachSocialNamespace } from './socialSocket.js';
 
 /**
  * Wire Redis pub/sub adapter when REDIS_URL is configured (Tier B broadcast sync).
@@ -53,6 +54,7 @@ async function attachRedisAdapterIfConfigured(io, redisUrl, logger) {
  *   tabooRuntime: { close: () => void },
  *   cahRuntime: { close: () => void },
  *   hangmanRuntime: { close: () => void },
+ *   socialRuntime: { close: () => void },
  *   redisClients: { pubClient: import('redis').RedisClientType, subClient: import('redis').RedisClientType } | null,
  * }>}
  */
@@ -92,7 +94,8 @@ export async function attachSocketIo({ server, env, logger }) {
   const tabooRuntime = attachTabooNamespace({ io, logger, tokenService });
   const cahRuntime = attachCahNamespace({ io, logger, tokenService, env });
   const hangmanRuntime = attachHangmanNamespace({ io, logger, tokenService });
+  const socialRuntime = attachSocialNamespace({ io, logger, tokenService });
 
   logger.info('socket_io_attached');
-  return { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, redisClients };
+  return { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, socialRuntime, redisClients };
 }

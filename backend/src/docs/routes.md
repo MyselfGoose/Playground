@@ -152,6 +152,72 @@ Provide **exactly one** of `email` or `username`.
 
 ---
 
+## Friends (`/api/v1/friends`)
+
+All routes require MongoDB readiness and an authenticated user (`access_token` cookie or `Authorization: Bearer`).
+
+Rate limits: `POST /requests` — 20/hour per user; `GET /lookup/:username` — 60/min per user.
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | `/api/v1/friends/summary` | Bootstrap payload: friends, pending sent/received, counts |
+| GET | `/api/v1/friends/` | Accepted friends list (same `friends` array as summary) |
+| GET | `/api/v1/friends/lookup/:username` | Resolve username → user stub + `relationship` |
+| POST | `/api/v1/friends/requests` | Send friend request by username |
+| POST | `/api/v1/friends/requests/:requestId/accept` | Accept received request |
+| POST | `/api/v1/friends/requests/:requestId/decline` | Decline received request (visible to sender as declined) |
+| DELETE | `/api/v1/friends/requests/:requestId` | Cancel own pending sent request |
+| DELETE | `/api/v1/friends/:userId` | Unfriend accepted user |
+
+### `GET /api/v1/friends/summary`
+
+**Response 200**
+
+```json
+{
+  "data": {
+    "friends": [
+      {
+        "userId": "...",
+        "username": "player_two",
+        "avatarUrl": "...",
+        "online": true,
+        "lastSeenAt": null
+      }
+    ],
+    "pending": {
+      "received": [{ "id": "...", "from": { "userId": "...", "username": "...", "avatarUrl": "..." }, "createdAt": "..." }],
+      "sent": [{ "id": "...", "to": { "userId": "...", "username": "...", "avatarUrl": "..." }, "status": "pending", "createdAt": "..." }]
+    },
+    "counts": { "online": 1, "pendingReceived": 0 }
+  }
+}
+```
+
+`online` reflects live presence from the `/social` Socket.IO namespace when the API instance has an active social hub.
+
+### `POST /api/v1/friends/requests`
+
+**Body**
+
+```json
+{ "username": "player_two" }
+```
+
+**Response 201** — new pending request. **Response 200** — mutual pending auto-accepted (`autoAccepted: true`).
+
+Common errors: `CANNOT_FRIEND_SELF` (400), `USER_NOT_FOUND` (404), `ALREADY_FRIENDS` (409), `FRIEND_REQUEST_ALREADY_SENT` (409), `RATE_LIMITED` (429).
+
+### Realtime (`/social` namespace)
+
+Authenticated Socket.IO namespace for site-wide friend presence and request notifications.
+
+**Server → client events:** `presence_snapshot`, `friend_online`, `friend_offline`, `friend_request_received`, `friend_request_accepted`, `friend_request_declined`, `friend_request_cancelled`, `friend_removed`.
+
+A user is **online** while any Playground tab maintains a `/social` connection; multiple tabs do not evict each other.
+
+---
+
 ## Role guard (internal use)
 
 `optionalRoleGuard('admin', ...)` from [middleware/authMiddleware.js](../middleware/authMiddleware.js) is intended to be composed **after** `requireAuth` on future admin routes. It is not mounted on a public URL in the starter.

@@ -154,6 +154,41 @@ export const ERROR_CODE_META = {
     requires_reauth: false,
     user_message: 'This lobby is full. Ask the host or wait for a spot.',
   },
+  CANNOT_FRIEND_SELF: {
+    category: 'VALIDATION',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: "You can't add yourself as a friend.",
+  },
+  ALREADY_FRIENDS: {
+    category: 'GAME',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'You are already friends with this player.',
+  },
+  FRIEND_REQUEST_ALREADY_SENT: {
+    category: 'GAME',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'Friend request already sent.',
+  },
+  FRIEND_REQUEST_ALREADY_RECEIVED: {
+    category: 'GAME',
+    recoverable: true,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'This player already sent you a request — accept it from Pending.',
+  },
+  FRIEND_REQUEST_NOT_FOUND: {
+    category: 'GAME',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'Friend request not found or already handled.',
+  },
 };
 
 /**

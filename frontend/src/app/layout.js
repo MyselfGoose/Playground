@@ -3,6 +3,7 @@ import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript.js";
 import "./globals.css";
 import { UserProvider } from "../lib/context/UserContext.jsx";
 import { GameSessionProvider } from "../lib/session/GameSessionContext.jsx";
+import { FriendsProvider } from "../lib/friends/FriendsContext.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { ThemeProvider } from "../lib/theme/ThemeProvider.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
@@ -45,7 +46,9 @@ export default function RootLayout({ children }) {
           <ErrorBoundary level="app">
             <UserProvider>
               <GameSessionProvider>
-                <Shell>{children}</Shell>
+                <FriendsProvider>
+                  <Shell>{children}</Shell>
+                </FriendsProvider>
               </GameSessionProvider>
             </UserProvider>
           </ErrorBoundary>

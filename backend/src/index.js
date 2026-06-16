@@ -137,7 +137,7 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime } =
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, socialRuntime } =
     await attachSocketIo({
       server,
       env,
@@ -181,6 +181,11 @@ async function main() {
         hangmanRuntime.close();
       } catch (err) {
         logger.warn({ err, event: 'hangman_shutdown_error' }, 'hangman');
+      }
+      try {
+        socialRuntime.close();
+      } catch (err) {
+        logger.warn({ err, event: 'social_shutdown_error' }, 'social');
       }
       try {
         await registry.flushAll();
