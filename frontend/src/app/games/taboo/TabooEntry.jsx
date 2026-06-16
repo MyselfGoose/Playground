@@ -1,13 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Users, Zap } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "../../../components/Button.jsx";
-import { PageHeader } from "../../../components/PageHeader.jsx";
-import { Card } from "../../../components/ui/Card.jsx";
 import { RejoinRoomPrompt } from "../../../components/party/RejoinRoomPrompt.jsx";
 import { useUser } from "../../../lib/context/UserContext.jsx";
 import { clearLastRoomCode, readLastRoomCode } from "../../../lib/session/RoomSession.js";
@@ -15,6 +11,17 @@ import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
 import { normalizeCode, tabooPath } from "./taboo-shared.js";
+import { TabooErrorBanner } from "./components/TabooErrorBanner.jsx";
+import { TabooHero } from "./components/TabooHero.jsx";
+import { TabooTopBar } from "./components/TabooTopBar.jsx";
+import { TabooPage, TabooPageSection } from "./components/TabooPage.jsx";
+import {
+  TabooButton,
+  TabooCard,
+  TabooInput,
+  TabooNumberStepper,
+  TabooSelect,
+} from "./ui/index.js";
 
 /**
  * @param {{ onRoomCreated?: (code: string) => void }} props
@@ -26,7 +33,8 @@ export function TabooEntry({ onRoomCreated }) {
   const inviteCodeParam = searchParams.get("code") ?? "";
   const normalizedInvite = inviteCodeParam ? normalizePartyCode(inviteCodeParam).slice(0, 4) : "";
 
-  const { connected, socketError, localUsername, categories, createRoom, joinRoom, leaveRoom, room, getCategories } = useTaboo();
+  const { connected, socketError, localUsername, categories, createRoom, joinRoom, leaveRoom, room, getCategories } =
+    useTaboo();
   const { user } = useUser();
   const lastRoomCode = readLastRoomCode("taboo", user?.id);
   const showRejoin = connected && lastRoomCode && !room?.code;
@@ -37,6 +45,7 @@ export function TabooEntry({ onRoomCreated }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [entryTab, setEntryTab] = useState(normalizedInvite ? "join" : "create");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const joinInputRef = useRef(/** @type {HTMLInputElement | null} */ (null));
 
   const roundOptionLabels = useMemo(
@@ -44,11 +53,8 @@ export function TabooEntry({ onRoomCreated }) {
     [],
   );
 
-  useEffect(() => {
-    if (!normalizedInvite) return;
-    setJoinCode(normalizedInvite);
-    setEntryTab("join");
-  }, [normalizedInvite]);
+  const resolvedCategoryId =
+    selectedCategoryId || (categories.length > 0 ? String(categories[0].categoryId) : "");
 
   useEffect(() => {
     if (!normalizedInvite || !joinInputRef.current) return;
@@ -60,18 +66,14 @@ export function TabooEntry({ onRoomCreated }) {
     if (connected) void getCategories();
   }, [connected, getCategories]);
 
-  useEffect(() => {
-    if (!selectedCategoryId && categories.length > 0) {
-      setSelectedCategoryId(String(categories[0].categoryId));
-    }
-  }, [categories, selectedCategoryId]);
-
   async function handleCreate() {
+    setSubmitting(true);
     const result = await createRoom({
       ...createSettings,
       categoryMode,
-      categoryIds: categoryMode === "single" && selectedCategoryId ? [Number(selectedCategoryId)] : undefined,
+      categoryIds: categoryMode === "single" && resolvedCategoryId ? [Number(resolvedCategoryId)] : undefined,
     });
+    setSubmitting(false);
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -83,7 +85,9 @@ export function TabooEntry({ onRoomCreated }) {
   }
 
   async function handleJoin() {
+    setSubmitting(true);
     const result = await joinRoom(joinCode);
+    setSubmitting(false);
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -94,36 +98,24 @@ export function TabooEntry({ onRoomCreated }) {
     router.push(tabooPath("/games/taboo/lobby", code));
   }
 
-  const inputClass =
-    "w-full rounded-xl border border-foreground/15 bg-muted-bright/20 px-3 py-2.5 font-semibold text-foreground outline-none focus:ring-2 focus:ring-primary/30";
+  const anim = !reduceMotion;
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap justify-end gap-2">
-          <Link
-            href="/leaderboard"
-            className="rounded-full border border-foreground/10 bg-muted-bright/30 px-3 py-1.5 text-xs font-bold text-foreground/70 hover:bg-muted-bright/50"
-          >
-            Stats
-          </Link>
-          <Link
-            href="/games"
-            className="rounded-full border border-foreground/10 bg-muted-bright/30 px-3 py-1.5 text-xs font-bold text-foreground/70 hover:bg-muted-bright/50"
-          >
-            All games
-          </Link>
-        </div>
+    <TabooPage className="max-w-md pb-10">
+      <TabooPageSection>
+        <TabooTopBar className="justify-end" />
+      </TabooPageSection>
 
-        <PageHeader gameId="taboo" align="left" className="!max-w-none" />
+      <TabooPageSection>
+        <TabooHero />
+      </TabooPageSection>
 
-        {(socketError || error) && (
-          <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">
-            {socketError || error}
-          </p>
-        )}
+      <TabooPageSection>
+        <TabooErrorBanner message={socketError || error} />
+      </TabooPageSection>
 
-        {showRejoin ? (
+      {showRejoin ? (
+        <TabooPageSection>
           <RejoinRoomPrompt
             roomCode={lastRoomCode}
             lobbyHref={tabooPath("/games/taboo/lobby", lastRoomCode)}
@@ -142,170 +134,181 @@ export function TabooEntry({ onRoomCreated }) {
               clearLastRoomCode("taboo", user?.id);
             }}
           />
-        ) : null}
+        </TabooPageSection>
+      ) : null}
 
-        <Card variant="elevated" className="overflow-hidden p-0">
-          <div className="flex border-b border-foreground/10">
+      <TabooPageSection>
+        <TabooCard level={1} className="overflow-hidden border-taboo-border bg-taboo-canvas-mid/80 p-0 backdrop-blur-md">
+          <div className="flex border-b border-taboo-border bg-black/20">
             <button
               type="button"
               onClick={() => setEntryTab("create")}
               className={cn(
-                "relative flex-1 py-3.5 text-sm font-bold transition-colors",
-                entryTab === "create" ? "text-foreground" : "text-foreground/45 hover:text-foreground/70",
+                "relative flex-1 py-4 text-sm font-medium transition-colors",
+                entryTab === "create" ? "text-taboo-text" : "text-taboo-text-faint hover:text-taboo-text-muted",
               )}
             >
               <span className="flex items-center justify-center gap-2">
-                <Zap className="h-4 w-4" />
-                Create
+                <Zap className={cn("h-4 w-4", entryTab === "create" ? "text-taboo-team-a-text" : "")} />
+                Create Game
               </span>
               {entryTab === "create" ? (
-                <motion.div layoutId="tabooEntryTab" className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-accent-sky" />
+                <motion.div
+                  layoutId="tabooEntryTab"
+                  className="taboo-tab-underline-create absolute bottom-0 left-4 right-4 h-[2px] rounded-full"
+                />
               ) : null}
             </button>
             <button
               type="button"
               onClick={() => setEntryTab("join")}
               className={cn(
-                "relative flex-1 py-3.5 text-sm font-bold transition-colors",
-                entryTab === "join" ? "text-foreground" : "text-foreground/45 hover:text-foreground/70",
+                "relative flex-1 py-4 text-sm font-medium transition-colors",
+                entryTab === "join" ? "text-taboo-text" : "text-taboo-text-faint hover:text-taboo-text-muted",
               )}
             >
               <span className="flex items-center justify-center gap-2">
-                <Users className="h-4 w-4" />
-                Join
+                <Users className={cn("h-4 w-4", entryTab === "join" ? "text-taboo-team-b-text" : "")} />
+                Join Game
               </span>
               {entryTab === "join" ? (
-                <motion.div layoutId="tabooEntryTab" className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-primary" />
+                <motion.div
+                  layoutId="tabooEntryTab"
+                  className="taboo-tab-underline-join absolute bottom-0 left-4 right-4 h-[2px] rounded-full"
+                />
               ) : null}
             </button>
           </div>
 
-          {entryTab === "create" ? (
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-4 p-4 sm:p-5"
-            >
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Your name</span>
-                <input className={cn(inputClass, "mt-1.5 h-12")} value={localUsername || ""} readOnly />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Rounds</span>
-                  <input
-                    className={cn(inputClass, "mt-1.5 h-12")}
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={createSettings.roundCount}
-                    onChange={(e) => setCreateSettings((prev) => ({ ...prev, roundCount: Number(e.target.value) }))}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Duration</span>
-                  <select
-                    className={cn(inputClass, "mt-1.5 h-12")}
-                    value={createSettings.roundDurationSeconds}
-                    onChange={(e) =>
-                      setCreateSettings((prev) => ({ ...prev, roundDurationSeconds: Number(e.target.value) }))
-                    }
+          <div className="p-4 sm:p-5">
+            <AnimatePresence mode="wait">
+              {entryTab === "create" ? (
+                <motion.div
+                  key="create"
+                  initial={anim ? { opacity: 0, x: -8 } : false}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={anim ? { opacity: 0, x: 8 } : undefined}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-4"
+                >
+                  <TabooInput label="Your name" value={localUsername || ""} readOnly placeholder="Enter your name" />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <TabooNumberStepper
+                      label="Rounds"
+                      value={createSettings.roundCount}
+                      min={1}
+                      max={10}
+                      onChange={(roundCount) => setCreateSettings((prev) => ({ ...prev, roundCount }))}
+                    />
+                    <TabooSelect
+                      label="Duration"
+                      value={createSettings.roundDurationSeconds}
+                      onChange={(e) =>
+                        setCreateSettings((prev) => ({ ...prev, roundDurationSeconds: Number(e.target.value) }))
+                      }
+                    >
+                      {roundOptionLabels.map((opt) => (
+                        <option key={opt.seconds} value={opt.seconds}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </TabooSelect>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wide text-taboo-text-muted">Category</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCategoryMode("single")}
+                        className={cn(
+                          "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
+                          categoryMode === "single" ? "taboo-segment-active" : "taboo-segment-idle",
+                        )}
+                      >
+                        Single
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryMode("all")}
+                        className={cn(
+                          "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
+                          categoryMode === "all" ? "taboo-segment-active" : "taboo-segment-idle",
+                        )}
+                      >
+                        All
+                      </button>
+                    </div>
+                    {categoryMode === "single" ? (
+                      <TabooSelect
+                        value={resolvedCategoryId}
+                        onChange={(e) => setSelectedCategoryId(e.target.value)}
+                        disabled={categories.length === 0}
+                      >
+                        {categories.length === 0 ? <option value="">Loading…</option> : null}
+                        {categories.map((cat) => (
+                          <option key={cat.categoryId} value={cat.categoryId}>
+                            {cat.category} ({cat.wordCount} words)
+                          </option>
+                        ))}
+                      </TabooSelect>
+                    ) : null}
+                  </div>
+
+                  <TabooButton
+                    variant="primary"
+                    size="lg"
+                    loading={submitting}
+                    disabled={!connected || (categoryMode === "single" && !resolvedCategoryId)}
+                    onClick={() => void handleCreate()}
+                    className="mt-1 shadow-lg shadow-taboo-team-a/25"
                   >
-                    {roundOptionLabels.map((opt) => (
-                      <option key={opt.seconds} value={opt.seconds}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <motion.div className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Category</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCategoryMode("single")}
-                    className={cn(
-                      "flex-1 rounded-lg py-2 text-sm font-bold",
-                      categoryMode === "single" ? "bg-accent-sky text-white" : "bg-muted-bright/40 text-foreground/60",
-                    )}
+                    Create Lobby
+                    <ArrowRight className="h-4 w-4" />
+                  </TabooButton>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="join"
+                  initial={anim ? { opacity: 0, x: 8 } : false}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={anim ? { opacity: 0, x: -8 } : undefined}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-4"
+                >
+                  <TabooInput label="Your name" value={localUsername || ""} readOnly placeholder="Enter your name" />
+                  <div>
+                    <TabooInput
+                      ref={joinInputRef}
+                      label="Lobby code"
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(normalizeCode(e.target.value))}
+                      placeholder="XXXX"
+                      maxLength={4}
+                      inputClassName="h-14 text-center font-mono text-2xl tracking-[0.35em] uppercase"
+                    />
+                    {normalizedInvite ? (
+                      <p className="mt-1 text-sm font-medium text-taboo-team-b-text">Invite link detected — code filled in.</p>
+                    ) : null}
+                  </div>
+                  <TabooButton
+                    variant="secondary"
+                    size="lg"
+                    loading={submitting}
+                    disabled={!connected || joinCode.length !== 4}
+                    onClick={() => void handleJoin()}
+                    className="mt-1 shadow-lg shadow-taboo-team-b/25"
                   >
-                    Single
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryMode("all")}
-                    className={cn(
-                      "flex-1 rounded-lg py-2 text-sm font-bold",
-                      categoryMode === "all" ? "bg-accent-sky text-white" : "bg-muted-bright/40 text-foreground/60",
-                    )}
-                  >
-                    All
-                  </button>
-                </div>
-                {categoryMode === "single" ? (
-                  <select
-                    className={inputClass}
-                    value={selectedCategoryId}
-                    onChange={(e) => setSelectedCategoryId(e.target.value)}
-                    disabled={categories.length === 0}
-                  >
-                    {categories.length === 0 ? <option value="">Loading…</option> : null}
-                    {categories.map((cat) => (
-                      <option key={cat.categoryId} value={cat.categoryId}>
-                        {cat.category} ({cat.wordCount} words)
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-              </motion.div>
-              <Button
-                variant="primary"
-                className="w-full rounded-full py-3"
-                disabled={!connected || (categoryMode === "single" && !selectedCategoryId)}
-                onClick={() => void handleCreate()}
-              >
-                Create lobby
-                <ArrowRight className="ml-1 inline h-4 w-4" />
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-4 p-4 sm:p-5"
-            >
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Your name</span>
-                <input className={cn(inputClass, "mt-1.5 h-12")} value={localUsername || ""} readOnly />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-wide text-foreground/55">Lobby code</span>
-                {normalizedInvite ? (
-                  <p className="mt-1 text-sm font-semibold text-primary">Invite link detected — code filled in below.</p>
-                ) : null}
-                <input
-                  ref={joinInputRef}
-                  className={cn(inputClass, "mt-1.5 h-14 text-center font-mono text-2xl tracking-[0.35em] uppercase")}
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(normalizeCode(e.target.value))}
-                  placeholder="XXXX"
-                  maxLength={4}
-                />
-              </label>
-              <Button
-                variant="primary"
-                className="w-full rounded-full py-3"
-                disabled={!connected || joinCode.length !== 4}
-                onClick={() => void handleJoin()}
-              >
-                Join lobby
-                <ArrowRight className="ml-1 inline h-4 w-4" />
-              </Button>
-            </motion.div>
-          )}
-        </Card>
-      </main>
-    </div>
+                    Join Lobby
+                    <ArrowRight className="h-4 w-4" />
+                  </TabooButton>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </TabooCard>
+      </TabooPageSection>
+    </TabooPage>
   );
 }

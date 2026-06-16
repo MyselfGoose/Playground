@@ -1,16 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
-import { ResultGate } from "../../../components/game-feel/WinnerBanner.jsx";
-import {
-  GameOverScreen,
-  tabooPath,
-  tabooWinnerBannerSubtitle,
-  tabooWinnerBannerTitle,
-} from "./taboo-shared.js";
+import { TabooGameOver } from "./components/TabooGameOver.jsx";
+import { TabooPage } from "./components/TabooPage.jsx";
+import { tabooPath } from "./taboo-shared.js";
 
 /**
  * @param {{ room: object }} props
@@ -39,12 +35,9 @@ export function TabooResult({ room }) {
   };
 
   return (
-    <motion.div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-8 text-foreground">
-      <ResultGate
-        title={tabooWinnerBannerTitle(game)}
-        subtitle={tabooWinnerBannerSubtitle(game)}
-      >
-        <GameOverScreen
+    <TabooPage maxWidth="sm" stagger={false} className="min-h-[70dvh] items-center justify-center py-10">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+        <TabooGameOver
           game={game}
           players={room?.players}
           showInRoomRematch={isHost}
@@ -56,9 +49,9 @@ export function TabooResult({ room }) {
           }}
         />
         {rematchError ? (
-          <p className="mt-3 text-center text-sm font-semibold text-red-600">{rematchError}</p>
+          <p className="mt-3 text-center text-sm font-semibold text-taboo-danger-text">{rematchError}</p>
         ) : null}
-      </ResultGate>
-    </motion.div>
+      </motion.div>
+    </TabooPage>
   );
 }

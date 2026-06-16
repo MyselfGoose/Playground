@@ -1,41 +1,56 @@
-export function teamColors(team) {
+/** @typedef {'A' | 'B'} TabooTeam */
+
+/** @param {TabooTeam} team */
+export function tabooTeamColors(team) {
   return team === "A"
     ? {
-        bg: "bg-pastel-sky/60 dark:bg-accent-sky/15",
-        border: "border-accent-sky/50",
-        borderFaint: "border-accent-sky/25",
-        dot: "bg-accent-sky",
-        iconBg: "bg-pastel-sky dark:bg-accent-sky/20",
-        iconText: "text-accent-sky",
-        gradientFrom: "from-pastel-sky/80 dark:from-accent-sky/10",
-        avatarBg: "bg-accent-sky",
-        highlight: "bg-pastel-sky dark:bg-accent-sky/20",
+        bg: "bg-taboo-team-a-soft",
+        border: "border-taboo-team-a/50",
+        borderFaint: "border-taboo-team-a/25",
+        dot: "bg-taboo-team-a",
+        iconBg: "bg-taboo-team-a-soft",
+        iconText: "text-taboo-team-a-text",
+        gradientFrom: "from-taboo-team-a/10",
+        avatarBg: "bg-taboo-team-a",
+        highlight: "bg-taboo-team-a-soft",
         label: "Alpha",
-        pillBg: "bg-pastel-sky dark:bg-accent-sky/20",
-        pillBorder: "border-accent-sky/30",
-        pillText: "text-accent-sky",
-        activeScoreBg: "bg-pastel-sky/80 border-accent-sky/40 dark:bg-accent-sky/15",
-        inactiveScoreBg: "bg-muted-bright/30 border-foreground/10",
-        youText: "text-accent-sky",
-        timerBar: "from-accent-sky to-accent-sky/70",
+        pillBg: "bg-taboo-team-a-soft",
+        pillBorder: "border-taboo-team-a/30",
+        pillText: "text-taboo-team-a-text",
+        text: "text-taboo-team-a-text",
+        activeScoreBg: "border border-taboo-team-a/40 bg-taboo-team-a-soft taboo-glow-a",
+        inactiveScoreBg: "border border-taboo-border taboo-surface-card",
+        youText: "text-taboo-team-a-text",
+        timerBar: "from-taboo-team-a to-taboo-team-a-hover",
+        selectedTile: "border-2 border-taboo-team-a bg-gradient-to-br from-taboo-gradient-a-from/40 to-taboo-team-a/20 shadow-lg shadow-taboo-team-a/20",
+        idleTile: "border border-taboo-border bg-white/[0.02] hover:border-taboo-team-a/25 hover:bg-white/[0.04]",
       }
     : {
-        bg: "bg-pastel-peach/60 dark:bg-primary/15",
-        border: "border-primary/50",
-        borderFaint: "border-primary/25",
-        dot: "bg-primary",
-        iconBg: "bg-pastel-peach dark:bg-primary/20",
-        iconText: "text-primary",
-        gradientFrom: "from-pastel-peach/80 dark:from-primary/10",
-        avatarBg: "bg-primary",
-        highlight: "bg-pastel-peach dark:bg-primary/20",
+        bg: "bg-taboo-team-b-soft",
+        border: "border-taboo-team-b/50",
+        borderFaint: "border-taboo-team-b/25",
+        dot: "bg-taboo-team-b",
+        iconBg: "bg-taboo-team-b-soft",
+        iconText: "text-taboo-team-b-text",
+        gradientFrom: "from-taboo-team-b/10",
+        avatarBg: "bg-taboo-team-b",
+        highlight: "bg-taboo-team-b-soft",
         label: "Beta",
-        pillBg: "bg-pastel-peach dark:bg-primary/20",
-        pillBorder: "border-primary/30",
-        pillText: "text-primary",
-        activeScoreBg: "bg-pastel-peach/80 border-primary/40 dark:bg-primary/15",
-        inactiveScoreBg: "bg-muted-bright/30 border-foreground/10",
-        youText: "text-primary",
-        timerBar: "from-primary to-primary-light",
+        pillBg: "bg-taboo-team-b-soft",
+        pillBorder: "border-taboo-team-b/30",
+        pillText: "text-taboo-team-b-text",
+        text: "text-taboo-team-b-text",
+        activeScoreBg: "border border-taboo-team-b/40 bg-taboo-team-b-soft taboo-glow-b",
+        inactiveScoreBg: "border border-taboo-border taboo-surface-card",
+        youText: "text-taboo-team-b-text",
+        timerBar: "from-taboo-team-b to-taboo-team-b-hover",
+        selectedTile: "border-2 border-taboo-team-b bg-gradient-to-br from-taboo-gradient-b-from/40 to-taboo-team-b/20 shadow-lg shadow-taboo-team-b/20",
+        idleTile: "border border-taboo-border bg-white/[0.02] hover:border-taboo-team-b/25 hover:bg-white/[0.04]",
       };
+}
+
+/** @deprecated Use tabooTeamColors inside Taboo-themed screens */
+/** @param {TabooTeam} team */
+export function teamColors(team) {
+  return tabooTeamColors(team);
 }
