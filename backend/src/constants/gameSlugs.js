@@ -107,8 +107,11 @@ export function isValidRoomCodeForSlug(slug, code) {
  */
 export function buildJoinPathForSlug(slug, code) {
   const normalized = normalizeRoomCodeForSlug(slug, code);
-  if (slug === 'npat') {
-    return `/games/npat/lobby?code=${encodeURIComponent(normalized)}`;
+  if (slug === 'typing-race') {
+    return `/games/typing-race/join?code=${encodeURIComponent(normalized)}`;
+  }
+  if (slug === 'npat' || slug === 'hangman' || slug === 'cah' || slug === 'taboo') {
+    return `/games/${slug}/lobby?code=${encodeURIComponent(normalized)}`;
   }
   return `/games/${slug}/join?code=${encodeURIComponent(normalized)}`;
 }

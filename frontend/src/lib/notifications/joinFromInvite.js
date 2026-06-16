@@ -8,7 +8,7 @@ import { persistLastRoomCode } from "../session/RoomSession.js";
  */
 export function navigateToGameInvite(router, invite, userId) {
   const meta = getGameSlugMeta(invite.gameSlug);
-  const path = invite.joinPath || buildInviteJoinPath(invite.gameSlug, invite.roomCode);
+  const path = buildInviteJoinPath(invite.gameSlug, invite.roomCode);
   if (meta?.gameId && userId) {
     persistLastRoomCode(meta.gameId, invite.roomCode, userId);
   }

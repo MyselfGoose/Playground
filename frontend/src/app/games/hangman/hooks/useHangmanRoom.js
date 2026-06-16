@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useHangman } from "../../../../lib/hangman/HangmanSocketContext.jsx";
+import { normalizePartyCode } from "../../../../lib/party/buildInviteUrl.js";
+import { useLobbyCodeJoin } from "../../../../lib/party/useLobbyCodeJoin.js";
 
 /**
  * Derived multiplayer room state + route sync.
@@ -11,8 +13,19 @@ import { useHangman } from "../../../../lib/hangman/HangmanSocketContext.jsx";
 export function useHangmanRoom(view) {
   const router = useRouter();
   const pathname = usePathname();
-  const { room, syncState, localUserId, connected, connectionState, socketError, reconnectedAt, roomNotice, clearRoomNotice } =
+  const { room, syncState, localUserId, connected, connectionState, socketError, reconnectedAt, roomNotice, clearRoomNotice, joinRoom } =
     useHangman();
+
+  const normalizeUrlCode = useCallback(
+    (raw) => normalizePartyCode(raw).slice(0, 4) || null,
+    [],
+  );
+  const lobbyJoin = useLobbyCodeJoin({
+    connected,
+    currentRoomCode: room?.code ?? null,
+    joinRoom,
+    normalizeUrlCode,
+  });
 
   const game = room?.game ?? null;
   const phase = game?.phase ?? null;
@@ -63,14 +76,16 @@ export function useHangmanRoom(view) {
 
   useEffect(() => {
     if (syncState === "ready" && !room?.code && view !== "entry") {
+      if (view === "lobby" && lobbyJoin.urlCode) return;
       router.replace("/games/hangman");
     }
-  }, [syncState, room?.code, view, router]);
+  }, [syncState, room?.code, view, router, lobbyJoin.urlCode]);
 
   useEffect(() => {
-    if (syncState !== "ready" && !room?.code) return;
+    if (syncState !== "ready" && !room?.code && !lobbyJoin.hasPendingInviteCode) return;
+    const awaitingLobbyJoin = view === "lobby" && lobbyJoin.hasPendingInviteCode;
     const targetRoute = !room?.code
-      ? view === "entry"
+      ? view === "entry" || awaitingLobbyJoin
         ? null
         : "/games/hangman"
       : phase === "game_end"
@@ -80,7 +95,7 @@ export function useHangmanRoom(view) {
           : "/games/hangman/play";
     if (!targetRoute || pathname === targetRoute) return;
     router.replace(targetRoute);
-  }, [view, room?.code, phase, inLobby, syncState, pathname, router]);
+  }, [view, room?.code, phase, inLobby, syncState, pathname, router, lobbyJoin.hasPendingInviteCode]);
 
   return {
     room,
@@ -104,5 +119,6 @@ export function useHangmanRoom(view) {
     roomNotice,
     clearRoomNotice,
     lastScores: room?.lobby?.lastScores ?? null,
+    lobbyJoin,
   };
 }

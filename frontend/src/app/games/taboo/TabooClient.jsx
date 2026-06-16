@@ -1,10 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "../../../components/LoadingSkeleton.jsx";
+import { Button } from "../../../components/Button.jsx";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
+import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
+import { useLobbyCodeJoin } from "../../../lib/party/useLobbyCodeJoin.js";
 import { TabooEntry } from "./TabooEntry.jsx";
 import { TabooLobby } from "./TabooLobby.jsx";
 import { TabooResult } from "./TabooResult.jsx";
@@ -23,13 +26,26 @@ export default function TabooClient({ view }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const roomCode = searchParams.get("code") ?? "";
-  const { room, connectionState, syncState } = useTaboo();
+  const { room, connectionState, syncState, connected, joinRoom } = useTaboo();
+
+  const normalizeUrlCode = useCallback(
+    (raw) => normalizePartyCode(raw).slice(0, 4) || null,
+    [],
+  );
+  const { urlCode, joinPhase, joinError, retryJoin, hasPendingInviteCode, isJoining } =
+    useLobbyCodeJoin({
+      connected,
+      currentRoomCode: room?.code ?? null,
+      joinRoom,
+      normalizeUrlCode,
+    });
 
   const code = room?.code ?? roomCode;
 
   useEffect(() => {
+    const awaitingLobbyJoin = view === "lobby" && hasPendingInviteCode;
     const targetRoute = !room?.code
-      ? view === "entry"
+      ? view === "entry" || awaitingLobbyJoin
         ? null
         : "/games/taboo"
       : room.game?.status === "finished"
@@ -38,15 +54,50 @@ export default function TabooClient({ view }) {
           ? "/games/taboo/play"
           : "/games/taboo/lobby";
     if (!targetRoute) return;
-    if (syncState !== "ready" && !room?.code) return;
+    if (syncState !== "ready" && !room?.code && !awaitingLobbyJoin) return;
     const targetPath = tabooPath(targetRoute, room?.code ?? null);
     if (pathname !== targetRoute) {
       router.replace(targetPath);
     }
-  }, [view, room?.code, room?.game, room?.game?.status, syncState, pathname, router]);
+  }, [
+    view,
+    room?.code,
+    room?.game,
+    room?.game?.status,
+    syncState,
+    pathname,
+    router,
+    hasPendingInviteCode,
+  ]);
 
   if (view === "entry") {
     return <TabooEntry />;
+  }
+
+  if (view === "lobby" && !room && urlCode) {
+    if (isJoining || joinPhase === "idle") {
+      return (
+        <div className="mx-auto w-full max-w-lg px-4 py-8 text-foreground">
+          <LoadingSkeleton variant="playfield" />
+          <p className="mt-4 font-semibold text-foreground/70">Joining lobby {urlCode}…</p>
+        </div>
+      );
+    }
+    if (joinPhase === "failed") {
+      return (
+        <div className="mx-auto w-full max-w-lg px-4 py-8 text-center text-foreground">
+          <p className="font-semibold text-error">{joinError ?? "Could not join room"}</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <Button variant="primary" onClick={retryJoin}>
+              Try again
+            </Button>
+            <Button variant="secondary" onClick={() => router.replace("/games/taboo")}>
+              Back to Taboo
+            </Button>
+          </div>
+        </div>
+      );
+    }
   }
 
   const awaitingSync = syncState !== "ready" && !room;

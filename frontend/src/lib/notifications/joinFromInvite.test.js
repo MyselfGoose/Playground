@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { buildInviteJoinPath } from "../party/gameSlugMeta.js";
 
 describe("joinFromInvite paths", () => {
-  it("builds standard join paths", () => {
-    expect(buildInviteJoinPath("hangman", "abcd")).toBe("/games/hangman/join?code=ABCD");
-    expect(buildInviteJoinPath("cah", "1234")).toBe("/games/cah/join?code=1234");
+  it("builds lobby paths for party games", () => {
+    expect(buildInviteJoinPath("hangman", "abcd")).toBe("/games/hangman/lobby?code=ABCD");
+    expect(buildInviteJoinPath("cah", "1234")).toBe("/games/cah/lobby?code=1234");
+    expect(buildInviteJoinPath("taboo", "cnsq")).toBe("/games/taboo/lobby?code=CNSQ");
   });
 
   it("builds npat lobby path", () => {

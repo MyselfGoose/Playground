@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { CountdownStrip } from "../../../../components/game-feel/CountdownStrip.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
 import { LobbyInviteFriends } from "../../../../components/party/LobbyInviteFriends.jsx";
+import { LoadingSkeleton } from "../../../../components/LoadingSkeleton.jsx";
+import { Button } from "../../../../components/Button.jsx";
 import { HangmanShell } from "../components/HangmanShell.jsx";
 import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
 
 export function HangmanLobbyScreen() {
+  const router = useRouter();
   const {
     room,
     connected,
@@ -23,6 +27,7 @@ export function HangmanLobbyScreen() {
     localUserId,
     permissions,
     lastScores,
+    lobbyJoin,
   } = useHangmanRoom("lobby");
   const { error, setReady, leaveToMenu } = useHangmanActions();
   const [showCountdownStrip, setShowCountdownStrip] = useState(false);
@@ -66,6 +71,38 @@ export function HangmanLobbyScreen() {
   const startRules = needMore
     ? "Share the room code or invite link so friends can join."
     : "Everyone ready starts a 5 second countdown.";
+
+  if (!room && lobbyJoin.urlCode) {
+    if (lobbyJoin.isJoining || lobbyJoin.joinPhase === "idle") {
+      return (
+        <HangmanShell>
+          <div className="mx-auto w-full max-w-lg px-4 py-8 text-foreground">
+            <LoadingSkeleton variant="playfield" />
+            <p className="mt-4 text-center font-semibold text-foreground/70">
+              Joining lobby {lobbyJoin.urlCode}…
+            </p>
+          </div>
+        </HangmanShell>
+      );
+    }
+    if (lobbyJoin.joinPhase === "failed") {
+      return (
+        <HangmanShell>
+          <div className="mx-auto w-full max-w-lg px-4 py-8 text-center text-foreground">
+            <p className="font-semibold text-error">{lobbyJoin.joinError ?? "Could not join room"}</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <Button variant="primary" onClick={lobbyJoin.retryJoin}>
+                Try again
+              </Button>
+              <Button variant="secondary" onClick={() => router.replace("/games/hangman")}>
+                Back to Hangman
+              </Button>
+            </div>
+          </div>
+        </HangmanShell>
+      );
+    }
+  }
 
   return (
     <HangmanShell>

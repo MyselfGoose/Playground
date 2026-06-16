@@ -1,12 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { LoadingSkeleton } from "../../../components/LoadingSkeleton.jsx";
 import { ResultGate } from "../../../components/game-feel/WinnerBanner.jsx";
 import { usePathname, useRouter } from "next/navigation";
 import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
+import { normalizePartyCode } from "../../../lib/party/buildInviteUrl.js";
+import { useLobbyCodeJoin } from "../../../lib/party/useLobbyCodeJoin.js";
 import { Button } from "../../../components/Button.jsx";
 import { scoreRows } from "./components/ScoreboardRail.jsx";
 import { ResultActions } from "../../../components/game/ResultActions.jsx";
@@ -25,12 +27,26 @@ export default function CahClient({ view }) {
     syncState,
     socketError,
     localUserId,
+    connected,
+    joinRoom,
     leaveRoom,
     returnToLobby,
     submitCards,
     judgePickWinner,
     nextRound,
   } = useCah();
+
+  const normalizeUrlCode = useCallback(
+    (raw) => normalizePartyCode(raw).slice(0, 4) || null,
+    [],
+  );
+  const { urlCode, joinPhase, joinError, retryJoin, hasPendingInviteCode, isJoining } =
+    useLobbyCodeJoin({
+      connected,
+      currentRoomCode: room?.code ?? null,
+      joinRoom,
+      normalizeUrlCode,
+    });
 
   const [error, setError] = useState("");
   const [selectedCards, setSelectedCards] = useState(/** @type {string[]} */ ([]));
@@ -61,8 +77,9 @@ export default function CahClient({ view }) {
   }, [game?.status, reduceMotion]);
 
   useEffect(() => {
+    const awaitingLobbyJoin = view === "lobby" && hasPendingInviteCode;
     const targetRoute = !room?.code
-      ? view === "entry"
+      ? view === "entry" || awaitingLobbyJoin
         ? null
         : "/games/cah"
       : game?.status === "finished"
@@ -71,9 +88,9 @@ export default function CahClient({ view }) {
           ? "/games/cah/play"
           : "/games/cah/lobby";
     if (!targetRoute) return;
-    if (syncState !== "ready" && !room?.code) return;
+    if (syncState !== "ready" && !room?.code && !awaitingLobbyJoin) return;
     if (pathname !== targetRoute) router.replace(targetRoute);
-  }, [view, room?.code, game?.status, syncState, pathname, router, game]);
+  }, [view, room?.code, game?.status, syncState, pathname, router, game, hasPendingInviteCode]);
 
   useEffect(() => {
     setSelectedCards([]);
@@ -104,6 +121,31 @@ export default function CahClient({ view }) {
   }
 
   if (!room) {
+    if (view === "lobby" && urlCode) {
+      if (isJoining || joinPhase === "idle") {
+        return (
+          <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+            <LoadingSkeleton variant="playfield" />
+            <p className="text-lg font-black text-foreground">Joining lobby {urlCode}…</p>
+          </div>
+        );
+      }
+      if (joinPhase === "failed") {
+        return (
+          <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+            <p className="text-lg font-black text-error">{joinError ?? "Could not join room"}</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button variant="primary" onClick={retryJoin}>
+                Try again
+              </Button>
+              <Button variant="secondary" onClick={() => router.replace("/games/cah")}>
+                Back to CAH Home
+              </Button>
+            </div>
+          </div>
+        );
+      }
+    }
     return (
       <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
         <p className="text-lg font-black text-foreground">Syncing room state…</p>

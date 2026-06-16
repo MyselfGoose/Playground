@@ -24,12 +24,12 @@ export function getGameSlugMeta(slug) {
  */
 export function buildInviteJoinPath(slug, code) {
   const normalized = String(code ?? "").trim().toUpperCase();
-  if (slug === "npat") {
-    return `/games/npat/lobby?code=${encodeURIComponent(normalized)}`;
-  }
   if (slug === "typing-race") {
     const digits = normalized.replace(/\D/g, "").slice(0, 6);
     return `/games/typing-race/join?code=${encodeURIComponent(digits)}`;
+  }
+  if (slug === "npat" || slug === "hangman" || slug === "cah" || slug === "taboo") {
+    return `/games/${slug}/lobby?code=${encodeURIComponent(normalized)}`;
   }
   return `/games/${slug}/join?code=${encodeURIComponent(normalized)}`;
 }
