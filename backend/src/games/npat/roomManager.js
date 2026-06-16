@@ -3,6 +3,9 @@ import { npatRoomRepository } from '../../repositories/npatRoomRepository.js';
 import { NpatRoomEngine } from './gameManager.js';
 import { DEFAULT_TEAMS, NPAT_DEFAULT_MAX_ROUNDS, NPAT_FIELDS } from './constants.js';
 import { normalizeNpatMode, NPAT_MODE_TEAM } from './npatModeUtils.js';
+import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
+import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
+import { GAME_STATES } from './stateMachine.js';
 
 export const NPAT_RECENTLY_EXPIRED_TTL_MS = 5 * 60 * 1000;
 
@@ -445,6 +448,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         cancelPendingDelete(code);
         eng.destroy();
         engines.delete(code);
+        onRoomDestroyed('npat', code);
         markRoomRecentlyExpired(code);
         void npatRoomRepository.deleteByCode(code).catch(() => {});
         return;
@@ -539,6 +543,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         );
         engine.destroy();
         engines.delete(code);
+        onRoomDestroyed('npat', code);
         markRoomRecentlyExpired(code);
         void npatRoomRepository.deleteByCode(code).catch(() => {});
       });
@@ -685,6 +690,23 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       return fn(engine);
     });
   }
+
+  registerRoomAccessor('npat', {
+    getInviteContext(rawCode) {
+      const code = String(rawCode ?? '').replace(/\D/g, '').slice(0, 6);
+      const engine = engines.get(code);
+      if (!engine) {
+        return { exists: false, hostId: null, playerUserIds: [], joinable: false };
+      }
+      const joinable = engine.state === GAME_STATES.WAITING;
+      return {
+        exists: true,
+        hostId: String(engine.hostUserId),
+        playerUserIds: [...engine.players.keys()].map(String),
+        joinable,
+      };
+    },
+  });
 
   return {
     engines,

@@ -15,6 +15,7 @@ import { createLeaderboardRouter } from './routes/leaderboard.js';
 import { createUsersRouter } from './routes/users.js';
 import { createHangmanRouter } from './routes/hangman.js';
 import { createFriendsRouter } from './routes/friends.js';
+import { createGameInvitesRouter } from './routes/gameInvites.js';
 
 /**
  * Express application factory (no listen). Reusable for tests and future HTTP upgrades.
@@ -116,6 +117,7 @@ export function createApp({ env, logger }) {
   app.use('/api/v1/users', createUsersRouter());
   app.use('/api/v1/hangman', createHangmanRouter({ env }));
   app.use('/api/v1/friends', createFriendsRouter({ env }));
+  app.use('/api/v1/game-invites', createGameInvitesRouter({ env }));
   app.use(createHealthRouter({ env }));
 
   app.use(notFound);

@@ -13,6 +13,8 @@ import {
   markPlayerGone,
 } from '../../realtime/playerPresence.js';
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
+import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
+import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import {
   abortRoundSetterLeft,
   activePlayers,
@@ -317,6 +319,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
       try {
         startGame(r);
         bumpStateVersion(r);
+        onRoomGameStarted('hangman', room.code);
         emitRoom(room.code, 'game_started');
         syncLobbyOrTurnTimers(r);
       } catch (err) {
@@ -494,6 +497,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
             if (!pendingRoom.players.length) {
               clearRoomTimers(code);
               rooms.delete(code);
+              onRoomDestroyed('hangman', code);
             }
           });
           bumpStateVersion(room);
@@ -512,6 +516,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!room.players.length) {
       clearRoomTimers(code);
       rooms.delete(code);
+      onRoomDestroyed('hangman', code);
     }
   }
 
@@ -653,6 +658,24 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     userToCode.clear();
     userToSocketIds.clear();
   }
+
+  registerRoomAccessor('hangman', {
+    getInviteContext(rawCode) {
+      const code = normalizeCode(rawCode);
+      const room = rooms.get(code);
+      if (!room) {
+        return { exists: false, hostId: null, playerUserIds: [], joinable: false };
+      }
+      const joinable =
+        (!room.game || room.game.phase === 'game_end') && !room.lobby?.countdownEndsAt;
+      return {
+        exists: true,
+        hostId: String(room.hostId),
+        playerUserIds: room.players.map((p) => String(p.userId)),
+        joinable,
+      };
+    },
+  });
 
   return {
     createRoom,

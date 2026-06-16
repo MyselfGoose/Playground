@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
+import { LobbyInviteFriends } from "../../../../components/party/LobbyInviteFriends.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
 import { formatNpatMode, isNpatTeamMode } from "../../../../lib/npat/modeLabels.js";
 import { useConnectionTimeout } from "../../../../lib/socket/useConnectionTimeout.js";
@@ -283,7 +284,20 @@ export function NpatLobbyClient() {
         description: "Share your code so friends can join.",
         align: "left",
       }}
-      settings={settingsPanel}
+      settings={
+        <>
+          {settingsPanel}
+          {room?.code && room?.hostUserId && room?.state === "WAITING" ? (
+            <LobbyInviteFriends
+              gameSlug="npat"
+              roomCode={room.code}
+              hostId={room.hostUserId}
+              localUserId={localUserId ?? ""}
+              playerUserIds={players.map((p) => p.userId)}
+            />
+          ) : null}
+        </>
+      }
       ready={Boolean(me?.ready)}
       readyDisabled={room?.state !== "WAITING" || !me}
       readyPending={readyPending}

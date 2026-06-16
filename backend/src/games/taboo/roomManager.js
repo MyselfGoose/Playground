@@ -9,6 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { persistTabooResults } from "../../services/leaderboardStatsService.js";
+import { registerRoomAccessor } from "../../realtime/roomInviteRegistry.js";
+import { onRoomDestroyed, onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -279,6 +281,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
             emitRoom(code, "member_disconnected");
             if (!pendingRoom.players.filter((p) => p.presenceStatus !== 'gone').length) {
               rooms.delete(code);
+              onRoomDestroyed('taboo', code);
             }
           });
           bumpStateVersion(room);
@@ -291,7 +294,10 @@ export function createTabooRoomManager({ tabooNs, logger }) {
         room.hostId = connectedHost?.userId ?? room.players[0].userId;
       }
     }
-    if (!room.players.length) rooms.delete(code);
+    if (!room.players.length) {
+      rooms.delete(code);
+      onRoomDestroyed('taboo', code);
+    }
   }
 
   function attachActiveRoomForUser(socket) {
@@ -328,7 +334,10 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (!me) throw Object.assign(new Error("Player not found"), { code: "PLAYER_NOT_FOUND" });
     me.ready = Boolean(ready);
     const started = game.maybeStartIfReady(room);
-    if (started) room.tabooStatsPersisted = false;
+    if (started) {
+      room.tabooStatsPersisted = false;
+      onRoomGameStarted('taboo', room.code);
+    }
     bumpStateVersion(room);
     room.updatedAt = Date.now();
     return { room, started };
@@ -357,6 +366,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (room.hostId !== me.userId) throw Object.assign(new Error("Only host can start"), { code: "NOT_HOST" });
     if (!game.maybeStartIfReady(room)) throw Object.assign(new Error("All players must be ready and both teams non-empty"), { code: "READY_REQUIRED" });
     room.tabooStatsPersisted = false;
+    onRoomGameStarted('taboo', room.code);
     bumpStateVersion(room);
     room.updatedAt = Date.now();
     return room;
@@ -448,6 +458,23 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     userToCode.clear();
     userToSocketIds.clear();
   }
+
+  registerRoomAccessor('taboo', {
+    getInviteContext(rawCode) {
+      const code = String(rawCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+      const room = rooms.get(code);
+      if (!room) {
+        return { exists: false, hostId: null, playerUserIds: [], joinable: false };
+      }
+      const joinable = !room.game || room.game.status === 'finished';
+      return {
+        exists: true,
+        hostId: String(room.hostId),
+        playerUserIds: room.players.map((p) => String(p.userId)),
+        joinable,
+      };
+    },
+  });
 
   return {
     createRoom,

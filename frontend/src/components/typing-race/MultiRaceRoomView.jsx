@@ -6,6 +6,7 @@ import { useUser } from "../../lib/context/UserContext.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { Button } from "../Button.jsx";
 import { PartyCode } from "../party/PartyCode.jsx";
+import { LobbyInviteFriends } from "../party/LobbyInviteFriends.jsx";
 import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
@@ -262,6 +263,16 @@ export function MultiRaceRoomView({ roomCode }) {
               </li>
             ))}
           </ul>
+
+          {isHost && displayCode ? (
+            <LobbyInviteFriends
+              gameSlug="typing-race"
+              roomCode={displayCode}
+              hostId={room?.hostUserId ?? selfId}
+              localUserId={selfId}
+              playerUserIds={players.map((p) => p.userId)}
+            />
+          ) : null}
 
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <Button

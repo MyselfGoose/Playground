@@ -24,6 +24,8 @@ import {
   validatePacksAgainstAllowed,
 } from './gameManager.js';
 import { persistCahGameResult, persistCahRoundResult } from '../../services/leaderboardStatsService.js';
+import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
+import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -281,6 +283,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
             if (!pendingRoom.players.filter((p) => p.presenceStatus !== 'gone').length) {
               clearRevealingTimer(code);
               rooms.delete(code);
+              onRoomDestroyed('cah', code);
             }
           });
           bumpStateVersion(room);
@@ -291,6 +294,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     if (!room.players.length) {
       clearRevealingTimer(code);
       rooms.delete(code);
+      onRoomDestroyed('cah', code);
     }
   }
 
@@ -367,6 +371,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     if (room.hostId !== socket.data.userId) throw Object.assign(new Error('Only host can start'), { code: 'NOT_HOST' });
     await startGame(room);
+    onRoomGameStarted('cah', room.code);
     bumpStateVersion(room);
     return room;
   }
@@ -441,6 +446,23 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     userToCode.clear();
     userToSocketIds.clear();
   }
+
+  registerRoomAccessor('cah', {
+    getInviteContext(rawCode) {
+      const code = normalizeCode(rawCode);
+      const room = rooms.get(code);
+      if (!room) {
+        return { exists: false, hostId: null, playerUserIds: [], joinable: false };
+      }
+      const joinable = !room.game || room.game.status === 'lobby' || room.game.status === 'finished';
+      return {
+        exists: true,
+        hostId: String(room.hostId),
+        playerUserIds: room.players.map((p) => String(p.userId)),
+        joinable,
+      };
+    },
+  });
 
   return {
     createRoom,

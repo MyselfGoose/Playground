@@ -9,6 +9,7 @@ import {
   switchTeamSchema,
   voteEarlyFinishSchema,
 } from './validation/npat.schemas.js';
+import { onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 
 /**
  * Standard error shape returned to every client ack on failure.
@@ -218,6 +219,7 @@ export function installHandlers({ socket, registry, env, logger }) {
     handler: async () => {
       return registry.withRoomLock(socket, (engine) => {
         engine.tryStartGame(userId);
+        onRoomGameStarted('npat', engine.code);
         return { room: engine.toPublicDto() };
       });
     },

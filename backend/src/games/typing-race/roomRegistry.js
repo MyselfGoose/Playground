@@ -1,5 +1,7 @@
 import { TypingRaceRoom } from "./roomSession.js";
 import { TYPING_RACE_ROOM_CODE_LEN } from "./constants.js";
+import { registerRoomAccessor } from "../../realtime/roomInviteRegistry.js";
+import { onRoomDestroyed, onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
 
 const LOBBY_IDLE_TTL_MS = 15 * 60 * 1000;
 const IDLE_CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -69,6 +71,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     if (room.players.size === 0) {
       room.destroy();
       rooms.delete(code);
+      onRoomDestroyed('typing-race', code);
     }
   }
 
@@ -96,6 +99,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     if (room.players.size === 0) {
       room.destroy();
       rooms.delete(code);
+      onRoomDestroyed('typing-race', code);
       userToRoom.delete(userId);
     }
   }
@@ -198,6 +202,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     if (room.players.size === 0) {
       room.destroy();
       rooms.delete(roomCode);
+      onRoomDestroyed('typing-race', roomCode);
     }
     return room;
   }
@@ -250,6 +255,7 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
         logger.info({ event: "typing_race_idle_cleanup", roomCode: code }, "typing_race");
         room.destroy();
         rooms.delete(code);
+        onRoomDestroyed('typing-race', code);
         for (const [uid, rc] of userToRoom) {
           if (rc === code) userToRoom.delete(uid);
         }
@@ -298,6 +304,22 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     socketToRoom.clear();
     userToRoom.clear();
   }
+
+  registerRoomAccessor('typing-race', {
+    getInviteContext(rawCode) {
+      const code = String(rawCode ?? '').replace(/\D/g, '').slice(0, TYPING_RACE_ROOM_CODE_LEN);
+      const room = rooms.get(code);
+      if (!room) {
+        return { exists: false, hostId: null, playerUserIds: [], joinable: false };
+      }
+      return {
+        exists: true,
+        hostId: room.hostUserId ? String(room.hostUserId) : null,
+        playerUserIds: [...room.players.keys()].map(String),
+        joinable: room.phase === 'lobby',
+      };
+    },
+  });
 
   return {
     rooms,

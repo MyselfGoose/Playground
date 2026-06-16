@@ -2,6 +2,7 @@
 
 import { Navbar } from "./Navbar.jsx";
 import { SessionBanner } from "./SessionBanner.jsx";
+import { NotificationToastHost } from "./notifications/NotificationToastHost.jsx";
 
 export function Shell({ children }) {
   return (
@@ -13,6 +14,7 @@ export function Shell({ children }) {
         Skip to main content
       </a>
       <Navbar />
+      <NotificationToastHost />
       <SessionBanner />
       <main
         id="main-content"

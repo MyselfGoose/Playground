@@ -5,6 +5,7 @@ import { Clock, Target, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PartyLobby } from "../../../components/party/PartyLobby.jsx";
+import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
 import { ConfirmDialog } from "../../../components/taboo/ConfirmDialog.jsx";
 import { StatusPill } from "../../../components/taboo/StatusPill.jsx";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
@@ -226,7 +227,20 @@ export function TabooLobby({ room }) {
         readyDisabled={!connected || needMore}
         onLeave={() => setShowLeaveConfirm(true)}
         error={error || socketError}
-        settings={settingsPanel}
+        settings={
+          <>
+            {settingsPanel}
+            {room?.code && room?.hostId && !room?.game ? (
+              <LobbyInviteFriends
+                gameSlug="taboo"
+                roomCode={room.code}
+                hostId={room.hostId}
+                localUserId={localUserId ?? ""}
+                playerUserIds={partyPlayers.map((p) => p.id)}
+              />
+            ) : null}
+          </>
+        }
       />
       <ConfirmDialog
         open={showLeaveConfirm}

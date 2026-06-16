@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { CountdownStrip } from "../../../../components/game-feel/CountdownStrip.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
+import { LobbyInviteFriends } from "../../../../components/party/LobbyInviteFriends.jsx";
 import { HangmanShell } from "../components/HangmanShell.jsx";
 import { useHangmanActions } from "../hooks/useHangmanActions.js";
 import { useHangmanRoom } from "../hooks/useHangmanRoom.js";
@@ -100,6 +101,17 @@ export function HangmanLobbyScreen() {
         readyDisabled={!connected || !permissions.canSetReady || needMore}
         onLeave={() => void leaveToMenu()}
         error={error || socketError}
+        settings={
+          room?.code && room?.hostId ? (
+            <LobbyInviteFriends
+              gameSlug="hangman"
+              roomCode={room.code}
+              hostId={room.hostId}
+              localUserId={localUserId ?? ""}
+              playerUserIds={players.map((p) => p.id)}
+            />
+          ) : null
+        }
       />
     </HangmanShell>
   );

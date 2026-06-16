@@ -10,6 +10,7 @@ import { useTheme } from "../lib/theme/ThemeContext.jsx";
 import { getEnabled, play, setEnabled } from "../lib/sound/soundManager.js";
 import { Avatar } from "./Avatar.jsx";
 import { FriendsNavButton } from "./friends/FriendsNavButton.jsx";
+import { NotificationsNavButton } from "./notifications/NotificationsNavButton.jsx";
 
 const links = [
   { href: "/", label: "Home" },
@@ -90,6 +91,7 @@ export function Navbar() {
             </span>
           ) : user ? (
             <div className="flex items-center gap-2 sm:gap-3">
+              <NotificationsNavButton />
               <FriendsNavButton />
               <Link
                 href="/profile"

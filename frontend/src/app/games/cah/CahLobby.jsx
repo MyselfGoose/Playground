@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PartyLobby } from "../../../components/party/PartyLobby.jsx";
+import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
 import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
 
 /**
@@ -157,7 +158,20 @@ export function CahLobby({ room, error, setError, run }) {
       minPlayers={minPlayers}
       connectedCount={playerCount}
       readyCount={readyCount}
-      settings={settingsPanel}
+      settings={
+        <>
+          {settingsPanel}
+          {room?.code && room?.hostId ? (
+            <LobbyInviteFriends
+              gameSlug="cah"
+              roomCode={room.code}
+              hostId={room.hostId}
+              localUserId={localUserId ?? ""}
+              playerUserIds={partyPlayers.map((p) => p.id)}
+            />
+          ) : null}
+        </>
+      }
       ready={Boolean(me?.ready)}
       onReadyToggle={() => void run(() => setReady(!me?.ready))}
       readyDisabled={!connected || needMore}

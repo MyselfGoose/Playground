@@ -7,6 +7,7 @@ import {
 } from "./validation/typingRace.schemas.js";
 import { deliverAck, makeTypingRegister } from "./socketUtils.js";
 import { persistTypingAttempt } from "../../services/leaderboardStatsService.js";
+import { onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
 
 /**
  * @param {{
@@ -82,6 +83,7 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
     handler: async () => {
       const room = requireRoom();
       room.startCountdown(userId);
+      onRoomGameStarted('typing-race', room.code);
       return { room: room.toPublicSnapshot() };
     },
   });

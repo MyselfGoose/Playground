@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiFetch, getSocketBase } from "../api.js";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ApiError, apiFetch } from "../api.js";
 import { useUser } from "../context/UserContext.jsx";
-import { connectGameSocket } from "../socket/createGameSocket.js";
+import { useSocialSocket } from "../social/SocialSocketContext.jsx";
 import {
   countOnlineFriends,
   removeFriendById,
@@ -35,7 +35,7 @@ export function FriendsProvider({ children }) {
   const [pendingReceivedCount, setPendingReceivedCount] = useState(0);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [friendsError, setFriendsError] = useState(/** @type {string | null} */ (null));
-  const socketCleanupRef = useRef(/** @type {(() => void) | null} */ (null));
+  const { subscribe, enabled: socialEnabled } = useSocialSocket();
 
   const applySummary = useCallback((summary) => {
     setFriends(summary.friends ?? []);
@@ -72,22 +72,16 @@ export function FriendsProvider({ children }) {
   }, [loading, user?.id, refreshFriends]);
 
   useEffect(() => {
-    if (loading || !user?.id || !getSocketBase()) return undefined;
+    if (loading || !user?.id || !socialEnabled) return undefined;
 
-    let cancelled = false;
-
-    const { socket, cleanup } = connectGameSocket({
-      namespace: "/social",
-      gameTag: "social",
-      onConnect: () => {
-        if (!cancelled) void refreshFriends();
-      },
-      onReconnect: () => {
-        if (!cancelled) void refreshFriends();
-      },
-    });
-
-    const onSnapshot = (payload) => {
+    const unsubs = [
+      subscribe("social_connected", () => {
+        void refreshFriends();
+      }),
+      subscribe("social_reconnected", () => {
+        void refreshFriends();
+      }),
+      subscribe("presence_snapshot", (payload) => {
       const onlineIds = new Set(
         Array.isArray(payload?.onlineFriendIds) ? payload.onlineFriendIds.map(String) : [],
       );
@@ -99,9 +93,8 @@ export function FriendsProvider({ children }) {
         })),
       );
       setOnlineCount(onlineIds.size);
-    };
-
-    const onFriendOnline = (payload) => {
+      }),
+      subscribe("friend_online", (payload) => {
       const userId = String(payload?.userId ?? "");
       if (!userId) return;
       setFriends((prev) => {
@@ -109,9 +102,8 @@ export function FriendsProvider({ children }) {
         setOnlineCount(countOnlineFriends(next));
         return next;
       });
-    };
-
-    const onFriendOffline = (payload) => {
+      }),
+      subscribe("friend_offline", (payload) => {
       const userId = String(payload?.userId ?? "");
       const lastSeenAt = payload?.lastSeenAt ? String(payload.lastSeenAt) : new Date().toISOString();
       if (!userId) return;
@@ -120,9 +112,8 @@ export function FriendsProvider({ children }) {
         setOnlineCount(countOnlineFriends(next));
         return next;
       });
-    };
-
-    const onRequestReceived = (payload) => {
+      }),
+      subscribe("friend_request_received", (payload) => {
       const request = payload?.request;
       if (!request?.id) return;
       setPendingReceived((prev) => {
@@ -130,9 +121,8 @@ export function FriendsProvider({ children }) {
         return [request, ...prev];
       });
       setPendingReceivedCount((c) => c + 1);
-    };
-
-    const onRequestAccepted = (payload) => {
+      }),
+      subscribe("friend_request_accepted", (payload) => {
       const friend = payload?.friend;
       if (!friend?.userId) return;
       setPendingReceived((prev) => prev.filter((r) => r.from?.userId !== friend.userId));
@@ -147,9 +137,8 @@ export function FriendsProvider({ children }) {
         }),
       );
       setPendingReceivedCount((c) => Math.max(0, c - 1));
-    };
-
-    const onRequestDeclined = (payload) => {
+      }),
+      subscribe("friend_request_declined", (payload) => {
       const requestId = String(payload?.requestId ?? "");
       if (!requestId) return;
       setPendingSent((prev) =>
@@ -157,16 +146,14 @@ export function FriendsProvider({ children }) {
           s.id === requestId ? { ...s, status: "declined", respondedAt: new Date().toISOString() } : s,
         ),
       );
-    };
-
-    const onRequestCancelled = (payload) => {
+      }),
+      subscribe("friend_request_cancelled", (payload) => {
       const requestId = String(payload?.requestId ?? "");
       if (!requestId) return;
       setPendingReceived((prev) => prev.filter((r) => r.id !== requestId));
       setPendingReceivedCount((c) => Math.max(0, c - 1));
-    };
-
-    const onFriendRemoved = (payload) => {
+      }),
+      subscribe("friend_removed", (payload) => {
       const userId = String(payload?.userId ?? "");
       if (!userId) return;
       setFriends((prev) => {
@@ -174,35 +161,13 @@ export function FriendsProvider({ children }) {
         setOnlineCount(countOnlineFriends(next));
         return next;
       });
-    };
-
-    socket.on("presence_snapshot", onSnapshot);
-    socket.on("friend_online", onFriendOnline);
-    socket.on("friend_offline", onFriendOffline);
-    socket.on("friend_request_received", onRequestReceived);
-    socket.on("friend_request_accepted", onRequestAccepted);
-    socket.on("friend_request_declined", onRequestDeclined);
-    socket.on("friend_request_cancelled", onRequestCancelled);
-    socket.on("friend_removed", onFriendRemoved);
-
-    socketCleanupRef.current = () => {
-      socket.off("presence_snapshot", onSnapshot);
-      socket.off("friend_online", onFriendOnline);
-      socket.off("friend_offline", onFriendOffline);
-      socket.off("friend_request_received", onRequestReceived);
-      socket.off("friend_request_accepted", onRequestAccepted);
-      socket.off("friend_request_declined", onRequestDeclined);
-      socket.off("friend_request_cancelled", onRequestCancelled);
-      socket.off("friend_removed", onFriendRemoved);
-      cleanup();
-    };
+      }),
+    ];
 
     return () => {
-      cancelled = true;
-      socketCleanupRef.current?.();
-      socketCleanupRef.current = null;
+      for (const unsub of unsubs) unsub();
     };
-  }, [loading, user?.id, refreshFriends]);
+  }, [loading, user?.id, socialEnabled, subscribe, refreshFriends]);
 
   const sendRequest = useCallback(
     async (username) => {
@@ -269,7 +234,7 @@ export function FriendsProvider({ children }) {
       cancelRequest,
       unfriend,
       lookupUsername,
-      enabled: Boolean(user?.id),
+      enabled: socialEnabled,
     }),
     [
       friends,
@@ -286,7 +251,7 @@ export function FriendsProvider({ children }) {
       cancelRequest,
       unfriend,
       lookupUsername,
-      user?.id,
+      socialEnabled,
     ],
   );
 

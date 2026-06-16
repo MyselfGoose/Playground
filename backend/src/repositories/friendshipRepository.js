@@ -170,4 +170,22 @@ export const friendshipRepository = {
       f.requesterId === userId ? f.recipientId : f.requesterId,
     );
   },
+
+  /**
+   * @param {string} userA
+   * @param {string} userB
+   */
+  async areFriends(userA, userB) {
+    if (!userA || !userB || userA === userB) return false;
+    const a = toObjectId(userA);
+    const b = toObjectId(userB);
+    const row = await Friendship.findOne({
+      status: 'accepted',
+      $or: [
+        { requesterId: a, recipientId: b },
+        { requesterId: b, recipientId: a },
+      ],
+    }).lean();
+    return Boolean(row);
+  },
 };

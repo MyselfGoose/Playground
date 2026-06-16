@@ -94,6 +94,30 @@ function createSocialHub({ socialNs, presence, logger }) {
     },
 
     /**
+     * @param {string} recipientId
+     * @param {{ invite: object }} payload
+     */
+    notifyGameInviteReceived(recipientId, payload) {
+      void emitToUser(recipientId, 'game_invite_received', payload);
+    },
+
+    /**
+     * @param {string} recipientId
+     * @param {{ inviteId: string, reason?: string }} payload
+     */
+    notifyGameInviteCancelled(recipientId, payload) {
+      void emitToUser(recipientId, 'game_invite_cancelled', payload);
+    },
+
+    /**
+     * @param {string} inviterId
+     * @param {{ inviteId: string, status: string }} payload
+     */
+    notifyGameInviteResolved(inviterId, payload) {
+      void emitToUser(inviterId, 'game_invite_resolved', payload);
+    },
+
+    /**
      * @param {string} userId
      * @param {string} username
      */
