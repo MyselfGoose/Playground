@@ -37,7 +37,8 @@ export default function TabooClient({ view }) {
         : room.game
           ? "/games/taboo/play"
           : "/games/taboo/lobby";
-    if (!targetRoute || syncState !== "ready") return;
+    if (!targetRoute) return;
+    if (syncState !== "ready" && !room?.code) return;
     const targetPath = tabooPath(targetRoute, room?.code ?? null);
     if (pathname !== targetRoute) {
       router.replace(targetPath);
@@ -48,11 +49,17 @@ export default function TabooClient({ view }) {
     return <TabooEntry />;
   }
 
-  if (syncState !== "ready") {
+  const awaitingSync = syncState !== "ready" && !room;
+
+  if (awaitingSync) {
     return (
       <div className="mx-auto w-full max-w-lg px-4 py-8 text-foreground">
         <LoadingSkeleton variant="playfield" />
-        <p className="mt-4 font-semibold text-foreground/70">Syncing your Taboo room…</p>
+        <p className="mt-4 font-semibold text-foreground/70">
+          {syncState === "error"
+            ? "Could not sync your Taboo room. Check your connection and try again."
+            : "Syncing your Taboo room…"}
+        </p>
       </div>
     );
   }

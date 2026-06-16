@@ -121,8 +121,17 @@ export function useGameSocket({
   const applyRoom = useCallback(
     (incoming) => {
       mergeRoom(incoming, mergeCtx);
+      if (
+        trackSyncState &&
+        incoming &&
+        typeof incoming === "object" &&
+        typeof incoming.code === "string" &&
+        incoming.code.trim()
+      ) {
+        setSyncState("ready");
+      }
     },
-    [mergeRoom, mergeCtx],
+    [mergeRoom, mergeCtx, trackSyncState],
   );
 
   const setSocketError = useCallback((message, code) => {
@@ -144,7 +153,12 @@ export function useGameSocket({
           } else if (result.ok) {
             if (trackSyncState) setSyncState("ready");
           } else if (trackSyncState) {
-            setSyncState("error");
+            const errCode = /** @type {{ code?: string }} */ (result.error)?.code;
+            if (errCode === "NOT_IN_ROOM") {
+              setSyncState("ready");
+            } else {
+              setSyncState("error");
+            }
           }
         })
         .finally(() => {
@@ -237,6 +251,7 @@ export function useGameSocket({
         const p = /** @type {{ room?: Record<string, unknown> }} */ (payload);
         onSessionResumedExtraRef.current?.(p);
         onRoomPayload(payload);
+        if (trackSyncState) setSyncState("ready");
       };
 
       socket.on("room_update", onRoomPayload);
@@ -288,10 +303,11 @@ export function useGameSocket({
       const result = await emitAck(socketRef.current, "create_room", settings ?? {});
       if (result.ok && result.data?.room) {
         applyRoom(/** @type {Record<string, unknown>} */ (result.data.room));
+        if (trackSyncState) setSyncState("ready");
       }
       return result;
     },
-    [applyRoom],
+    [applyRoom, trackSyncState],
   );
 
   const joinRoom = useCallback(
@@ -303,10 +319,11 @@ export function useGameSocket({
       const result = await emitAck(socketRef.current, "join_room", { code: normalized });
       if (result.ok && result.data?.room) {
         applyRoom(/** @type {Record<string, unknown>} */ (result.data.room));
+        if (trackSyncState) setSyncState("ready");
       }
       return result;
     },
-    [applyRoom],
+    [applyRoom, trackSyncState],
   );
 
   const leaveRoom = useCallback(async () => {

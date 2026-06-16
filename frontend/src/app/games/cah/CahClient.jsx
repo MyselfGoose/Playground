@@ -70,7 +70,8 @@ export default function CahClient({ view }) {
         : game
           ? "/games/cah/play"
           : "/games/cah/lobby";
-    if (!targetRoute || syncState !== "ready") return;
+    if (!targetRoute) return;
+    if (syncState !== "ready" && !room?.code) return;
     if (pathname !== targetRoute) router.replace(targetRoute);
   }, [view, room?.code, game?.status, syncState, pathname, router, game]);
 

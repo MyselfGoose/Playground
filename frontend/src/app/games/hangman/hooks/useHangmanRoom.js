@@ -68,7 +68,7 @@ export function useHangmanRoom(view) {
   }, [syncState, room?.code, view, router]);
 
   useEffect(() => {
-    if (syncState !== "ready") return;
+    if (syncState !== "ready" && !room?.code) return;
     const targetRoute = !room?.code
       ? view === "entry"
         ? null

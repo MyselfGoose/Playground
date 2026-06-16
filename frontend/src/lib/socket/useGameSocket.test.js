@@ -113,6 +113,76 @@ describe("useGameSocket", () => {
     await waitFor(() => expect(result.current.connectionState).toBe("reconnecting"));
   });
 
+  it("sets syncState ready after createRoom applies a room", async () => {
+    const { emitAck } = await import("./socketUtils.js");
+    emitAck
+      .mockResolvedValueOnce({ ok: true, data: {} })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { room: { code: "ABCD", stateVersion: 1 } },
+      });
+
+    let onConnect;
+    connectGameSocket.mockImplementation(({ onConnect: oc }) => {
+      onConnect = oc;
+      return {
+        socket: { on: vi.fn(), off: vi.fn() },
+        cleanup: vi.fn(),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useGameSocket({
+        namespace: "/taboo",
+        gameTag: "taboo",
+        mapGame: "taboo",
+        enabled: true,
+        trackSyncState: true,
+        mergeRoom: mergeRoomByStateVersion,
+      }),
+    );
+
+    onConnect?.({ on: vi.fn(), off: vi.fn() });
+    await waitFor(() => expect(result.current.syncState).toBe("ready"));
+
+    await result.current.createRoom({});
+    await waitFor(() => {
+      expect(result.current.room?.code).toBe("ABCD");
+      expect(result.current.syncState).toBe("ready");
+    });
+  });
+
+  it("treats NOT_IN_ROOM resync as ready empty state", async () => {
+    const { emitAck } = await import("./socketUtils.js");
+    emitAck.mockResolvedValueOnce({
+      ok: false,
+      error: Object.assign(new Error("Not in a room"), { code: "NOT_IN_ROOM" }),
+    });
+
+    let onConnect;
+    connectGameSocket.mockImplementation(({ onConnect: oc }) => {
+      onConnect = oc;
+      return {
+        socket: { on: vi.fn(), off: vi.fn() },
+        cleanup: vi.fn(),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useGameSocket({
+        namespace: "/taboo",
+        gameTag: "taboo",
+        mapGame: "taboo",
+        enabled: true,
+        trackSyncState: true,
+        mergeRoom: mergeRoomByStateVersion,
+      }),
+    );
+
+    onConnect?.({ on: vi.fn(), off: vi.fn() });
+    await waitFor(() => expect(result.current.syncState).toBe("ready"));
+  });
+
   it("returns syncState ready after unmount cleanup", async () => {
     let onConnect;
     connectGameSocket.mockImplementation(({ onConnect: oc }) => {
