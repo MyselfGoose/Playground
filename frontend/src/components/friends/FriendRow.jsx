@@ -21,7 +21,7 @@ export function FriendRow({ friend, onNavigate }) {
       <Link
         href={`/profile/${friend.userId}`}
         onClick={onNavigate}
-        className="flex items-center gap-3 px-2 py-2.5"
+        className="flex items-center gap-2 px-1.5 py-1.5"
       >
         <span className="relative shrink-0">
           <Avatar username={friend.username} src={friend.avatarUrl} size="sm" />
@@ -33,7 +33,7 @@ export function FriendRow({ friend, onNavigate }) {
           />
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-bold text-foreground">{friend.username}</span>
-        <span className="text-[10px] font-bold uppercase tracking-wide text-muted">
+        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-muted">
           {friend.online ? "Online" : "Offline"}
         </span>
       </Link>

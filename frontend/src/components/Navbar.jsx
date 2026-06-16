@@ -231,9 +231,6 @@ export function Navbar() {
               ) : null}
               {!loading && user ? (
                 <>
-                  <div className="px-2 py-1">
-                    <FriendsNavButton />
-                  </div>
                   <Link
                     href="/profile"
                     onClick={() => setOpen(false)}
