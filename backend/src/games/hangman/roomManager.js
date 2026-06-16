@@ -13,6 +13,7 @@ import {
   markPlayerGone,
 } from '../../realtime/playerPresence.js';
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
+import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
 import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
 import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import {
@@ -408,12 +409,13 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     const room = rooms.get(normalized);
     if (!room) throw Object.assign(new Error('Room not found'), { code: 'ROOM_NOT_FOUND' });
 
-    const existing = room.players.find((p) => p.userId === socket.data.userId);
-    if (!existing && room.game && room.game.phase !== 'game_end') {
+    const alreadyMember = room.players.some((p) => p.userId === socket.data.userId);
+    if (!alreadyMember && room.game && room.game.phase !== 'game_end') {
       throw Object.assign(new Error('Game already in progress'), { code: 'ROOM_LOCKED' });
     }
 
     await leaveRoom(socket, { hardLeave: false });
+    const existing = room.players.find((p) => p.userId === socket.data.userId);
     if (existing) {
       markPlayerConnected(existing);
       existing.username = socket.data.username;
@@ -427,6 +429,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }
+    dedupeRoomPlayersInPlace(room);
     room.socketIds.add(socket.id);
     evictSupersededPartySockets(hangmanNs, {
       userId: socket.data.userId,

@@ -4,6 +4,7 @@ import {
   markPlayerGone,
 } from "../../realtime/playerPresence.js";
 import { evictSupersededPartySockets } from "../../realtime/partySocketEviction.js";
+import { dedupeRoomPlayersInPlace } from "../../realtime/dedupeRoomPlayers.js";
 import { createDeckProvider, createGameManager } from "./gameManager.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -198,11 +199,12 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (normalized.length !== 4) throw Object.assign(new Error("Invalid room code"), { code: "VALIDATION_ERROR" });
     const room = rooms.get(normalized);
     if (!room) throw Object.assign(new Error("Room not found"), { code: "ROOM_NOT_FOUND" });
-    const existing = room.players.find((p) => p.userId === userId);
-    if (!existing && room.game?.status && room.game.status !== "finished") {
+    const alreadyMember = room.players.some((p) => p.userId === userId);
+    if (!alreadyMember && room.game?.status && room.game.status !== "finished") {
       throw Object.assign(new Error("Game already started"), { code: "ROOM_LOCKED" });
     }
     leaveRoom(socket, { hardLeave: false });
+    const existing = room.players.find((p) => p.userId === userId);
     if (existing) {
       markPlayerConnected(existing);
       existing.username = username;
@@ -213,6 +215,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }
+    dedupeRoomPlayersInPlace(room);
     bumpStateVersion(room);
     room.socketIds.add(socket.id);
     room.updatedAt = Date.now();

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { Avatar } from "../Avatar.jsx";
@@ -21,6 +21,20 @@ import { PlayerPresenceBadge } from "./PlayerPresenceBadge.jsx";
  */
 
 /**
+ * @param {PartyPlayer[]} players
+ * @returns {PartyPlayer[]}
+ */
+function dedupePlayersById(players) {
+  const seen = new Set();
+  return players.filter((player) => {
+    const id = String(player.id ?? "");
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+/**
  * @param {{
  *   players: PartyPlayer[],
  *   localUserId?: string | null,
@@ -28,10 +42,12 @@ import { PlayerPresenceBadge } from "./PlayerPresenceBadge.jsx";
  * }} props
  */
 export const PlayerList = memo(function PlayerList({ players, localUserId = null, className = "" }) {
+  const uniquePlayers = useMemo(() => dedupePlayersById(players), [players]);
+
   return (
     <ul className={`space-y-2 ${className}`}>
       <AnimatePresence initial={false}>
-        {players.map((p, i) => {
+        {uniquePlayers.map((p, i) => {
           const isMe = localUserId != null && p.id === localUserId;
           const pending = p.presenceStatus === "disconnect_pending";
           const disconnected = p.presenceStatus === "gone" || (p.connected === false && !pending);

@@ -186,3 +186,26 @@ test('updateSettings rejects invalid packs', async (t) => {
 
   registry.shutdown();
 });
+
+test('concurrent joinRoom from same user dedupes roster', async () => {
+  const cahNs = createMockNamespace();
+  const registry = createCahRoomManager({ cahNs, logger: null, maxPlayers: 10 });
+  const hostSocket = mockSocket('host', 'host-user', 'Host');
+  const tabASocket = mockSocket('tab-a', 'guest-user', 'Guest');
+  const tabBSocket = mockSocket('tab-b', 'guest-user', 'Guest');
+  cahNs.sockets.set('host', hostSocket);
+  cahNs.sockets.set('tab-a', tabASocket);
+  cahNs.sockets.set('tab-b', tabBSocket);
+
+  const room = await registry.createRoom(hostSocket, { maxRounds: 5 });
+  await Promise.all([
+    registry.joinRoom(tabASocket, room.code),
+    registry.joinRoom(tabBSocket, room.code),
+  ]);
+
+  const guestEntries = room.players.filter((p) => p.userId === 'guest-user');
+  assert.equal(guestEntries.length, 1);
+  assert.equal(room.players.length, 2);
+
+  registry.shutdown();
+});

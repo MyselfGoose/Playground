@@ -4,6 +4,7 @@ import {
   markPlayerGone,
 } from '../../realtime/playerPresence.js';
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
+import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
 import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
@@ -189,17 +190,18 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     if (normalized.length !== 4) throw Object.assign(new Error('Invalid room code'), { code: 'VALIDATION_ERROR' });
     const room = rooms.get(normalized);
     if (!room) throw Object.assign(new Error('Room not found'), { code: 'ROOM_NOT_FOUND' });
-    const existing = room.players.find((p) => p.userId === socket.data.userId);
-    if (!existing && room.game && room.game.status !== 'finished' && room.game.status !== 'lobby') {
+    const alreadyMember = room.players.some((p) => p.userId === socket.data.userId);
+    if (!alreadyMember && room.game && room.game.status !== 'finished' && room.game.status !== 'lobby') {
       throw Object.assign(new Error('Game already in progress'), { code: 'ROOM_LOCKED' });
     }
     if (
-      !existing &&
+      !alreadyMember &&
       room.players.length >= Number(room.settings?.maxPlayers ?? lobbyMaxPlayers ?? 10)
     ) {
       throw Object.assign(new Error('Lobby is full'), { code: 'LOBBY_FULL' });
     }
     await leaveRoom(socket, { hardLeave: false });
+    const existing = room.players.find((p) => p.userId === socket.data.userId);
     if (existing) {
       markPlayerConnected(existing);
       existing.username = socket.data.username;
@@ -214,6 +216,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }
+    dedupeRoomPlayersInPlace(room);
     room.socketIds.add(socket.id);
     evictSupersededPartySockets(cahNs, {
       userId: socket.data.userId,
