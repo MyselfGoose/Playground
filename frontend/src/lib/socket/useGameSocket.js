@@ -328,13 +328,12 @@ export function useGameSocket({
 
   const leaveRoom = useCallback(async () => {
     const result = await emitAck(socketRef.current, "leave_room", {});
-    if (result.ok) {
-      setRoom(null);
-      roomVersionRef.current = 0;
-      roomCodeRef.current = null;
-    }
+    setRoom(null);
+    roomVersionRef.current = 0;
+    roomCodeRef.current = null;
+    if (trackSyncState) setSyncState("ready");
     return result;
-  }, []);
+  }, [trackSyncState]);
 
   const retryConnection = useCallback(() => {
     socketRef.current?.connect();

@@ -1,11 +1,14 @@
 import { createSocketAuthMiddleware } from "../../middleware/socketAuthMiddleware.js";
+import { userRepository } from "../../repositories/userRepository.js";
+import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
 import { createTabooRoomManager } from "./roomManager.js";
 import { installTabooHandlers } from "./socketHandlers.js";
 
 export function installTabooSocketServer({ tabooNs, registry, logger, tokenService }) {
   tabooNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: "taboo" }));
 
-  tabooNs.on("connection", (socket) => {
+  tabooNs.on("connection", async (socket) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     logger.info(
       { userId: socket.data.userId, socketId: socket.id, ns: "taboo" },
       "taboo socket connected",

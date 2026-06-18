@@ -67,7 +67,8 @@ export function TabooProvider({ children }) {
 
   const leaveRoom = useCallback(async () => {
     const result = await socket.leaveRoom();
-    if (result.ok) clearActiveGameRoom("taboo", user?.id);
+    clearActiveGameRoom("taboo", user?.id);
+    clearLastRoomCode("taboo", user?.id);
     return result;
   }, [socket.leaveRoom, user?.id]);
 

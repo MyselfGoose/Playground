@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { userRepository } from "../../repositories/userRepository.js";
+import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
 import {
   tabooChangeTeamSchema,
   tabooCreateRoomSchema,
@@ -49,12 +51,14 @@ function register(socket, logger, event, schema, handler) {
 
 export function installTabooHandlers({ socket, registry, logger }) {
   register(socket, logger, "create_room", tabooCreateRoomSchema, async (data) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const room = registry.createRoom(socket, socket.data.userId, socket.data.username, data);
     registry.emitRoom(room.code, "room_created");
     return { room: registry.snapshotFor(socket) };
   });
 
   register(socket, logger, "join_room", tabooJoinRoomSchema, async (data) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const room = registry.joinRoom(data.code, socket, socket.data.userId, socket.data.username);
     registry.emitRoom(room.code, "member_joined");
     return { room: registry.snapshotFor(socket) };

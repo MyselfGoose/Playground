@@ -223,6 +223,8 @@ export class NpatRoomEngine {
       engine.players.set(uid, {
         userId: uid,
         username: pl.username,
+        avatarUrl: pl.avatarUrl ?? null,
+        avatarEmoji: pl.avatarEmoji ?? null,
         teamId: pl.teamId ?? '',
         ready: Boolean(pl.ready),
         socketId: null,
@@ -1379,6 +1381,8 @@ export class NpatRoomEngine {
     return [...this.players.values()].map((p) => ({
       userId: new mongoose.Types.ObjectId(p.userId),
       username: p.username,
+      avatarUrl: p.avatarUrl ?? null,
+      avatarEmoji: p.avatarEmoji ?? null,
       teamId: p.teamId,
       ready: p.ready,
       joinedAt: new Date(p.joinedAt),

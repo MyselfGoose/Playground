@@ -127,7 +127,9 @@ export function HangmanLobbyScreen() {
         ready={isReady}
         onReadyToggle={() => void setReady(!isReady)}
         readyDisabled={!connected || !permissions.canSetReady || needMore}
-        onLeave={() => void leaveToMenu()}
+        onLeave={async () => {
+          await leaveToMenu();
+        }}
         error={error || socketError}
         settings={
           room?.code && room?.hostId ? (

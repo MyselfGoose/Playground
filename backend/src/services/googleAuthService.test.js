@@ -38,6 +38,7 @@ function mockUserRepository(impl) {
     linkGoogleAccount: async () => null,
     createUser: async () => null,
     updateLastLogin: async () => undefined,
+    updateProfile: async (_id, patch) => ({ ...localUser(), ...patch }),
     findByIdLean: async () => null,
     findByUsername: async () => null,
     ...impl,
@@ -63,6 +64,28 @@ test('resolveGoogleCallback returns session for existing googleId', async () => 
   const outcome = await svc.resolveGoogleCallback(verifiedProfile);
   assert.equal(outcome.kind, 'session');
   assert.equal(String(outcome.user._id), String(existing._id));
+});
+
+test('resolveGoogleCallback syncs Google picture when user has no avatar', async () => {
+  const existing = localUser({
+    googleId: 'google-sub-1',
+    authProviders: ['google'],
+    avatarUrl: null,
+  });
+  let patched = null;
+  const svc = createGoogleAuthService({
+    userRepository: mockUserRepository({
+      findByGoogleId: async () => existing,
+      updateProfile: async (_id, patch) => {
+        patched = patch;
+        return { ...existing, ...patch };
+      },
+    }),
+  });
+  const outcome = await svc.resolveGoogleCallback(verifiedProfile);
+  assert.equal(outcome.kind, 'session');
+  assert.equal(patched?.avatarUrl, verifiedProfile.picture);
+  assert.equal(outcome.user.avatarUrl, verifiedProfile.picture);
 });
 
 test('resolveGoogleCallback returns signup for new email', async () => {

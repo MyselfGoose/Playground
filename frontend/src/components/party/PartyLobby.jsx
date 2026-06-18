@@ -1,8 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { Button } from "../Button.jsx";
 import { PageHeader } from "../PageHeader.jsx";
+import { LeaveLobbyDialog } from "./LeaveLobbyDialog.jsx";
 import { PartyCode } from "./PartyCode.jsx";
 import { PlayerList } from "./PlayerList.jsx";
 import { ReadyButton } from "./ReadyButton.jsx";
@@ -38,7 +40,9 @@ import { ReadyButton } from "./ReadyButton.jsx";
  *   canStart?: boolean,
  *   onStart?: () => void,
  *   startPending?: boolean,
- *   onLeave?: () => void,
+ *   onLeave?: () => void | Promise<void>,
+ *   leaveConfirmTitle?: string,
+ *   leaveConfirmDescription?: string,
  *   error?: string | null,
  *   primaryAction?: import('react').ReactNode,
  *   footer?: import('react').ReactNode,
@@ -66,11 +70,15 @@ export function PartyLobby({
   onStart,
   startPending = false,
   onLeave,
+  leaveConfirmTitle,
+  leaveConfirmDescription,
   error = null,
   primaryAction = null,
   footer = null,
   className = "",
 }) {
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const needMore = connectedCount < minPlayers;
   const resolvedStatus =
     statusLine ??
@@ -79,6 +87,17 @@ export function PartyLobby({
       : `${readyCount} of ${connectedCount} ready`);
 
   const showHostStart = startPolicy === "host" && typeof onStart === "function";
+
+  async function handleConfirmLeave() {
+    if (!onLeave || leaving) return;
+    setLeaving(true);
+    try {
+      await onLeave();
+      setLeaveConfirmOpen(false);
+    } finally {
+      setLeaving(false);
+    }
+  }
 
   return (
     <motion.div
@@ -101,7 +120,7 @@ export function PartyLobby({
           {code ? <PartyCode code={code} gameSlug={gameSlug} size="lg" className="mt-3 w-full" /> : null}
         </motion.div>
         {onLeave ? (
-          <Button variant="ghost" onClick={onLeave}>
+          <Button variant="ghost" onClick={() => setLeaveConfirmOpen(true)} disabled={leaving}>
             Leave
           </Button>
         ) : null}
@@ -144,6 +163,15 @@ export function PartyLobby({
       )}
 
       {footer ? <motion.div>{footer}</motion.div> : null}
+
+      <LeaveLobbyDialog
+        open={leaveConfirmOpen}
+        title={leaveConfirmTitle}
+        description={leaveConfirmDescription}
+        leaving={leaving}
+        onConfirm={handleConfirmLeave}
+        onCancel={() => setLeaveConfirmOpen(false)}
+      />
     </motion.div>
   );
 }

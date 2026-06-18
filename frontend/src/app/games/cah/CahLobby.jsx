@@ -177,7 +177,10 @@ export function CahLobby({ room, error, setError, run }) {
           return res;
         })
       }
-      onLeave={() => void run(() => leaveRoom().then((res) => { if (res.ok) router.push("/games/cah"); return res; }))}
+      onLeave={async () => {
+        await leaveRoom();
+        router.push("/games/cah");
+      }}
       error={error || socketError}
       footer={
         needMore ? (

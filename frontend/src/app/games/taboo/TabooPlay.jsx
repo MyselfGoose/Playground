@@ -8,6 +8,7 @@ import { TabooFeedbackOverlay } from "./components/TabooFeedbackOverlay.jsx";
 import { useGameFeedback } from "../../../lib/feedback/useGameFeedback.js";
 import { useVisualViewportKeyboard } from "../../../lib/hooks/useVisualViewportKeyboard.js";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
+import { useLeaveLobby } from "../../../lib/party/useLeaveLobby.js";
 import { useTabooCountdown } from "../../../lib/taboo/useTabooCountdown.js";
 import { useFocusTrap } from "../../../lib/a11y/useFocusTrap.js";
 import { TabooPhaseAnnouncer } from "./TabooPhaseAnnouncer.jsx";
@@ -46,8 +47,19 @@ export function TabooPlay({ room }) {
 
   const [guess, setGuess] = useState("");
   const [error, setError] = useState("");
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showReviewPrompt, setShowReviewPrompt] = useState(false);
+
+  const {
+    confirmOpen: leaveConfirmOpen,
+    leaving: leavePending,
+    requestLeave,
+    cancelLeave,
+    confirmLeave,
+  } = useLeaveLobby({
+    leaveRoom,
+    onLeft: () => router.push("/games/taboo"),
+    onError: (message) => setError(message),
+  });
   const lastPromptedReviewIdRef = useRef(null);
   const guessRowRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const reviewPanelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -113,7 +125,7 @@ export function TabooPlay({ room }) {
         <TabooPlayHeader
           roundNumber={game?.roundNumber || 0}
           totalRounds={game?.totalRounds || 0}
-          onLeave={() => setShowLeaveConfirm(true)}
+          onLeave={requestLeave}
         />
       }
       banner={
@@ -188,17 +200,15 @@ export function TabooPlay({ room }) {
       <TabooActivityFeed history={game?.history} />
 
       <TabooConfirmDialog
-        open={showLeaveConfirm}
+        open={leaveConfirmOpen}
         title="Leave game?"
         description="You'll be removed from the game in progress. This can't be undone."
         confirmLabel="Leave"
         cancelLabel="Stay"
         variant="danger"
-        onConfirm={async () => {
-          await leaveRoom();
-          router.push("/games/taboo");
-        }}
-        onCancel={() => setShowLeaveConfirm(false)}
+        loading={leavePending}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
       />
 
       <TabooConfirmDialog

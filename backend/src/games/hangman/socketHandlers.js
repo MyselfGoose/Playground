@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { userRepository } from '../../repositories/userRepository.js';
+import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
 import {
   hangmanCreateRoomSchema,
   hangmanGuessLetterSchema,
@@ -58,12 +60,14 @@ function register(socket, logger, event, schema, handler) {
 
 export function installHangmanHandlers({ socket, registry, logger }) {
   register(socket, logger, 'create_room', hangmanCreateRoomSchema, async (data) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const room = await registry.createRoom(socket, data);
     registry.emitRoom(room.code, 'room_created');
     return { room: registry.snapshotForSocket(socket) };
   });
 
   register(socket, logger, 'join_room', hangmanJoinRoomSchema, async (data) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const room = await registry.joinRoom(socket, data.code);
     registry.emitRoom(room.code, 'member_joined');
     return { room: registry.snapshotForSocket(socket) };

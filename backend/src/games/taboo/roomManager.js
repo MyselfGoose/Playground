@@ -338,6 +338,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
       markPlayerConnected(player);
+      mergeAvatarIntoPlayer(player, avatarFromSocket(socket));
       game.reconcileRoomAfterMembershipChange(room);
       bumpStateVersion(room);
       room.updatedAt = Date.now();

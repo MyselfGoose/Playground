@@ -46,7 +46,7 @@ export function useHangmanActions() {
     () =>
       run(async () => {
         const res = await leaveRoom();
-        if (res.ok) router.push("/games/hangman");
+        router.push("/games/hangman");
         return res;
       }),
     [leaveRoom, run, router],

@@ -10,6 +10,8 @@ import {
   voteEarlyFinishSchema,
 } from './validation/npat.schemas.js';
 import { onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
+import { userRepository } from '../../repositories/userRepository.js';
+import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
 
 /**
  * Standard error shape returned to every client ack on failure.
@@ -163,6 +165,7 @@ export function installHandlers({ socket, registry, env, logger }) {
   register('create_room', {
     schema: createRoomSchema,
     handler: async ({ data }) => {
+      await refreshSocketAvatarFromDb(socket, userRepository);
       await registry.leaveRoomExplicit(socket);
       const { mode, maxRounds } = data;
       const { engine } = await registry.createRoom(mode, userId, username, socket, maxRounds);
@@ -175,6 +178,7 @@ export function installHandlers({ socket, registry, env, logger }) {
   register('join_room', {
     schema: joinBodySchema,
     handler: async ({ data }) => {
+      await refreshSocketAvatarFromDb(socket, userRepository);
       const prevCode = registry.socketToRoom.get(socket.id);
       if (prevCode && prevCode !== data.code) {
         await registry.leaveRoomExplicit(socket);

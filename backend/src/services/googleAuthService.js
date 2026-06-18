@@ -35,8 +35,18 @@ export function createGoogleAuthService(deps = {}) {
       if (!byGoogle.isActive) {
         throw new AppError(401, 'Invalid credentials', { code: 'USER_INACTIVE', expose: true });
       }
-      await users.updateLastLogin(byGoogle._id);
-      return { kind: 'session', user: byGoogle };
+      let user = byGoogle;
+      if (
+        profile.picture &&
+        !byGoogle.avatarEmoji &&
+        !byGoogle.avatarUpdatedAt &&
+        byGoogle.avatarUrl !== profile.picture
+      ) {
+        const updated = await users.updateProfile(byGoogle._id, { avatarUrl: profile.picture });
+        if (updated) user = updated;
+      }
+      await users.updateLastLogin(user._id);
+      return { kind: 'session', user };
     }
 
     const byEmail = await users.findByEmail(profile.email);

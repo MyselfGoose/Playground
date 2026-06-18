@@ -1,4 +1,6 @@
 import { createSocketAuthMiddleware } from "../../middleware/socketAuthMiddleware.js";
+import { userRepository } from "../../repositories/userRepository.js";
+import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
 import { installTypingRaceHandlers } from "./socketHandlers.js";
 
 /**
@@ -17,7 +19,8 @@ export function installTypingRaceSocketServer({
 }) {
   typingRaceNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: "typing_race" }));
 
-  typingRaceNs.on("connection", (socket) => {
+  typingRaceNs.on("connection", async (socket) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const userId = /** @type {string} */ (socket.data.userId);
     logger.info({ event: "typing_race_connected", userId, socketId: socket.id }, "typing_race");
 

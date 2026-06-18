@@ -23,6 +23,7 @@ import {
   setResumeSuppressed,
 } from "../session/RoomSession.js";
 import { useActiveGameRoom } from "../session/useActiveGameRoom.js";
+import { clearActiveGameRoom } from "../session/useActiveGameRoom.js";
 
 /** @typedef {Record<string, unknown> | null} RoomSnapshot */
 
@@ -228,6 +229,7 @@ export function NpatProvider({ children }) {
       setEvaluationSource(null);
       setResumedCode(null);
       setResumeSuppressed("npat", true);
+      clearActiveGameRoom("npat", user?.id);
       return { ok: true, data: { left: true } };
     }
     const result = await emitAck(s, "leave_room", null);
@@ -235,8 +237,9 @@ export function NpatProvider({ children }) {
     setEvaluationSource(null);
     setResumedCode(null);
     setResumeSuppressed("npat", true);
+    clearActiveGameRoom("npat", user?.id);
     return result;
-  }, [socket.resetRoomState, socket.socketRef]);
+  }, [socket.resetRoomState, socket.socketRef, user?.id]);
 
   const resetRoom = useCallback(
     () => emitAck(socket.socketRef.current, "reset_room", {}),

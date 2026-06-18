@@ -4,12 +4,13 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Check, Clock, Copy, LogOut, Play, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LeaveLobbyDialog } from "../../../components/party/LeaveLobbyDialog.jsx";
 import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
+import { useLeaveLobby } from "../../../lib/party/useLeaveLobby.js";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
 import { tabooTeamColors } from "../../../lib/taboo/variants.js";
-import { TabooConfirmDialog } from "./components/TabooConfirmDialog.jsx";
 import { TabooErrorBanner } from "./components/TabooErrorBanner.jsx";
 import { TabooPage, TabooPageSection } from "./components/TabooPage.jsx";
 import { TabooTeamTile } from "./components/TabooTeamTile.jsx";
@@ -39,9 +40,20 @@ export function TabooLobby({ room }) {
 
   const [error, setError] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   const [readyPending, setReadyPending] = useState(false);
+
+  const {
+    confirmOpen: leaveConfirmOpen,
+    leaving: leavePending,
+    requestLeave,
+    cancelLeave,
+    confirmLeave,
+  } = useLeaveLobby({
+    leaveRoom,
+    onLeft: () => router.push("/games/taboo"),
+    onError: (message) => setError(message),
+  });
 
   const resolvedCategoryId =
     selectedCategoryId || (categories.length > 0 ? String(categories[0].categoryId) : "");
@@ -103,7 +115,7 @@ export function TabooLobby({ room }) {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setShowLeaveConfirm(true)}
+            onClick={requestLeave}
             className="flex items-center gap-2 text-taboo-text-muted transition-colors hover:text-taboo-text"
           >
             <LogOut className="h-5 w-5" />
@@ -280,18 +292,13 @@ export function TabooLobby({ room }) {
         </p>
       </TabooPageSection>
 
-      <TabooConfirmDialog
-        open={showLeaveConfirm}
+      <LeaveLobbyDialog
+        open={leaveConfirmOpen}
         title="Leave lobby?"
         description="You'll be removed from this lobby and need the code to rejoin."
-        confirmLabel="Leave"
-        cancelLabel="Stay"
-        variant="danger"
-        onConfirm={async () => {
-          await leaveRoom();
-          router.push("/games/taboo");
-        }}
-        onCancel={() => setShowLeaveConfirm(false)}
+        leaving={leavePending}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
       />
     </TabooPage>
   );

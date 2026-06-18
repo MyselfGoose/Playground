@@ -1,4 +1,6 @@
 import { createSocketAuthMiddleware } from '../../middleware/socketAuthMiddleware.js';
+import { userRepository } from '../../repositories/userRepository.js';
+import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
 import { createHangmanRoomManager } from './roomManager.js';
 import { installHangmanHandlers } from './socketHandlers.js';
 
@@ -6,6 +8,7 @@ export function installHangmanSocketServer({ hangmanNs, registry, logger, tokenS
   hangmanNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: 'hangman' }));
 
   hangmanNs.on('connection', async (socket) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     logger.info(
       { userId: socket.data.userId, socketId: socket.id, ns: 'hangman' },
       'hangman socket connected',

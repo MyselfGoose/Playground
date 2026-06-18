@@ -323,6 +323,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
       markPlayerConnected(player);
+      mergeAvatarIntoPlayer(player, avatarFromSocket(socket));
     }
     await reconcileRoomAfterMembershipChange(room);
     bumpStateVersion(room);

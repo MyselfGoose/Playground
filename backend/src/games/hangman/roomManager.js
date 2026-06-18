@@ -546,6 +546,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     const player = room.players.find((p) => p.userId === socket.data.userId);
     if (player) {
       markPlayerConnected(player);
+      mergeAvatarIntoPlayer(player, avatarFromSocket(socket));
     }
     reconcileRoomAfterMembershipChange(room);
     bumpStateVersion(room);

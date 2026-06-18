@@ -81,7 +81,7 @@ export function HangmanProvider({ children }) {
 
   const leaveRoom = useCallback(async () => {
     const result = await socket.leaveRoom();
-    if (result.ok) clearActiveGameRoom("hangman", user?.id);
+    clearActiveGameRoom("hangman", user?.id);
     return result;
   }, [socket.leaveRoom, user?.id]);
 

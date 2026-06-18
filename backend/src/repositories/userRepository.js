@@ -91,6 +91,9 @@ export const userRepository = {
   },
 
   /**
+   * @param {import('mongoose').Types.ObjectId | string} userId
+   */
+  updateLastLogin(userId) {
     return User.updateOne({ _id: userId }, { $set: { lastLoginAt: new Date() } });
   },
 

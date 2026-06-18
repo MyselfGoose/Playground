@@ -1,6 +1,20 @@
 import { resolveUserAvatar } from './resolveUserAvatar.js';
 
 /**
+ * @param {{ data?: { userId?: string, avatarUrl?: string | null, avatarEmoji?: string | null } }} socket
+ * @param {{ findByIdLean: (id: string) => Promise<{ avatarUrl?: string | null, avatarEmoji?: string | null } | null> }} userRepository
+ */
+export async function refreshSocketAvatarFromDb(socket, userRepository) {
+  const userId = socket?.data?.userId;
+  if (!userId) return avatarFromSocket(socket);
+  const user = await userRepository.findByIdLean(String(userId));
+  const { avatarUrl, avatarEmoji } = avatarFromUser(user);
+  socket.data.avatarUrl = avatarUrl;
+  socket.data.avatarEmoji = avatarEmoji;
+  return { avatarUrl, avatarEmoji };
+}
+
+/**
  * @param {{ data?: { avatarUrl?: string | null, avatarEmoji?: string | null } }} socket
  */
 export function avatarFromSocket(socket) {

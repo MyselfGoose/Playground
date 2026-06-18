@@ -8,6 +8,8 @@ import {
 import { deliverAck, makeTypingRegister } from "./socketUtils.js";
 import { persistTypingAttempt } from "../../services/leaderboardStatsService.js";
 import { onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
+import { userRepository } from "../../repositories/userRepository.js";
+import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
 
 /**
  * @param {{
@@ -38,6 +40,7 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
   register("typing_create_room", {
     // createRoom/joinRoom are synchronous; ack returns only after the room is in the registry.
     handler: async () => {
+      await refreshSocketAvatarFromDb(socket, userRepository);
       registry.leaveRoom(socket);
       const { room, code } = registry.createRoom(socket, userId, username);
       return { room: room.toPublicSnapshot(), roomCode: code };
@@ -47,6 +50,7 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
   register("typing_join_room", {
     schema: typingJoinRoomSchema,
     handler: async ({ data }) => {
+      await refreshSocketAvatarFromDb(socket, userRepository);
       const room = registry.joinRoom(data.roomCode, socket, userId, username);
       return { room: room.toPublicSnapshot() };
     },

@@ -7,7 +7,9 @@ import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx
 import { Button } from "../Button.jsx";
 import { Avatar } from "../Avatar.jsx";
 import { PartyCode } from "../party/PartyCode.jsx";
+import { LeaveLobbyDialog } from "../party/LeaveLobbyDialog.jsx";
 import { LobbyInviteFriends } from "../party/LobbyInviteFriends.jsx";
+import { useLeaveLobby } from "../../lib/party/useLeaveLobby.js";
 import { ResultGate } from "../game-feel/WinnerBanner.jsx";
 import { ResultActions } from "../game/ResultActions.jsx";
 import { MultiRaceCountdown } from "./MultiRaceCountdown.jsx";
@@ -44,6 +46,17 @@ export function MultiRaceRoomView({ roomCode }) {
     /** @type {{ passage: string; cursor: number; errorStack: string } | null} */ (null),
   );
   const [finishErr, setFinishErr] = useState(/** @type {string | null} */ (null));
+
+  const {
+    confirmOpen: leaveConfirmOpen,
+    leaving: leavePending,
+    requestLeave,
+    cancelLeave,
+    confirmLeave,
+  } = useLeaveLobby({
+    leaveRoom,
+    onLeft: () => router.push("/games/typing-race/multi"),
+  });
 
   useEffect(() => {
     if (!connected) {
@@ -213,10 +226,8 @@ export function MultiRaceRoomView({ roomCode }) {
           type="button"
           data-no-refocus
           className="rounded-md px-3 py-1.5 text-xs font-medium text-[var(--tt-ink-muted)] transition hover:bg-[var(--tt-bg-elevated)] hover:text-[var(--tt-ink)]"
-          onClick={() => {
-            void leaveRoom();
-            router.push("/games/typing-race/multi");
-          }}
+          disabled={leavePending}
+          onClick={requestLeave}
         >
           Leave
         </button>
@@ -435,6 +446,13 @@ export function MultiRaceRoomView({ roomCode }) {
         </div>
         </ResultGate>
       )}
+
+      <LeaveLobbyDialog
+        open={leaveConfirmOpen}
+        leaving={leavePending}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
+      />
     </div>
   );
 }

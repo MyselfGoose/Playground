@@ -1,5 +1,7 @@
 import { createTokenService } from '../../services/tokenService.js';
 import { createSocketAuthMiddleware } from '../../middleware/socketAuthMiddleware.js';
+import { userRepository } from '../../repositories/userRepository.js';
+import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
 import { installHandlers } from './socketHandlers.js';
 
 /**
@@ -15,6 +17,7 @@ export function installNpatSocketServer({ npatNs, registry, env, logger, tokenSe
   npatNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: 'npat_socket' }));
 
   npatNs.on('connection', async (socket) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     const userId = /** @type {string} */ (socket.data.userId);
     const username = /** @type {string} */ (socket.data.username);
     logger.info({ event: 'npat_connected', userId, socketId: socket.id }, 'npat_socket');

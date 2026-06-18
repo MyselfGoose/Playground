@@ -1,4 +1,6 @@
 import { createSocketAuthMiddleware } from '../../middleware/socketAuthMiddleware.js';
+import { userRepository } from '../../repositories/userRepository.js';
+import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
 import { createCahRoomManager } from './roomManager.js';
 import { installCahHandlers } from './socketHandlers.js';
 
@@ -6,6 +8,7 @@ export function installCahSocketServer({ cahNs, registry, logger, tokenService }
   cahNs.use(createSocketAuthMiddleware({ tokenService, logger, nsTag: 'cah' }));
 
   cahNs.on('connection', async (socket) => {
+    await refreshSocketAvatarFromDb(socket, userRepository);
     logger.info(
       { userId: socket.data.userId, socketId: socket.id, ns: 'cah' },
       'cah socket connected',
