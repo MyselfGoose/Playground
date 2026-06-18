@@ -1,11 +1,10 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Check, Clock, Copy, LogOut, Play, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
-import { StatusPill } from "../../../components/taboo/StatusPill.jsx";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
 import { cn } from "../../../lib/taboo/cn.js";
 import { motionPresets } from "../../../lib/taboo/motion.js";
@@ -14,7 +13,8 @@ import { TabooConfirmDialog } from "./components/TabooConfirmDialog.jsx";
 import { TabooErrorBanner } from "./components/TabooErrorBanner.jsx";
 import { TabooPage, TabooPageSection } from "./components/TabooPage.jsx";
 import { TabooTeamTile } from "./components/TabooTeamTile.jsx";
-import { TabooButton, TabooCard } from "./ui/index.js";
+import { TabooPlayerRow } from "./components/TabooPlayerRow.jsx";
+import { TabooButton, TabooCard, TabooSelect, TabooSegmentedControl } from "./ui/index.js";
 
 /**
  * Lobby uses setReady → server maybeStartIfReady (TD-18: start_game socket unused).
@@ -158,48 +158,39 @@ export function TabooLobby({ room }) {
             </p>
             {room.hostId === localUserId && !room.game ? (
               <div className="mt-3 space-y-2">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => act(() => setCategories("all", []))}
-                    className={cn(
-                      "flex-1 rounded-lg py-2 text-xs font-bold transition-all",
-                      room.settings?.categoryMode === "all" ? "taboo-segment-active" : "taboo-segment-idle",
-                    )}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const fallback = resolvedCategoryId;
-                      if (!fallback) return;
-                      act(() => setCategories("single", [Number(fallback)]));
-                    }}
-                    className={cn(
-                      "flex-1 rounded-lg py-2 text-xs font-bold transition-all",
-                      room.settings?.categoryMode === "single" ? "taboo-segment-active" : "taboo-segment-idle",
-                    )}
-                  >
-                    Single
-                  </button>
-                </div>
+                <TabooSegmentedControl
+                  size="sm"
+                  value={room.settings?.categoryMode === "all" ? "all" : "single"}
+                  onChange={(mode) => {
+                    if (mode === "all") {
+                      void act(() => setCategories("all", []));
+                      return;
+                    }
+                    const fallback = resolvedCategoryId;
+                    if (!fallback) return;
+                    void act(() => setCategories("single", [Number(fallback)]));
+                  }}
+                  options={[
+                    { value: "all", label: "All" },
+                    { value: "single", label: "Single" },
+                  ]}
+                />
                 {room.settings?.categoryMode === "single" ? (
-                  <select
-                    className="taboo-input h-10 text-xs"
+                  <TabooSelect
                     value={resolvedCategoryId}
                     onChange={(e) => {
                       const val = e.target.value;
                       setSelectedCategoryId(val);
-                      if (val) act(() => setCategories("single", [Number(val)]));
+                      if (val) void act(() => setCategories("single", [Number(val)]));
                     }}
+                    selectClassName="h-10 text-xs"
                   >
                     {categories.map((cat) => (
                       <option key={cat.categoryId} value={cat.categoryId}>
                         {cat.category}
                       </option>
                     ))}
-                  </select>
+                  </TabooSelect>
                 ) : null}
               </div>
             ) : null}
@@ -209,13 +200,15 @@ export function TabooLobby({ room }) {
 
       {room?.code && room?.hostId && !room?.game ? (
         <TabooPageSection>
-          <LobbyInviteFriends
-            gameSlug="taboo"
-            roomCode={room.code}
-            hostId={room.hostId}
-            localUserId={localUserId ?? ""}
-            playerUserIds={partyPlayers.map((p) => p.id)}
-          />
+          <TabooCard level={1} className="p-4">
+            <LobbyInviteFriends
+              gameSlug="taboo"
+              roomCode={room.code}
+              hostId={room.hostId}
+              localUserId={localUserId ?? ""}
+              playerUserIds={partyPlayers.map((p) => p.id)}
+            />
+          </TabooCard>
         </TabooPageSection>
       ) : null}
 
@@ -249,6 +242,7 @@ export function TabooLobby({ room }) {
             localUserId={localUserId}
             teamStyle={teamA}
             reduceMotion={reduceMotion}
+            hostId={room?.hostId}
           />
           <TeamRoster
             teamLabel="Team Beta"
@@ -257,6 +251,7 @@ export function TabooLobby({ room }) {
             localUserId={localUserId}
             teamStyle={teamB}
             reduceMotion={reduceMotion}
+            hostId={room?.hostId}
           />
         </div>
       </TabooPageSection>
@@ -271,7 +266,7 @@ export function TabooLobby({ room }) {
           {me?.ready ? "Ready! Tap to unready" : "Mark as Ready"}
         </TabooButton>
 
-        <TabooButton variant="primary" disabled className="opacity-70">
+        <TabooButton variant="ghost" disabled className="opacity-60">
           <Play className="h-4 w-4" />
           {canStart
             ? "Starting game…"
@@ -303,7 +298,7 @@ export function TabooLobby({ room }) {
   );
 }
 
-function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, reduceMotion }) {
+function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, reduceMotion, hostId }) {
   const roster = players.filter((p) => p.team === teamKey);
   return (
     <div className={cn("rounded-2xl border bg-gradient-to-b to-transparent p-3", teamStyle.gradientFrom, teamStyle.borderFaint)}>
@@ -311,41 +306,24 @@ function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, reduc
         <div className={cn("h-2 w-2 rounded-full", teamStyle.dot)} />
         <span className="text-xs font-bold text-taboo-text">{teamLabel}</span>
       </div>
-      <div className="space-y-1.5">
-        <AnimatePresence>
-          {roster.map((p) => (
-            <motion.div
-              key={p.id}
-              {...(reduceMotion ? {} : motionPresets.playerItem)}
-              className={cn(
-                "flex min-h-12 items-center gap-2 rounded-lg p-2.5",
-                p.id === localUserId ? teamStyle.highlight : "bg-white/[0.03]",
-              )}
-            >
-              <div
-                className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                  p.id === localUserId ? cn(teamStyle.avatarBg, "text-white") : "bg-white/10 text-taboo-text-muted",
-                )}
-              >
-                {p.name?.charAt(0) || "?"}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-taboo-text">
-                  {p.name}
-                  {p.id === localUserId ? <span className="text-taboo-text-faint"> (You)</span> : null}
-                </p>
-              </div>
-              <StatusPill variant={p.ready ? "success" : "warning"} className="shrink-0 px-2 py-0.5 text-[10px]">
-                {p.ready ? "Ready" : "Not Ready"}
-              </StatusPill>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      <ul className="space-y-1.5">
+        {roster.map((p) => (
+          <TabooPlayerRow
+            key={p.id}
+            id={p.id}
+            name={p.name}
+            team={teamKey}
+            ready={Boolean(p.ready)}
+            connected={p.connected !== false}
+            isHost={p.id === hostId}
+            isYou={p.id === localUserId}
+            reduceMotion={reduceMotion}
+          />
+        ))}
         {roster.length === 0 ? (
           <p className="py-2 text-center text-xs text-taboo-text-faint">No players</p>
         ) : null}
-      </div>
+      </ul>
     </div>
   );
 }

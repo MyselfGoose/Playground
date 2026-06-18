@@ -1,6 +1,8 @@
 @import "tailwindcss";
+@import "./games/taboo/taboo-theme.css";
 
-/* Warm Lobby — see ../audit/ui/design-system-roadmap.md */
+@source "./games/taboo";
+@source "../components/taboo";
 
 /* LIGHT MODE (DEFAULT) */
 :root {
@@ -217,6 +219,41 @@ html.light {
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
+
+  /* Taboo game palette — must live here so Tailwind generates bg-taboo-* utilities */
+  --color-taboo-canvas: #0f0e0d;
+  --color-taboo-canvas-mid: #1a1718;
+  --color-taboo-canvas-elevated: #242120;
+  --color-taboo-canvas-overlay: rgb(0 0 0 / 0.72);
+  --color-taboo-text: #f5f3f0;
+  --color-taboo-text-muted: #9a9590;
+  --color-taboo-text-faint: #6b6560;
+  --color-taboo-accent: #b8a3ff;
+  --color-taboo-accent-hover: #cbbfff;
+  --color-taboo-accent-soft: rgb(184 163 255 / 0.14);
+  --color-taboo-team-a: #5b9fd4;
+  --color-taboo-team-a-hover: #7bb5e8;
+  --color-taboo-team-a-text: #9ed0ff;
+  --color-taboo-team-a-soft: rgb(91 159 212 / 0.18);
+  --color-taboo-team-b: #ff7d70;
+  --color-taboo-team-b-hover: #ff9a90;
+  --color-taboo-team-b-text: #ff9a90;
+  --color-taboo-team-b-soft: rgb(255 125 112 / 0.16);
+  --color-taboo-success: #4fdcd1;
+  --color-taboo-success-soft: rgb(79 220 209 / 0.14);
+  --color-taboo-danger: #f87171;
+  --color-taboo-danger-soft: rgb(248 113 113 / 0.16);
+  --color-taboo-danger-text: #fca5a5;
+  --color-taboo-warning: #ffd966;
+  --color-taboo-warning-soft: rgb(255 217 102 / 0.14);
+  --color-taboo-warning-deep: #e8b830;
+  --color-taboo-ring: rgb(184 163 255 / 0.45);
+  --color-taboo-border: rgb(255 255 255 / 0.08);
+  --color-taboo-border-subtle: rgb(255 255 255 / 0.05);
+  --color-taboo-gradient-a-from: #2d5a8a;
+  --color-taboo-gradient-a-to: #4a8fd4;
+  --color-taboo-gradient-b-from: #c44a3d;
+  --color-taboo-gradient-b-to: #ff7d70;
   
   --font-sans: var(--font-nunito);
   --radius-sm: var(--radius-sm);

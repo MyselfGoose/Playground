@@ -21,6 +21,7 @@ import {
   TabooInput,
   TabooNumberStepper,
   TabooSelect,
+  TabooSegmentedControl,
 } from "./ui/index.js";
 
 /**
@@ -218,28 +219,14 @@ export function TabooEntry({ onRoomCreated }) {
 
                   <div className="space-y-2">
                     <span className="text-xs font-bold uppercase tracking-wide text-taboo-text-muted">Category</span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCategoryMode("single")}
-                        className={cn(
-                          "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
-                          categoryMode === "single" ? "taboo-segment-active" : "taboo-segment-idle",
-                        )}
-                      >
-                        Single
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCategoryMode("all")}
-                        className={cn(
-                          "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
-                          categoryMode === "all" ? "taboo-segment-active" : "taboo-segment-idle",
-                        )}
-                      >
-                        All
-                      </button>
-                    </div>
+                    <TabooSegmentedControl
+                      value={categoryMode}
+                      onChange={setCategoryMode}
+                      options={[
+                        { value: "single", label: "Single" },
+                        { value: "all", label: "All" },
+                      ]}
+                    />
                     {categoryMode === "single" ? (
                       <TabooSelect
                         value={resolvedCategoryId}

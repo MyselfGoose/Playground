@@ -4,7 +4,7 @@
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GameFeedbackOverlay } from "../../../components/feedback/GameFeedbackOverlay.jsx";
+import { TabooFeedbackOverlay } from "./components/TabooFeedbackOverlay.jsx";
 import { useGameFeedback } from "../../../lib/feedback/useGameFeedback.js";
 import { useVisualViewportKeyboard } from "../../../lib/hooks/useVisualViewportKeyboard.js";
 import { useTaboo } from "../../../lib/taboo/TabooSocketContext.jsx";
@@ -119,7 +119,7 @@ export function TabooPlay({ room }) {
       banner={
         <>
           <TabooPhaseAnnouncer game={game} />
-          <GameFeedbackOverlay variant={feedbackVariant} reduceMotion={reduceMotion} />
+          <TabooFeedbackOverlay variant={feedbackVariant} reduceMotion={reduceMotion} />
         </>
       }
     >

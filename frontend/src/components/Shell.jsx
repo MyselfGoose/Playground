@@ -1,10 +1,19 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Navbar } from "./Navbar.jsx";
 import { SessionBanner } from "./SessionBanner.jsx";
 import { NotificationToastHost } from "./notifications/NotificationToastHost.jsx";
 
+/** Immersive game routes hide the global navbar (full-screen game chrome). */
+function isImmersiveGameRoute(pathname) {
+  return pathname?.startsWith("/games/taboo");
+}
+
 export function Shell({ children }) {
+  const pathname = usePathname();
+  const immersive = isImmersiveGameRoute(pathname);
+
   return (
     <>
       <a
@@ -13,9 +22,9 @@ export function Shell({ children }) {
       >
         Skip to main content
       </a>
-      <Navbar />
+      {immersive ? null : <Navbar />}
       <NotificationToastHost />
-      <SessionBanner />
+      {immersive ? null : <SessionBanner />}
       <main
         id="main-content"
         tabIndex={-1}
