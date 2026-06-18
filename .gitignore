@@ -10,7 +10,7 @@ jspm_packages/
 audit
 plan
 audit 2
-taboo
+/taboo
 # Package manager stores / caches (keep Yarn Berry tracked files if you use them)
 .pnpm-store/
 **/.pnpm-store/

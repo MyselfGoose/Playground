@@ -1,0 +1,494 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+/* Taboo tokens are registered in globals.css @theme so Tailwind emits bg-taboo-* utilities */
+
+.taboo-theme {
+  isolation: isolate;
+
+  /* ── Canvas hierarchy (warm dark — aligned with site dark mode) ── */
+  --taboo-canvas: #0f0e0d;
+  --taboo-canvas-mid: #1a1718;
+  --taboo-canvas-elevated: #242120;
+  --taboo-canvas-overlay: rgba(0, 0, 0, 0.72);
+
+  /* ── Text hierarchy ── */
+  --taboo-text: #f5f3f0;
+  --taboo-text-muted: #9a9590;
+  --taboo-text-faint: #6b6560;
+
+  /* ── Brand accent (lavender) ── */
+  --taboo-accent: #b8a3ff;
+  --taboo-accent-hover: #cbbfff;
+  --taboo-accent-soft: rgba(184, 163, 255, 0.14);
+
+  /* ── Team A (sky blue — primary actions) ── */
+  --taboo-team-a: #5b9fd4;
+  --taboo-team-a-hover: #7bb5e8;
+  --taboo-team-a-soft: rgba(91, 159, 212, 0.18);
+  --taboo-team-a-text: #9ed0ff;
+  --taboo-team-a-glow: 0 0 32px rgba(91, 159, 212, 0.35);
+
+  /* ── Team B (coral primary) ── */
+  --taboo-team-b: #ff7d70;
+  --taboo-team-b-hover: #ff9a90;
+  --taboo-team-b-soft: rgba(255, 125, 112, 0.12);
+  --taboo-team-b-text: #ff9a90;
+  --taboo-team-b-glow: 0 0 32px rgba(255, 125, 112, 0.22);
+
+  /* ── Semantic ── */
+  --taboo-success: #4fdcd1;
+  --taboo-success-soft: rgba(79, 220, 209, 0.12);
+  --taboo-success-text: #4fdcd1;
+  --taboo-danger: #f87171;
+  --taboo-danger-soft: rgba(248, 113, 113, 0.14);
+  --taboo-danger-text: #fca5a5;
+  --taboo-warning: #ffd966;
+  --taboo-warning-soft: rgba(255, 217, 102, 0.12);
+  --taboo-warning-text: #ffd966;
+  --taboo-warning-deep: #e8b830;
+
+  /* ── Interactive ── */
+  --taboo-ring: rgba(184, 163, 255, 0.45);
+  --taboo-border: rgba(255, 255, 255, 0.08);
+  --taboo-border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* ── Gradients ── */
+  --taboo-gradient-a-from: #2d5a8a;
+  --taboo-gradient-a-to: #4a8fd4;
+  --taboo-gradient-b-from: #c44a3d;
+  --taboo-gradient-b-to: #ff7d70;
+  --taboo-gradient-a: linear-gradient(135deg, var(--taboo-gradient-a-from), var(--taboo-gradient-a-to));
+  --taboo-gradient-b: linear-gradient(135deg, var(--taboo-gradient-b-from), var(--taboo-gradient-b-to));
+  --taboo-gradient-accent: linear-gradient(135deg, #8b6fe8, var(--taboo-accent));
+
+  /* ── Spacing scale ── */
+  --taboo-space-1: 4px;
+  --taboo-space-2: 8px;
+  --taboo-space-3: 12px;
+  --taboo-space-4: 16px;
+  --taboo-space-5: 20px;
+  --taboo-space-6: 24px;
+  --taboo-space-8: 32px;
+  --taboo-space-10: 40px;
+  --taboo-space-12: 48px;
+
+  /* ── Typography ── */
+  --taboo-font-display: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  --taboo-font-body: "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
+
+  /* ── Motion ── */
+  --taboo-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --taboo-duration-instant: 100ms;
+  --taboo-duration-fast: 150ms;
+  --taboo-duration-normal: 250ms;
+  --taboo-duration-slow: 400ms;
+  --taboo-duration-deliberate: 600ms;
+
+  /* ── Elevation shadows ── */
+  --taboo-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --taboo-shadow-raised: 0 8px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --taboo-shadow-inset: inset 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --taboo-shadow-glow-accent: 0 0 24px rgba(184, 163, 255, 0.18);
+
+  /* ── Legacy aliases ── */
+  --taboo-text-secondary: var(--taboo-text-muted);
+  --taboo-text-tertiary: var(--taboo-text-faint);
+  --taboo-accent-warm: var(--taboo-team-b);
+  --taboo-shadow-1: var(--taboo-shadow-card);
+  --taboo-shadow-2: var(--taboo-shadow-raised);
+  --taboo-glow-a: var(--taboo-team-a-glow);
+  --taboo-glow-b: var(--taboo-team-b-glow);
+  --taboo-glow-accent: var(--taboo-shadow-glow-accent);
+
+  min-height: 100dvh;
+  background: var(--taboo-canvas);
+  color: var(--taboo-text);
+  font-family: var(--taboo-font-body);
+}
+
+.taboo-theme h1,
+.taboo-theme h2,
+.taboo-theme h3,
+.taboo-theme .font-display {
+  font-family: var(--taboo-font-display);
+}
+
+/* ── Surfaces ── */
+
+.taboo-surface-card {
+  border-radius: 1rem;
+  border: 1px solid var(--taboo-border);
+  background: rgb(255 255 255 / 0.04);
+  box-shadow: var(--taboo-shadow-card);
+  backdrop-filter: blur(12px);
+}
+
+.taboo-surface-raised {
+  border-radius: 1rem;
+  border: 1px solid var(--taboo-border);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: var(--taboo-shadow-raised);
+  backdrop-filter: blur(16px);
+}
+
+.taboo-surface-inset {
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: var(--taboo-shadow-inset);
+}
+
+.taboo-glow-a {
+  box-shadow: var(--taboo-shadow-raised), var(--taboo-team-a-glow);
+}
+
+.taboo-glow-b {
+  box-shadow: var(--taboo-shadow-raised), var(--taboo-team-b-glow);
+}
+
+.taboo-glow-accent {
+  box-shadow: var(--taboo-shadow-raised), var(--taboo-shadow-glow-accent);
+}
+
+.taboo-text-display-xl {
+  font-family: var(--taboo-font-display);
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.taboo-text-display-lg {
+  font-family: var(--taboo-font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.taboo-text-display-md {
+  font-family: var(--taboo-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.taboo-text-title {
+  font-family: var(--taboo-font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.taboo-text-body {
+  font-family: var(--taboo-font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.taboo-text-caption {
+  font-family: var(--taboo-font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.taboo-text-micro {
+  font-family: var(--taboo-font-body);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.taboo-divider {
+  height: 1px;
+  background: var(--taboo-border-subtle);
+}
+
+.taboo-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--taboo-border);
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: var(--taboo-shadow-inset);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--taboo-text);
+  outline: none;
+  transition: border-color 0.2s var(--taboo-ease-out), box-shadow 0.2s var(--taboo-ease-out);
+}
+
+.taboo-input:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.taboo-input::placeholder {
+  color: var(--taboo-text-faint);
+}
+
+.taboo-input:focus-visible {
+  border-color: rgb(91 159 212 / 0.45);
+  box-shadow: var(--taboo-shadow-inset), 0 0 0 2px rgb(91 159 212 / 0.2);
+}
+
+.taboo-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.taboo-theme select.taboo-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237d7975' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+}
+
+.taboo-theme select.taboo-input option {
+  background: var(--taboo-canvas-mid);
+  color: var(--taboo-text);
+}
+
+.taboo-theme input[type="number"]::-webkit-inner-spin-button,
+.taboo-theme input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.taboo-theme input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.taboo-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--taboo-canvas), 0 0 0 4px var(--taboo-ring);
+}
+
+/* ── Segment / toggle utilities ── */
+
+.taboo-segment-active {
+  background: linear-gradient(135deg, var(--taboo-gradient-a-from), var(--taboo-gradient-a-to));
+  color: #fff;
+  box-shadow: 0 4px 16px rgb(45 90 138 / 0.4);
+}
+
+.taboo-segment-idle {
+  background: rgb(255 255 255 / 0.04);
+  color: var(--taboo-text-muted);
+  border: 1px solid var(--taboo-border);
+}
+
+.taboo-segment-idle:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: var(--taboo-text);
+}
+
+.taboo-tab-underline-create {
+  background: linear-gradient(90deg, var(--taboo-gradient-a-from), var(--taboo-gradient-a-to));
+  box-shadow: 0 0 12px rgb(91 159 212 / 0.5);
+}
+
+.taboo-tab-underline-join {
+  background: linear-gradient(90deg, var(--taboo-gradient-b-from), var(--taboo-gradient-b-to));
+  box-shadow: 0 0 12px rgb(255 125 112 / 0.4);
+}
+
+/* ── Modal panel ── */
+
+.taboo-modal-panel {
+  border-radius: 1rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.03));
+  box-shadow: var(--taboo-shadow-raised);
+  backdrop-filter: blur(16px);
+}
+
+/* ── Outlined action buttons (play screen) ── */
+
+.taboo-action-outline-success {
+  border: 1px solid rgb(79 220 209 / 0.4);
+  background: rgb(79 220 209 / 0.2);
+  color: var(--taboo-success);
+  transition: background 0.2s var(--taboo-ease-out);
+}
+
+.taboo-action-outline-success:hover:not(:disabled) {
+  background: rgb(79 220 209 / 0.3);
+}
+
+.taboo-action-outline-warning {
+  border: 2px solid rgb(255 217 102 / 0.3);
+  background: rgb(255 217 102 / 0.2);
+  color: var(--taboo-warning);
+  transition: background 0.2s var(--taboo-ease-out);
+}
+
+.taboo-action-outline-warning:hover:not(:disabled) {
+  background: rgb(255 217 102 / 0.3);
+}
+
+.taboo-action-outline-danger {
+  border: 2px solid rgb(248 113 113 / 0.3);
+  background: rgb(248 113 113 / 0.2);
+  color: var(--taboo-danger-text);
+  transition: background 0.2s var(--taboo-ease-out);
+}
+
+.taboo-action-outline-danger:hover:not(:disabled) {
+  background: rgb(248 113 113 / 0.3);
+}
+
+/* ── Review vote buttons ── */
+
+.taboo-vote-fair {
+  border: 1px solid rgb(79 220 209 / 0.4);
+  background: rgb(79 220 209 / 0.15);
+  color: var(--taboo-success);
+  transition: background 0.2s var(--taboo-ease-out);
+}
+
+.taboo-vote-fair:hover:not(:disabled) {
+  background: rgb(79 220 209 / 0.25);
+}
+
+.taboo-vote-not-fair {
+  border: 1px solid rgb(248 113 113 / 0.4);
+  background: rgb(248 113 113 / 0.15);
+  color: var(--taboo-danger-text);
+  transition: background 0.2s var(--taboo-ease-out);
+}
+
+.taboo-vote-not-fair:hover:not(:disabled) {
+  background: rgb(248 113 113 / 0.25);
+}
+
+/* ── Review panel surface ── */
+
+.taboo-review-panel {
+  border-radius: 1rem;
+  border: 1px solid var(--taboo-border);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.02));
+  box-shadow: var(--taboo-shadow-card);
+}
+
+/* ── Forbidden word chips ── */
+
+.taboo-forbidden-chip {
+  border-radius: 0.5rem;
+  border: 1px solid rgb(248 113 113 / 0.2);
+  background: rgb(248 113 113 / 0.1);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--taboo-danger-text);
+}
+
+/* ── Gradient buttons (CSS-native — always render) ── */
+
+.taboo-btn-primary {
+  background: linear-gradient(90deg, var(--taboo-gradient-a-from), var(--taboo-team-a), var(--taboo-gradient-a-to));
+  color: #fff;
+  box-shadow: 0 8px 24px rgb(45 90 138 / 0.45);
+}
+
+.taboo-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 10px 28px rgb(45 90 138 / 0.55);
+}
+
+.taboo-btn-secondary {
+  background: linear-gradient(90deg, var(--taboo-gradient-b-from), var(--taboo-team-b), var(--taboo-gradient-b-to));
+  color: #fff;
+  box-shadow: 0 8px 24px rgb(196 74 61 / 0.4);
+}
+
+.taboo-btn-secondary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 10px 28px rgb(196 74 61 / 0.5);
+}
+
+.taboo-hero-icon {
+  background: linear-gradient(135deg, var(--taboo-gradient-a-from), var(--taboo-gradient-a-to));
+  box-shadow: 0 8px 32px rgb(91 159 212 / 0.35);
+}
+
+/* ── Lobby team roster ── */
+
+.taboo-roster-panel-a {
+  border: 1px solid rgb(91 159 212 / 0.38);
+  background: linear-gradient(180deg, rgb(45 90 138 / 0.28), rgb(45 90 138 / 0.08));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.taboo-roster-panel-b {
+  border: 1px solid rgb(255 125 112 / 0.38);
+  background: linear-gradient(180deg, rgb(196 74 61 / 0.28), rgb(196 74 61 / 0.08));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.taboo-roster-player-a {
+  border: 1px solid rgb(91 159 212 / 0.22);
+  background: rgb(15 30 48 / 0.55);
+}
+
+.taboo-roster-player-b {
+  border: 1px solid rgb(255 125 112 / 0.22);
+  background: rgb(48 22 18 / 0.55);
+}
+
+.taboo-team-tile-a-selected {
+  border: 2px solid var(--taboo-team-a);
+  background: rgb(45 90 138 / 0.32);
+  box-shadow: 0 0 24px rgb(91 159 212 / 0.2);
+}
+
+.taboo-team-tile-b-selected {
+  border: 2px solid var(--taboo-team-b);
+  background: rgb(196 74 61 / 0.28);
+  box-shadow: 0 0 24px rgb(255 125 112 / 0.18);
+}
+
+.taboo-team-tile-idle {
+  border: 1px solid var(--taboo-border);
+  background: rgb(255 255 255 / 0.03);
+}
+
+.taboo-team-tile-idle:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+
+.taboo-ready-pill-ready {
+  border: 1px solid rgb(79 220 209 / 0.45);
+  background: rgb(20 48 44 / 0.9);
+  color: var(--taboo-success);
+  font-weight: 700;
+}
+
+.taboo-ready-pill-waiting {
+  border: 1px solid rgb(255 217 102 / 0.5);
+  background: rgb(48 38 18 / 0.95);
+  color: var(--taboo-warning);
+  font-weight: 700;
+}
+
+.taboo-team-icon-a {
+  background: rgb(45 90 138 / 0.55);
+  color: var(--taboo-team-a-text);
+}
+
+.taboo-team-icon-b {
+  background: rgb(196 74 61 / 0.55);
+  color: var(--taboo-team-b-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taboo-theme *,
+  .taboo-theme *::before,
+  .taboo-theme *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
