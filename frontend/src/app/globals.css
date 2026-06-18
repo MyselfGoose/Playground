@@ -405,3 +405,39 @@ select:focus {
     animation: none;
   }
 }
+
+/* Emoji picker — align with app theme tokens (fixes light picker + inherited input text in dark mode) */
+.emoji-picker-shell .EmojiPickerReact {
+  --epr-bg-color: var(--background);
+  --epr-picker-border-color: var(--input-border);
+  --epr-text-color: var(--foreground);
+  --epr-category-label-bg-color: var(--background);
+  --epr-search-input-bg-color: var(--input-bg);
+  --epr-search-input-text-color: var(--foreground);
+  --epr-search-input-placeholder-color: var(--input-placeholder);
+  --epr-search-border-color: var(--input-border);
+  --epr-search-icon-color: var(--muted);
+  --epr-hover-bg-color: color-mix(in srgb, var(--muted-bright) 80%, transparent);
+  --epr-highlight-color: var(--primary);
+}
+
+html.dark .emoji-picker-shell .EmojiPickerReact.epr-dark-theme {
+  --epr-dark-bg-color: var(--muted-bright);
+  --epr-dark-picker-border-color: var(--input-border);
+  --epr-dark-text-color: var(--foreground);
+  --epr-dark-category-label-bg-color: var(--muted-bright);
+  --epr-dark-search-input-bg-color: var(--input-bg);
+  --epr-dark-search-input-bg-color-active: var(--input-bg);
+  --epr-dark-hover-bg-color: color-mix(in srgb, var(--foreground) 8%, var(--muted-bright));
+  --epr-dark-highlight-color: var(--foreground);
+  --epr-dark-category-icon-active-color: var(--primary);
+}
+
+html.dark .emoji-picker-shell .EmojiPickerReact.epr-dark-theme input {
+  color: var(--foreground);
+  background-color: var(--input-bg);
+}
+
+html.dark .emoji-picker-shell .EmojiPickerReact.epr-dark-theme input::placeholder {
+  color: var(--input-placeholder);
+}

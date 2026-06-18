@@ -147,6 +147,7 @@ htmlcov/
 *.db
 *.db-journal
 **/data/*.db
+backend/data/avatars/
 redis-dump.rdb
 dump.rdb
 

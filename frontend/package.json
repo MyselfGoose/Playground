@@ -12,11 +12,13 @@
     "test:component": "vitest run"
   },
   "dependencies": {
+    "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.14.0",
     "next": "16.2.3",
     "react": "19.2.5",
     "react-dom": "19.2.5",
+    "react-easy-crop": "^6.0.2",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {

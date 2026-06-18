@@ -119,6 +119,13 @@ export const ERROR_CODE_META = {
     requires_reauth: false,
     user_message: 'That username is already taken. Try another.',
   },
+  USERNAME_CHANGE_COOLDOWN: {
+    category: 'VALIDATION',
+    recoverable: false,
+    retryable: false,
+    requires_reauth: false,
+    user_message: 'You cannot change your username yet. Please wait until the cooldown ends.',
+  },
   OAUTH_STATE_INVALID: {
     category: 'AUTH',
     recoverable: false,

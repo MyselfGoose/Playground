@@ -97,7 +97,7 @@ export function Navbar() {
                 href="/profile"
                 className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-3 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright/50"
               >
-                <Avatar username={user.username} src={user.avatarUrl} size="sm" />
+                <Avatar username={user.username} avatarUrl={user.avatarUrl} avatarEmoji={user.avatarEmoji} size="sm" />
                 <span className="hidden max-w-[8rem] truncate text-sm font-bold text-foreground sm:inline">
                   {user.username}
                 </span>

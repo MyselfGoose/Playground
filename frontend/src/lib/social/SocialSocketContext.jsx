@@ -69,6 +69,7 @@ export function SocialSocketProvider({ children }) {
       "game_invite_received",
       "game_invite_cancelled",
       "game_invite_resolved",
+      "profile:updated",
     ];
 
     for (const event of events) {

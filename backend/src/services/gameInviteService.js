@@ -13,17 +13,20 @@ import { userRepository } from '../repositories/userRepository.js';
 import { getRoomInviteContext } from '../realtime/roomInviteRegistry.js';
 import { getSocialHub } from '../realtime/socialHub.js';
 import { avatarUrlForUsername } from '../utils/avatarUrl.js';
+import { resolveUserAvatar } from '../utils/resolveUserAvatar.js';
 
 /**
- * @param {{ _id?: unknown, id?: unknown, username?: string, avatarUrl?: string }} user
+ * @param {{ _id?: unknown, id?: unknown, username?: string, avatarUrl?: string, avatarEmoji?: string }} user
  */
 function toUserStub(user) {
   const id = user?._id != null ? String(user._id) : user?.id != null ? String(user.id) : '';
   const username = typeof user.username === 'string' ? user.username : '';
+  const { avatarUrl, avatarEmoji } = resolveUserAvatar(user ?? {});
   return {
     userId: id,
     username,
-    avatarUrl: user.avatarUrl || avatarUrlForUsername(username),
+    avatarUrl,
+    avatarEmoji,
   };
 }
 

@@ -31,6 +31,29 @@ export const userRepository = {
 
   /**
    * @param {string} username
+   * @param {string} excludeUserId
+   */
+  findByUsernameExcluding(username, excludeUserId) {
+    return User.findOne({ username, _id: { $ne: excludeUserId } }).lean();
+  },
+
+  /**
+   * @param {import('mongoose').Types.ObjectId | string} userId
+   * @param {Record<string, unknown>} patch
+   */
+  async updateProfile(userId, patch) {
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { $set: patch },
+      { new: true, runValidators: true },
+    )
+      .select('-__v')
+      .lean();
+    return updated;
+  },
+
+  /**
+   * @param {string} username
    */
   findByUsernameWithPassword(username) {
     return User.findOne({ username }).select('+passwordHash').lean();
@@ -52,9 +75,22 @@ export const userRepository = {
   },
 
   /**
-   * @param {import('mongoose').Types.ObjectId | string} userId
+   * @param {string[]} ids
    */
-  updateLastLogin(userId) {
+  async findAvatarsByIds(ids) {
+    if (!ids.length) return {};
+    const users = await User.find({ _id: { $in: ids } })
+      .select('username avatarUrl avatarEmoji')
+      .lean();
+    /** @type {Record<string, { username: string, avatarUrl?: string | null, avatarEmoji?: string | null }>} */
+    const map = {};
+    for (const u of users) {
+      map[String(u._id)] = u;
+    }
+    return map;
+  },
+
+  /**
     return User.updateOne({ _id: userId }, { $set: { lastLoginAt: new Date() } });
   },
 

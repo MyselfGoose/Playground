@@ -24,7 +24,7 @@ export function FriendRow({ friend, onNavigate }) {
         className="flex items-center gap-2 px-1.5 py-1.5"
       >
         <span className="relative shrink-0">
-          <Avatar username={friend.username} src={friend.avatarUrl} size="sm" />
+          <Avatar username={friend.username} avatarUrl={friend.avatarUrl} avatarEmoji={friend.avatarEmoji} size="sm" />
           <span
             className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background ${
               friend.online ? "bg-accent-mint" : "bg-muted"

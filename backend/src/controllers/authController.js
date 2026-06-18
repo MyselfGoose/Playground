@@ -353,7 +353,13 @@ export function createAuthController({
         res.status(200).json({ data: { available: false } });
         return;
       }
-      const taken = await userRepository.findByUsername(parsed.data);
+      const excludeUserId = typeof req.query.excludeUserId === 'string' ? req.query.excludeUserId.trim() : '';
+      let taken;
+      if (excludeUserId) {
+        taken = await userRepository.findByUsernameExcluding(parsed.data, excludeUserId);
+      } else {
+        taken = await userRepository.findByUsername(parsed.data);
+      }
       res.status(200).json({ data: { available: !taken } });
     },
 

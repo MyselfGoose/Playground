@@ -13,6 +13,8 @@ import {
 import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
 import { dailyTypingSeedFromDate, utcDateString } from '../lib/dailyTypingSeed.js';
 import { requireMongoReady } from './requireMongoReady.js';
+import { userRepository } from '../repositories/userRepository.js';
+import { userAvatarFields } from '../utils/resolveUserAvatar.js';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -57,8 +59,23 @@ function cacheSet(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-function avatarUrl(username) {
-  return `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${encodeURIComponent(username || 'player')}`;
+
+/**
+ * @param {Array<Record<string, unknown>>} entries
+ */
+async function enrichEntriesWithAvatars(entries) {
+  const userIds = entries.map((e) => String(e.userId ?? '')).filter(Boolean);
+  const users = await userRepository.findAvatarsByIds(userIds);
+  return entries.map((e) => {
+    const userId = String(e.userId ?? '');
+    const user = users[userId];
+    const avatars = user ? userAvatarFields(user) : { avatarUrl: null, avatarEmoji: null };
+    return {
+      ...e,
+      avatarUrl: avatars.avatarUrl,
+      avatarEmoji: avatars.avatarEmoji,
+    };
+  });
 }
 
 function mapEntries(entries, skip, primaryField, extraFields = []) {
@@ -67,7 +84,8 @@ function mapEntries(entries, skip, primaryField, extraFields = []) {
       rank: skip + i + 1,
       userId: String(e.userId),
       username: e.username,
-      avatarUrl: avatarUrl(e.username),
+      avatarUrl: e.avatarUrl ?? null,
+      avatarEmoji: e.avatarEmoji ?? null,
       totalGames:
         (e.typing_totalGames ?? 0) +
         (e.npat_totalGames ?? 0) +
@@ -81,6 +99,14 @@ function mapEntries(entries, skip, primaryField, extraFields = []) {
     }
     return base;
   });
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} entries
+ */
+async function mapEntriesWithAvatars(entries, skip, primaryField, extraFields = []) {
+  const enriched = await enrichEntriesWithAvatars(entries);
+  return mapEntries(enriched, skip, primaryField, extraFields);
 }
 
 /**
@@ -142,7 +168,7 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_bestWpm', [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'typing_bestWpm', [
           'typing_totalGames',
           'typing_weightedAccuracy',
           'typing_multiWins',
@@ -172,7 +198,7 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'typing_weightedAccuracy', [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'typing_weightedAccuracy', [
           'typing_totalGames',
           'typing_bestWpm',
           'typing_totalCharsTyped',
@@ -202,7 +228,7 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'npat_averageScore', [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'npat_averageScore', [
           'npat_totalGames',
           'npat_winRate',
           'npat_wins',
@@ -226,11 +252,13 @@ export function createLeaderboardRouter({ env }) {
 
       const result = await userStatsRepository.leaderboardGlobal({ page, limit });
       const skip = (page - 1) * limit;
-      const entries = result.entries.map((e, i) => ({
+      const enriched = await enrichEntriesWithAvatars(result.entries);
+      const entries = enriched.map((e, i) => ({
           rank: e.global_rank ?? skip + i + 1,
           userId: String(e.userId),
           username: e.username,
-          avatarUrl: avatarUrl(e.username),
+          avatarUrl: e.avatarUrl ?? null,
+          avatarEmoji: e.avatarEmoji ?? null,
           globalScore: e.global_score,
           typing_bestWpm: e.typing_bestWpm ?? 0,
           typing_weightedAccuracy: e.typing_weightedAccuracy ?? 0,
@@ -307,7 +335,7 @@ export function createLeaderboardRouter({ env }) {
         },
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'hangman_skill', [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'hangman_skill', [
           'hangman_totalGames',
           'hangman_totalWins',
           'hangman_winRate',
@@ -341,7 +369,7 @@ export function createLeaderboardRouter({ env }) {
         limit,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, 'taboo_score', [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'taboo_score', [
           'taboo_gamesPlayed',
           'taboo_gamesWon',
           'taboo_winRate',
@@ -378,7 +406,7 @@ export function createLeaderboardRouter({ env }) {
         sort: sortSpec,
       });
       const data = {
-        entries: mapEntries(result.entries, (page - 1) * limit, primaryField, [
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, primaryField, [
           'cah_gamesPlayed',
           'cah_roundsPlayed',
           'cah_roundWins',

@@ -4,6 +4,7 @@ import "./globals.css";
 import { UserProvider } from "../lib/context/UserContext.jsx";
 import { GameSessionProvider } from "../lib/session/GameSessionContext.jsx";
 import { SocialSocketProvider } from "../lib/social/SocialSocketContext.jsx";
+import { ProfileSyncListener } from "../lib/social/ProfileSyncListener.jsx";
 import { FriendsProvider } from "../lib/friends/FriendsContext.jsx";
 import { NotificationsProvider } from "../lib/notifications/NotificationsContext.jsx";
 import { Shell } from "../components/Shell.jsx";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }) {
             <UserProvider>
               <GameSessionProvider>
                 <SocialSocketProvider>
+                  <ProfileSyncListener />
                   <FriendsProvider>
                     <NotificationsProvider>
                       <Shell>{children}</Shell>

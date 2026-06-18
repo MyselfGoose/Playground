@@ -9,6 +9,24 @@ Operational guidance for Playgrounds backend deploys on Railway and frontend on 
 - [ ] `REDIS_URL` set only when running ≥2 replicas with adapter wired
 - [ ] Vercel `NEXT_PUBLIC_SOCKET_URL` points at the live API host
 - [ ] Same-origin proxy env aligned ([deploy-auth-checklist.md](../deploy-auth-checklist.md))
+- [ ] Avatar storage: `AVATAR_STORAGE_DRIVER=s3` + R2/S3 credentials on Railway; `AVATAR_PUBLIC_BASE_URL` set to public CDN URL
+- [ ] Vercel `NEXT_PUBLIC_AVATAR_HOSTS` lists avatar CDN hostname(s) for Next.js image loading
+
+## Profile avatars (production)
+
+| Env (Railway) | Purpose |
+|---------------|---------|
+| `AVATAR_STORAGE_DRIVER` | `s3` in production |
+| `AVATAR_S3_BUCKET` | Object storage bucket |
+| `AVATAR_S3_ENDPOINT` | R2 endpoint URL (if not AWS) |
+| `AVATAR_S3_ACCESS_KEY_ID` / `AVATAR_S3_SECRET_ACCESS_KEY` | Storage credentials |
+| `AVATAR_PUBLIC_BASE_URL` | Public URL prefix served to clients |
+
+| Env (Vercel) | Purpose |
+|--------------|---------|
+| `NEXT_PUBLIC_AVATAR_HOSTS` | Comma-separated hostnames allowed in `next/image` (e.g. CDN domain) |
+
+Local dev uses `AVATAR_STORAGE_DRIVER=local` (default) and serves files from `GET /api/v1/users/avatars/:filename`.
 
 ## What happens during a deploy
 

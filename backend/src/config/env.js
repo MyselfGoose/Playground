@@ -196,6 +196,37 @@ export const envSchema = z
     OAUTH_TICKET_EXPIRY: z.string().min(1).default('180s'),
     OAUTH_SIGNUP_TICKET_EXPIRY: z.string().min(1).default('10m'),
 
+    /** Profile — username change cooldown in days. */
+    USERNAME_CHANGE_COOLDOWN_DAYS: z.coerce.number().int().min(0).max(365).default(7),
+    /** Avatar upload decoded image max bytes. */
+    AVATAR_MAX_BYTES: z.coerce.number().int().min(50_000).max(5_000_000).default(2_097_152),
+    /** JSON body limit for avatar upload (base64). */
+    AVATAR_BODY_LIMIT: z.string().min(1).default('4mb'),
+    /** `local` (filesystem) or `s3` (S3-compatible, e.g. Cloudflare R2). */
+    AVATAR_STORAGE_DRIVER: z.preprocess((v) => {
+      const s = nonemptyOrUndefined(v);
+      if (s === 's3') return 's3';
+      return 'local';
+    }, z.enum(['local', 's3']).default('local')),
+    AVATAR_LOCAL_DIR: z.string().min(1).default('data/avatars'),
+    /** Public base URL for avatar images (no trailing slash). */
+    AVATAR_PUBLIC_BASE_URL: z.preprocess((v) => {
+      const s = nonemptyOrUndefined(v);
+      if (s) return s.replace(/\/+$/, '');
+      if (isProductionEnv()) return undefined;
+      return 'http://localhost:4000/api/v1/users/avatars';
+    }, z.string().url().optional()),
+    AVATAR_S3_BUCKET: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    AVATAR_S3_REGION: z.preprocess((v) => nonemptyOrUndefined(v) ?? 'auto', z.string().min(1).default('auto')),
+    AVATAR_S3_ENDPOINT: z.preprocess((v) => nonemptyOrUndefined(v), z.string().url().optional()),
+    AVATAR_S3_ACCESS_KEY_ID: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    AVATAR_S3_SECRET_ACCESS_KEY: z.preprocess((v) => nonemptyOrUndefined(v), z.string().optional()),
+    AVATAR_S3_FORCE_PATH_STYLE: z.preprocess((v) => {
+      if (v === undefined || v === null || String(v).trim() === '') return false;
+      const s = String(v).toLowerCase().trim();
+      return s === 'true' || s === '1';
+    }, z.boolean().default(false)),
+
     /**
      * Declared replica count for this deploy (ops must set when scaling horizontally).
      * Production with INSTANCE_COUNT > 1 requires REDIS_URL until Tier B adapter ships (prompt 038).

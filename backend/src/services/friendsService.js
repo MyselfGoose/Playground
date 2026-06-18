@@ -3,18 +3,21 @@ import { friendshipRepository } from '../repositories/friendshipRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { getSocialHub } from '../realtime/socialHub.js';
 import { avatarUrlForUsername } from '../utils/avatarUrl.js';
+import { resolveUserAvatar } from '../utils/resolveUserAvatar.js';
 
 /**
- * @param {{ _id?: unknown, id?: unknown, username?: string, avatarUrl?: string, isActive?: boolean }} user
+ * @param {{ _id?: unknown, id?: unknown, username?: string, avatarUrl?: string, avatarEmoji?: string, isActive?: boolean }} user
  */
 function toUserStub(user) {
   const id = user._id != null ? String(user._id) : user.id != null ? String(user.id) : '';
   const username = typeof user.username === 'string' ? user.username : '';
+  const { avatarUrl, avatarEmoji } = resolveUserAvatar(user);
   return {
     userId: id,
     id,
     username,
-    avatarUrl: user.avatarUrl || avatarUrlForUsername(username),
+    avatarUrl,
+    avatarEmoji,
   };
 }
 

@@ -37,6 +37,27 @@ const nextConfig = {
         hostname: "api.dicebear.com",
         pathname: "/7.x/**",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "4000",
+        pathname: "/api/v1/users/avatars/**",
+      },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+        port: "4000",
+        pathname: "/api/v1/users/avatars/**",
+      },
+      ...(process.env.NEXT_PUBLIC_AVATAR_HOSTS ?? "")
+        .split(",")
+        .map((h) => h.trim())
+        .filter(Boolean)
+        .map((hostname) => ({
+          protocol: "https",
+          hostname,
+          pathname: "/**",
+        })),
     ],
   },
   /**

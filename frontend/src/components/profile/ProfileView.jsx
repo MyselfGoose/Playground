@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -11,9 +11,10 @@ import { LoadingSkeleton } from "../LoadingSkeleton.jsx";
 import { ProfileHero } from "./ProfileHero.jsx";
 import { ProfileMetric } from "./ProfileMetric.jsx";
 import { ProfileSection } from "./ProfileSection.jsx";
-import { ProfileStatHighlight } from "./ProfileStatHighlight.jsx";
+import { ProfileStatCard } from "./ProfileStatCard.jsx";
 import { ProfileStatRow } from "./ProfileStatRow.jsx";
 import { MatchHistorySection } from "./MatchHistorySection.jsx";
+import { AccountSettingsCard } from "./AccountSettingsCard.jsx";
 import { prettyDateTime } from "./profileUtils.js";
 
 /**
@@ -35,6 +36,7 @@ function SelfProfile() {
   const { data: stats, loading: statsLoading, error: statsError } = useMyStats();
   const userId = user?.id != null ? String(user.id) : null;
   const matchHistory = useMatchHistory(userId, { limit: 10 });
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -75,8 +77,20 @@ function SelfProfile() {
         variant="self"
         username={user.username}
         avatarUrl={user.avatarUrl}
+        avatarEmoji={user.avatarEmoji}
         email={user.email}
+        createdAt={user.createdAt}
+        onEditAvatar={() => setAvatarOpen(true)}
       />
+
+      <section className="px-4 pb-4 sm:px-6">
+        <div className="mx-auto max-w-5xl">
+          <AccountSettingsCard
+            avatarOpen={avatarOpen}
+            onAvatarOpenChange={setAvatarOpen}
+          />
+        </div>
+      </section>
 
       {statsError ? (
         <section className="px-4 sm:px-6">
@@ -97,14 +111,15 @@ function SelfProfile() {
               transition={{ delay: 0.3 }}
               className="grid grid-cols-1 gap-6 sm:grid-cols-3"
             >
-              <ProfileStatHighlight
+              <ProfileStatCard
                 icon="🏆"
                 label="Global Rank"
                 value={globalRank != null ? `#${globalRank}` : "Unranked"}
                 highlight
+                accent
               />
-              <ProfileStatHighlight icon="⭐" label="Overall Score" value={globalScore.toFixed(0)} />
-              <ProfileStatHighlight icon="🎮" label="Games Played" value={String(totalGames)} />
+              <ProfileStatCard icon="⭐" label="Overall Score" value={globalScore.toFixed(0)} highlight />
+              <ProfileStatCard icon="🎮" label="Games Played" value={String(totalGames)} highlight />
             </motion.div>
           )}
         </div>
@@ -307,6 +322,7 @@ function PublicProfile({ userId }) {
         variant="public"
         username={user.username}
         avatarUrl={user.avatarUrl}
+        avatarEmoji={user.avatarEmoji}
         createdAt={user.createdAt}
         metrics={heroMetrics}
         breakdown={heroBreakdown}

@@ -162,6 +162,18 @@ export function FriendsProvider({ children }) {
         return next;
       });
       }),
+      subscribe("profile:updated", (payload) => {
+        const userId = String(payload?.userId ?? "");
+        if (!userId) return;
+        setFriends((prev) =>
+          upsertFriend(prev, {
+            userId,
+            username: typeof payload?.username === "string" ? payload.username : undefined,
+            avatarUrl: payload?.avatarUrl ?? null,
+            avatarEmoji: payload?.avatarEmoji ?? null,
+          }),
+        );
+      }),
     ];
 
     return () => {

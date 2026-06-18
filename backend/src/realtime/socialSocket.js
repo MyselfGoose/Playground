@@ -132,6 +132,22 @@ function createSocialHub({ socialNs, presence, logger }) {
     async broadcastOffline(userId, lastSeenAt) {
       await notifyFriends(userId, 'friend_offline', { userId, lastSeenAt });
     },
+
+    /**
+     * @param {string} userId
+     * @param {{ userId: string, username: string, avatarUrl: string | null, avatarEmoji: string | null }} payload
+     */
+    async notifyProfileUpdated(userId, payload) {
+      await emitToUser(userId, 'profile:updated', payload);
+    },
+
+    /**
+     * @param {string} userId
+     * @param {{ userId: string, username: string, avatarUrl: string | null, avatarEmoji: string | null }} payload
+     */
+    async notifyFriendsProfileUpdated(userId, payload) {
+      await notifyFriends(userId, 'profile:updated', payload);
+    },
   };
 }
 

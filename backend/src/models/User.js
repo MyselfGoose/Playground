@@ -51,6 +51,17 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2048,
     },
+    avatarEmoji: {
+      type: String,
+      trim: true,
+      maxlength: 32,
+    },
+    usernameChangedAt: {
+      type: Date,
+    },
+    avatarUpdatedAt: {
+      type: Date,
+    },
     roles: {
       type: [String],
       default: ['user'],

@@ -44,7 +44,7 @@ export function createApp({ env, logger }) {
   const corsOptions = {
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Request-Id'],
     exposedHeaders: ['X-Request-Id'],
     optionsSuccessStatus: 204,
@@ -103,8 +103,15 @@ export function createApp({ env, logger }) {
 
   app.use(cookieParser());
   app.use((req, res, next) => {
-    const limit =
-      req.method === 'POST' && req.path === '/api/v1/feedback' ? env.FEEDBACK_BODY_LIMIT : env.REQUEST_BODY_LIMIT;
+    let limit = env.REQUEST_BODY_LIMIT;
+    if (req.method === 'POST' && req.path === '/api/v1/feedback') {
+      limit = env.FEEDBACK_BODY_LIMIT;
+    } else if (
+      (req.method === 'POST' && req.path === '/api/v1/users/me/avatar') ||
+      (req.method === 'PUT' && req.path === '/api/v1/users/me/avatar/emoji')
+    ) {
+      limit = env.AVATAR_BODY_LIMIT;
+    }
     express.json({ limit })(req, res, next);
   });
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
@@ -114,7 +121,7 @@ export function createApp({ env, logger }) {
   app.use('/api/v1/auth', createAuthRouter({ env }));
   app.use('/api/v1/feedback', createFeedbackRouter({ env }));
   app.use('/api/v1/leaderboard', createLeaderboardRouter({ env }));
-  app.use('/api/v1/users', createUsersRouter());
+  app.use('/api/v1/users', createUsersRouter({ env }));
   app.use('/api/v1/hangman', createHangmanRouter({ env }));
   app.use('/api/v1/friends', createFriendsRouter({ env }));
   app.use('/api/v1/game-invites', createGameInvitesRouter({ env }));

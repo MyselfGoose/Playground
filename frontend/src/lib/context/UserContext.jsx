@@ -30,7 +30,7 @@ import {
   subscribeSessionInvalidated,
 } from "../session/sessionInvalidation.js";
 
-/** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string }} AuthUser */
+/** @typedef {{ id: string; username: string; email: string; roles: string[]; avatarUrl: string | null; avatarEmoji: string | null; usernameChangedAt?: string | null; createdAt?: string | null }} AuthUser */
 
 /** @typedef {'INIT'|'HYDRATING'|'SYNCED'|'DEGRADED'|'RECOVERING'} SessionLifecycle */
 
@@ -40,22 +40,25 @@ const RECONCILE_DEBOUNCE_MS = 500;
 /** Only surface RECOVERING UI if reconcile exceeds this (routine nav reconcile stays invisible). */
 const RECOVERING_UI_DELAY_MS = 800;
 
-function avatarUrlFor(username) {
-  const seed = encodeURIComponent(username || "player");
-  return `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${seed}`;
-}
-
 /** @param {Record<string, unknown> | null | undefined} u */
 function mapUser(u) {
   if (!u) return null;
   const id = u._id != null ? String(u._id) : u.id != null ? String(u.id) : "";
   const username = typeof u.username === "string" ? u.username : "";
+  const avatarUrl =
+    typeof u.avatarUrl === "string" && u.avatarUrl.trim() ? u.avatarUrl.trim() : null;
+  const avatarEmoji =
+    typeof u.avatarEmoji === "string" && u.avatarEmoji.trim() ? u.avatarEmoji.trim() : null;
   return {
     id,
     username,
     email: typeof u.email === "string" ? u.email : "",
     roles: Array.isArray(u.roles) ? u.roles.map(String) : [],
-    avatarUrl: avatarUrlFor(username),
+    avatarUrl,
+    avatarEmoji,
+    usernameChangedAt:
+      typeof u.usernameChangedAt === "string" ? u.usernameChangedAt : u.usernameChangedAt ?? null,
+    createdAt: typeof u.createdAt === "string" ? u.createdAt : u.createdAt ?? null,
   };
 }
 
@@ -64,6 +67,7 @@ function usersEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
   if (a.id !== b.id || a.username !== b.username || a.email !== b.email) return false;
+  if (a.avatarUrl !== b.avatarUrl || a.avatarEmoji !== b.avatarEmoji) return false;
   if (a.roles.length !== b.roles.length) return false;
   for (let i = 0; i < a.roles.length; i += 1) {
     if (a.roles[i] !== b.roles[i]) return false;
@@ -508,6 +512,48 @@ export function UserProvider({ children }) {
     setSessionNotice(null);
   }, []);
 
+  const updateProfile = useCallback(
+    async ({ username }) => {
+      const body = {};
+      if (typeof username === "string" && username.trim()) {
+        body.username = username.trim();
+      }
+      await apiFetch("/api/v1/users/me", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      return refreshUser();
+    },
+    [refreshUser],
+  );
+
+  const uploadAvatar = useCallback(
+    async (image) => {
+      await apiFetch("/api/v1/users/me/avatar", {
+        method: "POST",
+        body: JSON.stringify({ image }),
+      });
+      return refreshUser();
+    },
+    [refreshUser],
+  );
+
+  const setAvatarEmoji = useCallback(
+    async (emoji) => {
+      await apiFetch("/api/v1/users/me/avatar/emoji", {
+        method: "PUT",
+        body: JSON.stringify({ emoji }),
+      });
+      return refreshUser();
+    },
+    [refreshUser],
+  );
+
+  const removeAvatar = useCallback(async () => {
+    await apiFetch("/api/v1/users/me/avatar", { method: "DELETE" });
+    return refreshUser();
+  }, [refreshUser]);
+
   const value = useMemo(
     () => ({
       user,
@@ -523,6 +569,10 @@ export function UserProvider({ children }) {
       logout,
       refreshUser,
       reconcileNow: runReconcile,
+      updateProfile,
+      uploadAvatar,
+      setAvatarEmoji,
+      removeAvatar,
     }),
     [
       user,
@@ -538,6 +588,10 @@ export function UserProvider({ children }) {
       logout,
       refreshUser,
       runReconcile,
+      updateProfile,
+      uploadAvatar,
+      setAvatarEmoji,
+      removeAvatar,
     ],
   );
 

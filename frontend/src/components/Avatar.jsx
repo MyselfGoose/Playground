@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { resolveAvatarDisplay } from "../lib/profile/resolveAvatarDisplay.js";
 
 const sizes = {
-  sm: { box: "h-9 w-9", text: "text-xs" },
-  md: { box: "h-12 w-12", text: "text-base" },
-  lg: { box: "h-28 w-28 sm:h-32 sm:w-32", text: "text-3xl sm:text-4xl" },
+  sm: { box: "h-9 w-9", text: "text-xs", emoji: "text-xl" },
+  md: { box: "h-12 w-12", text: "text-base", emoji: "text-2xl" },
+  lg: { box: "h-28 w-28 sm:h-32 sm:w-32", text: "text-3xl sm:text-4xl", emoji: "text-5xl sm:text-6xl" },
 };
 
 const gradients = [
@@ -29,26 +30,50 @@ function hashName(name) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     const char = name.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash |= 0;
   }
   return Math.abs(hash) % gradients.length;
 }
 
-export function Avatar({ username, src, size = "md", className = "" }) {
+/**
+ * @param {{
+ *   username: string,
+ *   src?: string | null,
+ *   emoji?: string | null,
+ *   avatarUrl?: string | null,
+ *   avatarEmoji?: string | null,
+ *   size?: 'sm' | 'md' | 'lg',
+ *   className?: string,
+ * }} props
+ */
+export function Avatar({
+  username,
+  src,
+  emoji,
+  avatarUrl,
+  avatarEmoji,
+  size = "md",
+  className = "",
+}) {
   const s = sizes[size] ?? sizes.md;
   const label = initials(username);
   const gradientIndex = hashName(username || "");
   const gradient = gradients[gradientIndex];
+  const display = resolveAvatarDisplay({ src, emoji, avatarUrl, avatarEmoji });
 
   return (
     <div
       className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${gradient} ring-2 ring-white/40 shadow-[var(--shadow-md)] ${s.box} ${className}`}
-      aria-hidden={src ? undefined : true}
+      aria-hidden={display.src || display.emoji ? undefined : true}
     >
-      {src ? (
+      {display.emoji ? (
+        <span className={`select-none leading-none ${s.emoji}`} aria-hidden>
+          {display.emoji}
+        </span>
+      ) : display.src ? (
         <Image
-          src={src}
+          src={display.src}
           alt=""
           width={128}
           height={128}

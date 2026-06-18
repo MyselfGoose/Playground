@@ -1,5 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import mongoose from 'mongoose';
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
+import { createTokenService } from '../services/tokenService.js';
+import { createAuthMiddleware } from '../middleware/authMiddleware.js';
+import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { HANGMAN_LEADERBOARD_MIN_GAMES, userStatsRepository } from '../repositories/userStatsRepository.js';
@@ -7,27 +12,15 @@ import { typingAttemptRepository } from '../repositories/typingAttemptRepository
 import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { getMatchHistoryForUser } from '../services/matchHistoryService.js';
 import { requireMongoReady } from './requireMongoReady.js';
-
-const cache = new Map();
-const CACHE_TTL = 45_000;
-
-function cacheGet(key) {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.ts > CACHE_TTL) {
-    cache.delete(key);
-    return undefined;
-  }
-  return entry.data;
-}
-
-function cacheSet(key, data) {
-  cache.set(key, { data, ts: Date.now() });
-}
-
-function avatarUrl(username) {
-  return `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${encodeURIComponent(username || 'player')}`;
-}
+import { cacheGet, cacheSet } from './userProfileCache.js';
+import { userAvatarFields } from '../utils/resolveUserAvatar.js';
+import { createAvatarStorage } from '../services/avatarStorage.js';
+import { createUserProfileService } from '../services/userProfileService.js';
+import {
+  avatarEmojiBodySchema,
+  avatarUploadBodySchema,
+  updateProfileBodySchema,
+} from '../validation/users.schemas.js';
 
 function computeBreakdown(stats) {
   const totalGames =
@@ -93,9 +86,105 @@ function mapNpatActivity(entry) {
   };
 }
 
-export function createUsersRouter() {
+/**
+ * @param {{ env: import('../config/env.js').Env }} params
+ */
+export function createUsersRouter({ env }) {
   const router = Router();
   router.use(requireMongoReady);
+
+  const tokenService = createTokenService(env);
+  const { requireAuth } = createAuthMiddleware({ tokenService });
+  const avatarStorage = createAvatarStorage(env);
+  const profileService = createUserProfileService(env, avatarStorage);
+
+  const profilePatchLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 20,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?.id ?? req.ip ?? 'unknown',
+    message: { error: { message: 'Too many profile updates', code: 'RATE_LIMITED' } },
+  });
+
+  const avatarUploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?.id ?? req.ip ?? 'unknown',
+    message: { error: { message: 'Too many avatar uploads', code: 'RATE_LIMITED' } },
+  });
+
+  router.get(
+    '/avatars/:filename',
+    asyncHandler(async (req, res) => {
+      if (env.AVATAR_STORAGE_DRIVER !== 'local') {
+        return res.status(404).json({
+          error: { message: 'Not found', code: 'NOT_FOUND' },
+        });
+      }
+      const filePath = avatarStorage.resolveLocalFile(String(req.params.filename ?? ''));
+      if (!filePath) {
+        return res.status(404).json({
+          error: { message: 'Not found', code: 'NOT_FOUND' },
+        });
+      }
+      try {
+        const buf = await readFile(filePath);
+        res.setHeader('Content-Type', 'image/webp');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.send(buf);
+      } catch {
+        return res.status(404).json({
+          error: { message: 'Not found', code: 'NOT_FOUND' },
+        });
+      }
+    }),
+  );
+
+  router.patch(
+    '/me',
+    requireAuth,
+    profilePatchLimiter,
+    validateBody(updateProfileBodySchema),
+    asyncHandler(async (req, res) => {
+      const user = await profileService.updateProfile(req.user.id, req.body);
+      res.json({ data: { user } });
+    }),
+  );
+
+  router.post(
+    '/me/avatar',
+    requireAuth,
+    avatarUploadLimiter,
+    validateBody(avatarUploadBodySchema),
+    asyncHandler(async (req, res) => {
+      const user = await profileService.uploadAvatar(req.user.id, req.body);
+      res.json({ data: { user } });
+    }),
+  );
+
+  router.put(
+    '/me/avatar/emoji',
+    requireAuth,
+    avatarUploadLimiter,
+    validateBody(avatarEmojiBodySchema),
+    asyncHandler(async (req, res) => {
+      const user = await profileService.setAvatarEmoji(req.user.id, req.body);
+      res.json({ data: { user } });
+    }),
+  );
+
+  router.delete(
+    '/me/avatar',
+    requireAuth,
+    avatarUploadLimiter,
+    asyncHandler(async (req, res) => {
+      const user = await profileService.removeAvatar(req.user.id);
+      res.json({ data: { user } });
+    }),
+  );
 
   router.get(
     '/:id/profile',
@@ -152,12 +241,12 @@ export function createUsersRouter() {
         }),
       ]);
 
-  const totalGames =
-    (stats?.typing_totalGames ?? 0) +
-    (stats?.npat_totalGames ?? 0) +
-    (stats?.taboo_gamesPlayed ?? 0) +
-    (stats?.cah_gamesPlayed ?? 0) +
-    (stats?.hangman_totalGames ?? 0);
+      const totalGames =
+        (stats?.typing_totalGames ?? 0) +
+        (stats?.npat_totalGames ?? 0) +
+        (stats?.taboo_gamesPlayed ?? 0) +
+        (stats?.cah_gamesPlayed ?? 0) +
+        (stats?.hangman_totalGames ?? 0);
       const breakdown = computeBreakdown(stats);
       const recentActivity = [...typingActivity.map(mapTypingActivity), ...npatActivity.map(mapNpatActivity)]
         .sort((a, b) => new Date(b.finishedAt).getTime() - new Date(a.finishedAt).getTime())
@@ -167,7 +256,7 @@ export function createUsersRouter() {
         user: {
           id: String(user._id),
           username: user.username,
-          avatarUrl: avatarUrl(user.username),
+          ...userAvatarFields(user),
           createdAt: user.createdAt ?? null,
         },
         stats: {
