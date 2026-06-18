@@ -2,6 +2,8 @@ import { ACCESS_TOKEN_COOKIE } from '../constants/auth.js';
 import { parseCookies } from '../utils/parseCookies.js';
 import { resolveSocketCredential } from './authMiddleware.js';
 import { bumpMetric } from '../observability/platformMetrics.js';
+import { userRepository } from '../repositories/userRepository.js';
+import { avatarFromUser } from '../utils/lobbyPlayerAvatar.js';
 
 /**
  * Collect handshake JWT candidates. **Cookie first** so browser cookie rotation from `/auth/refresh`
@@ -67,6 +69,10 @@ export function createSocketAuthMiddleware({ tokenService, logger, nsTag }) {
       socket.data.username = ctx.username;
       socket.data.roles = ctx.roles;
       socket.data.sid = ctx.sid;
+      const user = await userRepository.findByIdLean(ctx.id);
+      const { avatarUrl, avatarEmoji } = avatarFromUser(user);
+      socket.data.avatarUrl = avatarUrl;
+      socket.data.avatarEmoji = avatarEmoji;
       bumpMetric('socket_handshake_ok');
       return next();
     } catch (err) {

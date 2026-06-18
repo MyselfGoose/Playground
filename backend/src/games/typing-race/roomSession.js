@@ -7,6 +7,7 @@ import {
   TYPING_RACE_MIN_PLAYERS,
 } from "./constants.js";
 import { generateRacePassage } from "./text-gen.js";
+import { avatarFromSocket, mergeAvatarIntoPlayer } from "../../utils/lobbyPlayerAvatar.js";
 
 /**
  * @typedef {'lobby'|'countdown'|'racing'|'finished'} TypingPhase
@@ -94,6 +95,7 @@ export class TypingRaceRoom {
       p.socketId = socket.id;
       p.connected = true;
       p.displayName = displayName;
+      mergeAvatarIntoPlayer(p, avatarFromSocket(socket));
     }
   }
 
@@ -120,6 +122,7 @@ export class TypingRaceRoom {
       existing.connected = true;
       existing.disconnectedAtMs = null;
       existing.displayName = displayName;
+      mergeAvatarIntoPlayer(existing, avatarFromSocket(socket));
       this.bindPlayerSocket(userId, displayName, socket);
       return prevSid && prevSid !== socket.id ? prevSid : null;
     }
@@ -146,6 +149,7 @@ export class TypingRaceRoom {
       finishedAtMs: null,
       rank: null,
       disconnectedAtMs: null,
+      ...avatarFromSocket(socket),
     };
     this.players.set(userId, player);
     if (!this.hostUserId) {
@@ -489,6 +493,8 @@ export class TypingRaceRoom {
     const players = [...this.players.values()].map((p) => ({
       userId: p.userId,
       displayName: p.displayName,
+      avatarUrl: p.avatarUrl ?? null,
+      avatarEmoji: p.avatarEmoji ?? null,
       colorIndex: p.colorIndex,
       color: PLAYER_COLORS[p.colorIndex % PLAYER_COLORS.length],
       ready: p.ready,

@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { activePlayersInRoom, isPlayerActiveInGame, snapshotPresenceFields } from "../../realtime/playerPresence.js";
+import { lobbyPlayerAvatarFields } from "../../utils/lobbyPlayerAvatar.js";
 
 const TURN_READY_DELAY_MS = 3000;
 const NEXT_ROUND_DELAY_MS = 10000;
@@ -556,6 +557,7 @@ export function createGameManager() {
         name: p.username,
         team: p.team,
         ready: p.ready,
+        ...lobbyPlayerAvatarFields(p),
         ...snapshotPresenceFields(p),
       })),
       teams: {

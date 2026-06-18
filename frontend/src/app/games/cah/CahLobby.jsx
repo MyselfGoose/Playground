@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PartyLobby } from "../../../components/party/PartyLobby.jsx";
+import { mapPartyPlayer } from "../../../lib/party/mapPartyPlayer.js";
 import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
 import { useCah } from "../../../lib/cah/CahSocketContext.jsx";
 
@@ -43,14 +44,7 @@ export function CahLobby({ room, error, setError, run }) {
   }, [room.settings?.packs, serverPacks]);
 
   const partyPlayers = useMemo(
-    () =>
-      (room.players ?? []).map((p) => ({
-        id: p.userId,
-        name: p.username,
-        ready: Boolean(p.ready),
-        connected: p.connected !== false,
-        isHost: p.userId === room.hostId,
-      })),
+    () => (room.players ?? []).map((p) => mapPartyPlayer(p, { hostId: room.hostId })),
     [room.players, room.hostId],
   );
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { CountdownStrip } from "../../../../components/game-feel/CountdownStrip.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
+import { mapPartyPlayer } from "../../../../lib/party/mapPartyPlayer.js";
 import { LobbyInviteFriends } from "../../../../components/party/LobbyInviteFriends.jsx";
 import { LoadingSkeleton } from "../../../../components/LoadingSkeleton.jsx";
 import { Button } from "../../../../components/Button.jsx";
@@ -50,17 +51,7 @@ export function HangmanLobbyScreen() {
   const needMore = connectedCount < minPlayers;
 
   const players = useMemo(
-    () =>
-      (room?.players ?? []).map((p) => ({
-        id: p.userId,
-        name: p.username,
-        ready: Boolean(p.ready),
-        connected: p.connected !== false,
-        presenceStatus: p.presenceStatus,
-        graceEndsAtMs: p.graceEndsAtMs,
-        graceSecondsRemaining: p.graceSecondsRemaining,
-        isHost: p.userId === room?.hostId,
-      })),
+    () => (room?.players ?? []).map((p) => mapPartyPlayer(p, { hostId: room?.hostId })),
     [room?.players, room?.hostId],
   );
 

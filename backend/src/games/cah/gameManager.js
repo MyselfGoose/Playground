@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { CahBlackCard } from '../../models/CahBlackCard.js';
 import { CahWhiteCard } from '../../models/CahWhiteCard.js';
 import { activePlayersInRoom, snapshotPresenceFields } from '../../realtime/playerPresence.js';
+import { lobbyPlayerAvatarFields } from '../../utils/lobbyPlayerAvatar.js';
 import { CAH_DATASET_VERSION, CAH_DEFAULT_HAND_SIZE, CAH_DEFAULT_MAX_ROUNDS, CAH_MIN_PLAYERS } from './constants.js';
 
 export { CAH_DATASET_VERSION };
@@ -99,6 +100,7 @@ function mapPublicPlayers(room, now = Date.now()) {
     username: p.username,
     ready: p.ready,
     score: p.score,
+    ...lobbyPlayerAvatarFields(p),
     ...snapshotPresenceFields(p, now),
   }));
 }

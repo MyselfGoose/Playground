@@ -14,6 +14,7 @@ import {
 } from '../../realtime/playerPresence.js';
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
 import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
+import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from '../../utils/lobbyPlayerAvatar.js';
 import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
 import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import {
@@ -392,6 +393,7 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (!code) throw Object.assign(new Error('Could not allocate room'), { code: 'ROOM_ALLOC_FAIL' });
 
     const room = createHangmanRoom(socket.data.userId, socket.data.username, normalizeSettings(settings ?? {}));
+    mergeAvatarIntoPlayer(room.players[0], avatarFromSocket(socket));
     room.code = code;
     room.socketIds = new Set([socket.id]);
     rooms.set(code, room);
@@ -419,13 +421,14 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     if (existing) {
       markPlayerConnected(existing);
       existing.username = socket.data.username;
+      mergeAvatarIntoPlayer(existing, avatarFromSocket(socket));
     } else {
-      const newbie = {
+      const newbie = baseLobbyPlayer({
         userId: socket.data.userId,
         username: socket.data.username,
-        ready: false,
-        connected: true,
-      };
+        socket,
+        extra: { ready: false },
+      });
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }

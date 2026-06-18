@@ -13,11 +13,14 @@ import {
   NPAT_MODE_TEAM,
   resolveGameEvaluationSource,
 } from './npatModeUtils.js';
+import { lobbyPlayerAvatarFields } from '../../utils/lobbyPlayerAvatar.js';
 
 /**
  * @typedef {{
  *   userId: string,
  *   username: string,
+ *   avatarUrl?: string | null,
+ *   avatarEmoji?: string | null,
  *   teamId: string,
  *   ready: boolean,
  *   socketId: string | null,
@@ -434,13 +437,16 @@ export class NpatRoomEngine {
    * @param {string} username
    * @param {string | null} socketId
    * @param {number} joinedAt
+   * @param {{ avatarUrl?: string | null, avatarEmoji?: string | null }} [avatar]
    */
-  upsertPlayer(userId, username, socketId, joinedAt) {
+  upsertPlayer(userId, username, socketId, joinedAt, avatar = {}) {
     const existing = this.players.get(userId);
     const teamId = this.pickTeamForNewPlayer(userId, existing?.teamId);
     this.players.set(userId, {
       userId,
       username,
+      avatarUrl: avatar.avatarUrl ?? existing?.avatarUrl ?? null,
+      avatarEmoji: avatar.avatarEmoji ?? existing?.avatarEmoji ?? null,
       teamId: existing?.teamId ?? teamId,
       ready: existing?.ready ?? false,
       socketId: socketId ?? existing?.socketId ?? null,
@@ -1399,6 +1405,7 @@ export class NpatRoomEngine {
         teamId: p.teamId,
         ready: p.ready,
         connected: p.connected,
+        ...lobbyPlayerAvatarFields(p),
       })),
       teams: this.teams,
       currentRoundIndex: this.currentRoundIndex,

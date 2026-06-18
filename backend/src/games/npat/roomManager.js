@@ -6,6 +6,7 @@ import { normalizeNpatMode, NPAT_MODE_TEAM } from './npatModeUtils.js';
 import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
 import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import { GAME_STATES } from './stateMachine.js';
+import { avatarFromSocket } from '../../utils/lobbyPlayerAvatar.js';
 
 export const NPAT_RECENTLY_EXPIRED_TTL_MS = 5 * 60 * 1000;
 
@@ -307,7 +308,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
         persist,
       });
       const now = Date.now();
-      engine.upsertPlayer(userId, username, socket.id, now);
+      engine.upsertPlayer(userId, username, socket.id, now, avatarFromSocket(socket));
       if (normalizedMode === NPAT_MODE_TEAM) {
         const p = engine.players.get(userId);
         if (p) p.teamId = 'A';
@@ -384,7 +385,7 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
       }
 
       const now = Date.now();
-      engine.upsertPlayer(userId, username, socket.id, now);
+      engine.upsertPlayer(userId, username, socket.id, now, avatarFromSocket(socket));
       engine.setSocket(userId, socket.id);
       socket.join(code);
       socketToRoom.set(socket.id, code);

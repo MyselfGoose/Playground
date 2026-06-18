@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useNpat } from "../../../../lib/npat/NpatSocketContext.jsx";
 import { PartyLobby } from "../../../../components/party/PartyLobby.jsx";
+import { mapPartyPlayer } from "../../../../lib/party/mapPartyPlayer.js";
 import { LobbyInviteFriends } from "../../../../components/party/LobbyInviteFriends.jsx";
 import { formatJoinCodeForServer, getNpatRoomCodeLength } from "../../../../lib/npat/roomCode.js";
 import { formatNpatMode, isNpatTeamMode } from "../../../../lib/npat/modeLabels.js";
@@ -114,16 +115,8 @@ export function NpatLobbyClient() {
   );
 
   const partyPlayers = useMemo(
-    () =>
-      players.map((p) => ({
-        id: p.userId,
-        name: p.username ?? "Player",
-        ready: Boolean(p.ready),
-        connected: p.connected !== false,
-        isHost: p.userId === room?.hostUserId,
-        team: isTeam && p.teamId ? (room?.teams ?? []).find((t) => t.id === p.teamId)?.name : undefined,
-      })),
-    [players, room?.hostUserId, room?.teams, isTeam],
+    () => players.map((p) => mapPartyPlayer(p, { hostId: room?.hostUserId })),
+    [players, room?.hostUserId],
   );
 
   const teamNeedMore = useMemo(() => {

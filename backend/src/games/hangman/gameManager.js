@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { DEFAULT_HANGMAN_DATASET_VERSION } from '../../config/hangmanDefaults.js';
 import { hangmanWordRepository } from '../../repositories/hangmanWordRepository.js';
 import { activePlayersInRoom, snapshotPresenceFields } from '../../realtime/playerPresence.js';
+import { lobbyPlayerAvatarFields } from '../../utils/lobbyPlayerAvatar.js';
 import {
   HANGMAN_MAX_WRONG,
   HANGMAN_MIN_PLAYERS,
@@ -525,6 +526,7 @@ export function snapshotFor(room, viewerUserId) {
       userId: p.userId,
       username: p.username,
       ready: p.ready,
+      ...lobbyPlayerAvatarFields(p),
       ...snapshotPresenceFields(p, now),
     })),
     stateVersion: room.stateVersion,

@@ -11,6 +11,7 @@ import { PlayerPresenceBadge } from "./PlayerPresenceBadge.jsx";
  *   id: string,
  *   name: string,
  *   avatarUrl?: string | null,
+ *   avatarEmoji?: string | null,
  *   ready?: boolean,
  *   connected?: boolean,
  *   presenceStatus?: string,
@@ -69,7 +70,12 @@ export const PlayerList = memo(function PlayerList({ players, localUserId = null
                     : "border-foreground/10 bg-background/80"
               }`}
             >
-              <Avatar username={p.name} src={p.avatarUrl ?? undefined} size="sm" />
+              <Avatar
+                username={p.name}
+                src={p.avatarUrl ?? undefined}
+                emoji={p.avatarEmoji ?? undefined}
+                size="sm"
+              />
               <motion.div className="min-w-0 flex-1">
                 <p className="truncate font-bold text-foreground">
                   {p.name}

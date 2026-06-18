@@ -5,6 +5,7 @@ import {
 } from '../../realtime/playerPresence.js';
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
 import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
+import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from '../../utils/lobbyPlayerAvatar.js';
 import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
@@ -175,6 +176,7 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
       normalized.packs = validatePacksAgainstAllowed(normalized.packs, allowed);
     }
     const room = createCahRoom(socket.data.userId, socket.data.username, normalized);
+    mergeAvatarIntoPlayer(room.players[0], avatarFromSocket(socket));
     room.code = code;
     room.socketIds = new Set([socket.id]);
     rooms.set(code, room);
@@ -205,14 +207,14 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     if (existing) {
       markPlayerConnected(existing);
       existing.username = socket.data.username;
+      mergeAvatarIntoPlayer(existing, avatarFromSocket(socket));
     } else {
-      const newbie = {
+      const newbie = baseLobbyPlayer({
         userId: socket.data.userId,
         username: socket.data.username,
-        ready: false,
-        connected: true,
-        score: 0,
-      };
+        socket,
+        extra: { ready: false, score: 0 },
+      });
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }

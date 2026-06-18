@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { persistTabooResults } from "../../services/leaderboardStatsService.js";
 import { registerRoomAccessor } from "../../realtime/roomInviteRegistry.js";
 import { onRoomDestroyed, onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
+import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from "../../utils/lobbyPlayerAvatar.js";
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -177,7 +178,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
         categoryIds: categorySelection.categoryIds,
         categoryNames: categorySelection.categoryNames,
       },
-      players: [{ userId: hostId, username: hostName, team: "A", ready: false, connected: true }],
+      players: [
+        baseLobbyPlayer({
+          userId: hostId,
+          username: hostName,
+          socket,
+          extra: { team: "A", ready: false },
+        }),
+      ],
       game: null,
       makeDeck: () => makeDeckForCategories(categorySelection.categoryIds),
       socketIds: new Set([socket.id]),
@@ -186,6 +194,7 @@ export function createTabooRoomManager({ tabooNs, logger }) {
       stateVersion: 1,
       tabooStatsPersisted: false,
     };
+    markPlayerConnected(room.players[0]);
     rooms.set(code, room);
     socketToCode.set(socket.id, code);
     userToCode.set(hostId, code);
@@ -208,10 +217,16 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     if (existing) {
       markPlayerConnected(existing);
       existing.username = username;
+      mergeAvatarIntoPlayer(existing, avatarFromSocket(socket));
     } else {
       const countA = room.players.filter((p) => p.team === "A").length;
       const countB = room.players.filter((p) => p.team === "B").length;
-      const newbie = { userId, username, team: countA <= countB ? "A" : "B", ready: false, connected: true };
+      const newbie = baseLobbyPlayer({
+        userId,
+        username,
+        socket,
+        extra: { team: countA <= countB ? "A" : "B", ready: false },
+      });
       markPlayerConnected(newbie);
       room.players.push(newbie);
     }

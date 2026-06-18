@@ -318,6 +318,8 @@ function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, hostI
             key={p.id}
             id={p.id}
             name={p.name}
+            avatarUrl={p.avatarUrl}
+            avatarEmoji={p.avatarEmoji}
             team={teamKey}
             ready={Boolean(p.ready)}
             connected={p.connected !== false}

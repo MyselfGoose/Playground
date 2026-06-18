@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "../../lib/context/UserContext.jsx";
 import { useTypingRace } from "../../lib/typing-race/TypingRaceSocketContext.jsx";
 import { Button } from "../Button.jsx";
+import { Avatar } from "../Avatar.jsx";
 import { PartyCode } from "../party/PartyCode.jsx";
 import { LobbyInviteFriends } from "../party/LobbyInviteFriends.jsx";
 import { ResultGate } from "../game-feel/WinnerBanner.jsx";
@@ -236,7 +237,12 @@ export function MultiRaceRoomView({ roomCode }) {
             {players.map((p) => (
               <li key={p.userId} className="multi-player-card">
                 <div className="flex items-center gap-2.5">
-                  <span className="multi-player-dot" style={{ backgroundColor: p.color }} />
+                  <Avatar
+                    username={p.displayName}
+                    src={p.avatarUrl ?? undefined}
+                    emoji={p.avatarEmoji ?? undefined}
+                    size="sm"
+                  />
                   <span className="font-medium text-[var(--tt-ink)]" style={{ color: p.color }}>
                     {p.displayName}
                   </span>
