@@ -80,6 +80,49 @@ test("taboo guess scoring and review flow", async () => {
   assert.equal(resolved?.outcome, "upheld");
 });
 
+test("dismiss_review skips current card and resumes turn", async () => {
+  const ns = makeNs();
+  const manager = createTabooRoomManager({ tabooNs: ns, logger: console });
+  const a1 = makeSocket("a1", "u1", "alpha1");
+  const a2 = makeSocket("a2", "u2", "alpha2");
+  const b1 = makeSocket("b1", "u3", "beta1");
+  ns.sockets.set(a1.id, a1);
+  ns.sockets.set(a2.id, a2);
+  ns.sockets.set(b1.id, b1);
+
+  const room = manager.createRoom(a1, "u1", "alpha1", { roundCount: 1, roundDurationSeconds: 60 });
+  manager.joinRoom(room.code, a2, "u2", "alpha2");
+  manager.joinRoom(room.code, b1, "u3", "beta1");
+  manager.changeTeam(a2, "A");
+  manager.changeTeam(b1, "B");
+  manager.setReady(a1, true);
+  manager.setReady(a2, true);
+  manager.setReady(b1, true);
+  manager.applyAction(a1, "start_turn", {});
+
+  const cardBeforeTaboo = room.game.currentCard?.id;
+  const answer = room.game.currentCard.question;
+  manager.applyAction(b1, "taboo_called", {});
+  assert.equal(room.game.review.status, "available");
+  assert.equal(room.game.currentCard?.id, cardBeforeTaboo);
+
+  const snapPending = manager.snapshotFor(a2);
+  assert.equal(snapPending.game.permissions.canSubmitGuess, false);
+
+  const { reason } = manager.applyAction(a2, "dismiss_review", {});
+  assert.equal(reason, "review_dismissed");
+  assert.equal(room.game.review, null);
+  assert.equal(room.game.status, "turn_in_progress");
+  assert.notEqual(room.game.currentCard?.id, cardBeforeTaboo);
+  assert.ok(typeof room.game.turnEndsAt === "number");
+
+  const snapAfter = manager.snapshotFor(a2);
+  assert.equal(snapAfter.game.permissions.canSubmitGuess, true);
+  manager.applyAction(a2, "submit_guess", { guess: answer });
+  assert.equal(room.game.history.at(-1)?.action, "submit_guess");
+  assert.equal(room.game.history.at(-1)?.matched, false);
+});
+
 test("taboo reconnect reattaches same user to room", async () => {
   const ns = makeNs();
   const manager = createTabooRoomManager({ tabooNs: ns, logger: console });

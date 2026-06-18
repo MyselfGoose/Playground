@@ -93,7 +93,7 @@ export function TabooPlay({ room }) {
 
   const normalizedStatus = game?.status === "in_progress" ? "turn_in_progress" : game?.status;
   const showReviewPanel = review?.status === "in_progress";
-  const reviewPaused = review?.status === "in_progress";
+  const reviewPending = review?.status === "available" || review?.status === "in_progress";
   const hasVoted = Boolean(
     localUserId && Array.isArray(review?.votes) && review.votes.some((entry) => entry.playerId === localUserId && entry.vote),
   );
@@ -165,7 +165,7 @@ export function TabooPlay({ room }) {
         </div>
       ) : null}
 
-      {normalizedStatus === "turn_in_progress" && !reviewPaused ? (
+      {normalizedStatus === "turn_in_progress" && !reviewPending ? (
         <>
           <TabooCardPanel game={game} reduceMotion={reduceMotion} />
           <TabooGameActions

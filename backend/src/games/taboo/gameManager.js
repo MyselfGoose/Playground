@@ -139,6 +139,10 @@ function autoStartTurnEnabled(room) {
   return room.settings?.autoStartTurn === true;
 }
 
+function reviewBlocksTurnPlay(review) {
+  return review?.status === "available" || review?.status === "in_progress";
+}
+
 export function createGameManager() {
   function clearWaitingTurnTimer(room) {
     const game = room.game;
@@ -334,7 +338,7 @@ export function createGameManager() {
 
     if (action === "submit_guess") {
       if (game.status !== "turn_in_progress") throw new TabooError("Turn not in progress.", "TURN_NOT_IN_PROGRESS");
-      if (game.review?.status === "in_progress") throw new TabooError("Review in progress.", "REVIEW_IN_PROGRESS");
+      if (reviewBlocksTurnPlay(game.review)) throw new TabooError("Taboo review pending.", "REVIEW_PENDING");
       if (!game.activeTurn || player.team !== game.activeTurn.team) throw new TabooError("Only active team can guess.", "NOT_ACTIVE_TEAM");
       if (game.activeTurn.playerId === userId) throw new TabooError("Clue giver cannot guess.", "CLUE_GIVER_CANNOT_GUESS");
       const guess = String(payload.guess ?? "").trim();
@@ -355,6 +359,7 @@ export function createGameManager() {
 
     if (action === "skip_card") {
       if (game.status !== "turn_in_progress") throw new TabooError("Turn not in progress.", "TURN_NOT_IN_PROGRESS");
+      if (reviewBlocksTurnPlay(game.review)) throw new TabooError("Taboo review pending.", "REVIEW_PENDING");
       if (game.activeTurn?.playerId !== userId) throw new TabooError("Only clue giver can skip.", "NOT_CLUE_GIVER");
       recordHistory(game, { action: "skip_card", team: player.team, playerId: userId, playerName: player.username });
       drawNextCard(room);
@@ -400,6 +405,7 @@ export function createGameManager() {
     if (action === "dismiss_review") {
       if (game.review?.status !== "available") throw new TabooError("No review available.", "REVIEW_NOT_AVAILABLE");
       if (player.team !== game.review.penalizedTeam) throw new TabooError("Only penalized team may dismiss review.", "REVIEW_NOT_ALLOWED");
+      drawNextCard(room);
       game.review = null;
       recordHistory(game, { action: "review_dismissed", team: player.team, playerId: userId, playerName: player.username });
       return "review_dismissed";
@@ -506,6 +512,7 @@ export function createGameManager() {
     const me = room.players.find((p) => p.userId === userId) ?? null;
     const review = game?.review;
     const reviewPaused = review?.status === "in_progress";
+    const reviewPending = reviewBlocksTurnPlay(review);
     const countdownEndsAt =
       review?.status === "in_progress" && typeof review.reviewEndsAt === "number"
         ? review.reviewEndsAt
@@ -578,8 +585,8 @@ export function createGameManager() {
         viewerRole: role,
         permissions: {
           canStartTurn: role === "clue_giver" && game.status === "waiting_to_start_turn",
-          canSubmitGuess: role === "teammate_guesser" && game.status === "turn_in_progress" && !reviewPaused,
-          canSkipCard: role === "clue_giver" && game.status === "turn_in_progress" && !reviewPaused,
+          canSubmitGuess: role === "teammate_guesser" && game.status === "turn_in_progress" && !reviewPending,
+          canSkipCard: role === "clue_giver" && game.status === "turn_in_progress" && !reviewPending,
           canCallTaboo: role === "opponent_observer" && game.status === "turn_in_progress" && !game.currentCardMeta?.tabooUsed && !reviewPaused,
           canRequestReview: review?.status === "available" && !!me?.team && me.team === review?.penalizedTeam,
           canDismissReview: review?.status === "available" && !!me?.team && me.team === review?.penalizedTeam,
