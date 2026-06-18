@@ -185,7 +185,7 @@ export function TabooPlay({ room }) {
         </>
       ) : null}
 
-      <TabooActivityFeed history={game?.history} reduceMotion={reduceMotion} />
+      <TabooActivityFeed history={game?.history} />
 
       <TabooConfirmDialog
         open={showLeaveConfirm}

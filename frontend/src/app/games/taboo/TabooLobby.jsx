@@ -98,7 +98,7 @@ export function TabooLobby({ room }) {
   }
 
   return (
-    <TabooPage className="max-w-lg pb-10">
+    <TabooPage maxWidth="4xl" className="pb-10">
       <TabooPageSection>
         <div className="flex items-center justify-between">
           <button
@@ -213,47 +213,46 @@ export function TabooLobby({ room }) {
       ) : null}
 
       <TabooPageSection>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-taboo-text-faint">Choose team</p>
-        <p className="mb-3 text-xs text-taboo-text-faint">Switching teams will mark you Not Ready.</p>
-        <div className="grid grid-cols-2 gap-2">
-          <TabooTeamTile
-            teamLabel="Alpha"
-            team="A"
-            playerCount={teamACount}
-            selected={me?.team === "A"}
-            onSelect={() => act(changeTeam, "A")}
-          />
-          <TabooTeamTile
-            teamLabel="Beta"
-            team="B"
-            playerCount={teamBCount}
-            selected={me?.team === "B"}
-            onSelect={() => act(changeTeam, "B")}
-          />
-        </div>
-      </TabooPageSection>
+        <TabooCard level={1} className="p-4 sm:p-6">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-taboo-text-muted">Choose team</p>
+          <p className="mb-5 text-xs text-taboo-text-muted">Switching teams will mark you Not Ready.</p>
 
-      <TabooPageSection>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TeamRoster
-            teamLabel="Team Alpha"
-            teamKey="A"
-            players={room?.players ?? []}
-            localUserId={localUserId}
-            teamStyle={teamA}
-            reduceMotion={reduceMotion}
-            hostId={room?.hostId}
-          />
-          <TeamRoster
-            teamLabel="Team Beta"
-            teamKey="B"
-            players={room?.players ?? []}
-            localUserId={localUserId}
-            teamStyle={teamB}
-            reduceMotion={reduceMotion}
-            hostId={room?.hostId}
-          />
-        </div>
+          <div className="mb-5 grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+            <TabooTeamTile
+              teamLabel="Alpha"
+              team="A"
+              playerCount={teamACount}
+              selected={me?.team === "A"}
+              onSelect={() => act(changeTeam, "A")}
+            />
+            <TabooTeamTile
+              teamLabel="Beta"
+              team="B"
+              playerCount={teamBCount}
+              selected={me?.team === "B"}
+              onSelect={() => act(changeTeam, "B")}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5 [&>*]:min-w-0">
+            <TeamRoster
+              teamLabel="Team Alpha"
+              teamKey="A"
+              players={room?.players ?? []}
+              localUserId={localUserId}
+              teamStyle={teamA}
+              hostId={room?.hostId}
+            />
+            <TeamRoster
+              teamLabel="Team Beta"
+              teamKey="B"
+              players={room?.players ?? []}
+              localUserId={localUserId}
+              teamStyle={teamB}
+              hostId={room?.hostId}
+            />
+          </div>
+        </TabooCard>
       </TabooPageSection>
 
       <TabooPageSection className="space-y-3">
@@ -298,15 +297,22 @@ export function TabooLobby({ room }) {
   );
 }
 
-function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, reduceMotion, hostId }) {
+function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, hostId }) {
   const roster = players.filter((p) => p.team === teamKey);
+  const isTeamA = teamKey === "A";
+
   return (
-    <div className={cn("rounded-2xl border bg-gradient-to-b to-transparent p-3", teamStyle.gradientFrom, teamStyle.borderFaint)}>
+    <div
+      className={cn(
+        "flex min-h-[160px] min-w-0 flex-col rounded-xl p-3",
+        isTeamA ? "taboo-roster-panel-a" : "taboo-roster-panel-b",
+      )}
+    >
       <div className="mb-3 flex items-center gap-2">
-        <div className={cn("h-2 w-2 rounded-full", teamStyle.dot)} />
-        <span className="text-xs font-bold text-taboo-text">{teamLabel}</span>
+        <div className={cn("h-2 w-2 shrink-0 rounded-full", teamStyle.dot)} />
+        <span className="text-sm font-bold text-taboo-text">{teamLabel}</span>
       </div>
-      <ul className="space-y-1.5">
+      <ul className="flex flex-1 flex-col gap-2">
         {roster.map((p) => (
           <TabooPlayerRow
             key={p.id}
@@ -317,11 +323,12 @@ function TeamRoster({ teamLabel, teamKey, players, localUserId, teamStyle, reduc
             connected={p.connected !== false}
             isHost={p.id === hostId}
             isYou={p.id === localUserId}
-            reduceMotion={reduceMotion}
           />
         ))}
         {roster.length === 0 ? (
-          <p className="py-2 text-center text-xs text-taboo-text-faint">No players</p>
+          <li className="flex flex-1 items-center justify-center py-8 text-center text-sm text-taboo-text-muted">
+            No players
+          </li>
         ) : null}
       </ul>
     </div>
