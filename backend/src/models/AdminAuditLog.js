@@ -10,6 +10,15 @@ const ADMIN_ACTIONS = [
   'user_stats_patch',
   'maintenance_toggle',
   'leaderboard_recompute',
+  'session_revoke',
+  'sessions_revoke_all',
+  'oauth_tickets_purge',
+  'oauth_toggle',
+  'game_disable_toggle',
+  'room_creation_block_toggle',
+  'room_force_close',
+  'room_kick_player',
+  'npat_eval_retry',
 ];
 
 const adminAuditLogSchema = new mongoose.Schema(

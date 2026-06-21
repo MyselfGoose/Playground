@@ -3,6 +3,8 @@ import { parseDurationToMs } from '../utils/parseDuration.js';
 import { readAccessToken } from '../middleware/authMiddleware.js';
 import { AppError } from '../errors/AppError.js';
 import { recordAuthRefresh } from '../observability/platformMetrics.js';
+import { recordLoginFailure } from '../observability/authAbuseMonitor.js';
+import { getPlatformSettingsCached } from '../services/platformSettingsService.js';
 import { safeNextPath } from '../utils/safeNextPath.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { usernameFieldSchema } from '../validation/auth.schemas.js';
@@ -62,7 +64,8 @@ export function createAuthController({
   }
 
   function assertGoogleOAuthReady() {
-    if (!env.GOOGLE_OAUTH_ENABLED) {
+    const runtimeEnabled = getPlatformSettingsCached().googleOAuthEnabled;
+    if (!env.GOOGLE_OAUTH_ENABLED || !runtimeEnabled) {
       throw new AppError(503, 'Google sign-in is disabled', {
         code: 'GOOGLE_OAUTH_DISABLED',
         expose: true,
@@ -117,6 +120,7 @@ export function createAuthController({
         });
       } catch (err) {
         if (err?.code === 'INVALID_CREDENTIALS') {
+          recordLoginFailure(req.ip);
           req.log?.warn({ event: 'auth_login_failure' }, 'auth_event');
         }
         throw err;

@@ -85,6 +85,33 @@ export const refreshSessionRepository = {
   },
 
   /**
+   * @param {import('mongoose').Types.ObjectId | string} userId
+   */
+  listActiveByUserId(userId) {
+    const now = new Date();
+    return RefreshSession.find({
+      userId,
+      revokedAt: null,
+      replacedByJti: null,
+      expiresAt: { $gt: now },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+  },
+
+  /**
+   * @param {import('mongoose').Types.ObjectId | string} userId
+   * @param {string} jti
+   */
+  async revokeByJtiForUser(userId, jti) {
+    const res = await RefreshSession.updateOne(
+      { userId, jti, revokedAt: null },
+      { $set: { revokedAt: new Date() } },
+    );
+    return res.modifiedCount > 0;
+  },
+
+  /**
    * Undo an atomic rotation: restore the old session to active state if it was
    * replaced by the given `newJti`. Used as a rollback when createSession fails
    * after atomicRotate succeeds.

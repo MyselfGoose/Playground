@@ -305,6 +305,102 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     userToRoom.clear();
   }
 
+  function normalizeCode(code) {
+    return String(code ?? '').replace(/\D/g, '').slice(0, TYPING_RACE_ROOM_CODE_LEN);
+  }
+
+  function listRoomsForAdmin() {
+    return [...rooms.values()].map((room) => ({
+      code: room.roomCode,
+      game: 'typing-race',
+      hostId: String(room.hostUserId),
+      hostUsername: room.players.get(room.hostUserId)?.username ?? null,
+      playerCount: room.players.size,
+      phase: room.phase,
+      createdAt: room.lastActivityAt,
+    }));
+  }
+
+  function getRoomForAdmin(code) {
+    const normalized = normalizeCode(code);
+    const room = rooms.get(normalized);
+    if (!room) return null;
+    return {
+      code: room.roomCode,
+      game: 'typing-race',
+      hostId: String(room.hostUserId),
+      hostUsername: room.players.get(room.hostUserId)?.username ?? null,
+      phase: room.phase,
+      players: [...room.players.values()].map((p) => ({
+        userId: p.userId,
+        username: p.username,
+        ready: p.ready,
+        score: p.finishedWpm ?? undefined,
+      })),
+      meta: { phase: room.phase },
+    };
+  }
+
+  function adminForceClose(code) {
+    const normalized = normalizeCode(code);
+    const room = rooms.get(normalized);
+    if (!room) {
+      const err = new Error('Room not found');
+      /** @type {any} */ (err).code = 'ROOM_NOT_FOUND';
+      throw err;
+    }
+    for (const [sid, rc] of socketToRoom) {
+      if (rc !== normalized) continue;
+      const sock = typingNs.sockets.get(sid);
+      if (sock) sock.emit('typing_admin_closed', { roomCode: normalized, reason: 'admin' });
+    }
+    room.destroy();
+    rooms.delete(normalized);
+    for (const [uid, rc] of userToRoom) {
+      if (rc === normalized) userToRoom.delete(uid);
+    }
+    for (const [sid, rc] of [...socketToRoom]) {
+      if (rc === normalized) socketToRoom.delete(sid);
+    }
+    onRoomDestroyed('typing-race', normalized);
+    return { ok: true, code: normalized };
+  }
+
+  function adminKickPlayer(code, targetUserId) {
+    const normalized = normalizeCode(code);
+    const room = rooms.get(normalized);
+    if (!room) {
+      const err = new Error('Room not found');
+      /** @type {any} */ (err).code = 'ROOM_NOT_FOUND';
+      throw err;
+    }
+    if (!room.players.has(targetUserId)) {
+      const err = new Error('Player not in room');
+      /** @type {any} */ (err).code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    for (const [sid, rc] of socketToRoom) {
+      if (rc !== normalized) continue;
+      const targetSocket = typingNs.sockets.get(sid);
+      if (targetSocket?.data?.userId !== targetUserId) continue;
+      socketToRoom.delete(sid);
+      targetSocket.leave(normalized);
+      targetSocket.emit('typing_kicked', { roomCode: normalized });
+      room.removeSocket(targetSocket, { hardLeave: true });
+    }
+    if (room.players.has(targetUserId)) {
+      room.kickUser(targetUserId);
+    }
+    userToRoom.delete(targetUserId);
+    room.emitRoom();
+    if (room.players.size === 0) {
+      room.destroy();
+      rooms.delete(normalized);
+      onRoomDestroyed('typing-race', normalized);
+    }
+    return { ok: true };
+  }
+
   registerRoomAccessor('typing-race', {
     getInviteContext(rawCode) {
       const code = String(rawCode ?? '').replace(/\D/g, '').slice(0, TYPING_RACE_ROOM_CODE_LEN);
@@ -333,6 +429,10 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     kickPlayer,
     attachActiveRoomForUser,
     shutdown,
+    listRoomsForAdmin,
+    getRoomForAdmin,
+    adminForceClose,
+    adminKickPlayer,
     getObservabilitySnapshot() {
       let roomCount = 0;
       let playerCount = 0;

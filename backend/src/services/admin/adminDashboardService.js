@@ -12,7 +12,8 @@ import { isProcessDegraded, getLastUnhandledAt } from '../../processHandlers.js'
 import { getLeaderboardCronStatus } from '../../jobs/leaderboardCron.js';
 import { getLiveActivitySnapshot } from './adminLiveActivityService.js';
 import { getAdminRuntimeContext } from './adminRuntimeContext.js';
-import { getMaintenanceCached } from '../platformSettingsService.js';
+import { listAllRoomsForAdmin } from './adminRuntimeHub.js';
+import { getMaintenanceCached, getPlatformSettingsCached } from '../platformSettingsService.js';
 import { adminAuditService } from './adminAuditService.js';
 
 const require = createRequire(import.meta.url);
@@ -70,10 +71,18 @@ export function createAdminDashboardService(env) {
 
       const popularity = await getGamePopularity(today, week);
       const health = buildHealth(env);
-      const alerts = buildAlerts(signupsToday, health);
       const liveActivity = getLiveActivitySnapshot();
       const runtime = getAdminRuntimeContext();
       const maintenance = getMaintenanceCached();
+      const platformSettings = getPlatformSettingsCached();
+
+      const bootedAtMs = new Date(runtime.bootedAt).getTime();
+      const roomRows = listAllRoomsForAdmin();
+      const survivedRestart = roomRows.some((r) => {
+        const created = r.createdAt ? Number(r.createdAt) : 0;
+        return created > 0 && created < bootedAtMs;
+      });
+      const alerts = buildAlerts(signupsToday, health, { survivedRestart });
 
       const payload = {
         snapshot: {
@@ -95,6 +104,7 @@ export function createAdminDashboardService(env) {
         health,
         alerts,
         maintenance,
+        platformSettings,
         recentSignups: recentSignups.map((u) => ({
           id: String(u._id),
           username: u.username,
@@ -115,6 +125,8 @@ export function createAdminDashboardService(env) {
           version,
           uptime: process.uptime(),
           instanceCount: runtime.instanceCount,
+          bootedAt: runtime.bootedAt,
+          bootId: runtime.bootId,
           nodeEnv: env.NODE_ENV,
           gamesPlayed7d: games7d,
           gamesAllTime,
@@ -199,8 +211,9 @@ function buildHealth(env) {
 /**
  * @param {number} signupsToday
  * @param {Record<string, unknown>} health
+ * @param {{ survivedRestart?: boolean }} [opts]
  */
-function buildAlerts(signupsToday, health) {
+function buildAlerts(signupsToday, health, opts = {}) {
   /** @type {Array<{ level: string, code: string, message: string }>} */
   const alerts = [];
 
@@ -249,6 +262,14 @@ function buildAlerts(signupsToday, health) {
         message: `${count} unhandled rejections recorded`,
       });
     }
+  }
+
+  if (opts.survivedRestart) {
+    alerts.push({
+      level: 'warning',
+      code: 'ROOMS_SURVIVED_RESTART',
+      message: 'Active rooms detected that predate this server boot (possible hydration or multi-instance)',
+    });
   }
 
   return alerts;

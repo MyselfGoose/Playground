@@ -12,6 +12,7 @@ import {
 import { onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import { userRepository } from '../../repositories/userRepository.js';
 import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
+import { assertRoomCreationAllowed } from '../../utils/gameAvailability.js';
 
 /**
  * Standard error shape returned to every client ack on failure.
@@ -165,6 +166,9 @@ export function installHandlers({ socket, registry, env, logger }) {
   register('create_room', {
     schema: createRoomSchema,
     handler: async ({ data }) => {
+      assertRoomCreationAllowed('npat', {
+        isAdmin: Array.isArray(socket.data.roles) && socket.data.roles.includes('admin'),
+      });
       await refreshSocketAvatarFromDb(socket, userRepository);
       await registry.leaveRoomExplicit(socket);
       const { mode, maxRounds } = data;

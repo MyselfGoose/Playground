@@ -1439,4 +1439,18 @@ export class NpatRoomEngine {
           : null,
     };
   }
+
+  /**
+   * Admin-triggered re-run of full-game evaluation (live engine only).
+   */
+  retryAdminEvaluation() {
+    this._evaluationFlight = null;
+    if (this.state !== GAME_STATES.EVALUATING && this.state !== GAME_STATES.FINISHED) {
+      const err = new Error('Game is not in an evaluable state');
+      /** @type {any} */ (err).code = 'BAD_PHASE';
+      throw err;
+    }
+    this._queueFullGameEvaluation();
+    return this._evaluationFlight;
+  }
 }

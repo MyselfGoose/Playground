@@ -692,9 +692,111 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     });
   }
 
+  function normalizeNpatCode(code) {
+    return String(code ?? '').replace(/\D/g, '').slice(0, 6);
+  }
+
+  function listRoomsForAdmin() {
+    return [...engines.values()].map((engine) => ({
+      code: engine.code,
+      game: 'npat',
+      hostId: String(engine.hostUserId),
+      hostUsername: engine.players.get(engine.hostUserId)?.username ?? null,
+      playerCount: engine.players.size,
+      phase: engine.state,
+      createdAt: engine.createdAt ?? Date.now(),
+    }));
+  }
+
+  function getRoomForAdmin(code) {
+    const normalized = normalizeNpatCode(code);
+    const engine = engines.get(normalized);
+    if (!engine) return null;
+    return {
+      code: engine.code,
+      game: 'npat',
+      hostId: String(engine.hostUserId),
+      hostUsername: engine.players.get(engine.hostUserId)?.username ?? null,
+      phase: engine.state,
+      players: [...engine.players.values()].map((p) => ({
+        userId: String(p.userId),
+        username: p.username,
+        ready: p.ready,
+        score: p.totalScore,
+        team: p.teamId,
+      })),
+      meta: {
+        roundPhase: engine.roundPhase,
+        currentRoundIndex: engine.currentRoundIndex,
+        currentLetter: engine.currentLetter,
+      },
+    };
+  }
+
+  async function adminForceClose(code) {
+    const normalized = normalizeNpatCode(code);
+    const engine = engines.get(normalized);
+    if (!engine) {
+      const err = new Error('Room not found');
+      /** @type {any} */ (err).code = 'ROOM_NOT_FOUND';
+      throw err;
+    }
+    cancelPendingDelete(normalized);
+    for (const [sid, rc] of socketToRoom) {
+      if (rc !== normalized) continue;
+      const sock = npatNs.sockets.get(sid);
+      if (sock) {
+        sock.emit('admin_room_closed', { roomCode: normalized, reason: 'admin' });
+        sock.leave(normalized);
+      }
+      socketToRoom.delete(sid);
+    }
+    engine.destroy();
+    engines.delete(normalized);
+    onRoomDestroyed('npat', normalized);
+    markRoomRecentlyExpired(normalized);
+    await npatRoomRepository.deleteByCode(normalized).catch(() => {});
+    return { ok: true, code: normalized };
+  }
+
+  async function adminKickPlayer(code, targetUserId) {
+    const normalized = normalizeNpatCode(code);
+    return roomLock.run(normalized, async () => {
+      const engine = engines.get(normalized);
+      if (!engine) {
+        const err = new Error('Room not found');
+        /** @type {any} */ (err).code = 'ROOM_NOT_FOUND';
+        throw err;
+      }
+      if (!engine.players.has(targetUserId)) {
+        const err = new Error('Player not in room');
+        /** @type {any} */ (err).code = 'VALIDATION_ERROR';
+        throw err;
+      }
+      for (const [sid, rc] of socketToRoom) {
+        if (rc !== normalized) continue;
+        const sock = npatNs.sockets.get(sid);
+        if (sock?.data?.userId !== targetUserId) continue;
+        sock.emit('admin_kicked', { roomCode: normalized });
+        sock.leave(normalized);
+        socketToRoom.delete(sid);
+      }
+      const { empty } = engine.removePlayerCompletely(targetUserId);
+      if (empty) {
+        cancelPendingDelete(normalized);
+        engine.destroy();
+        engines.delete(normalized);
+        onRoomDestroyed('npat', normalized);
+        markRoomRecentlyExpired(normalized);
+        void npatRoomRepository.deleteByCode(normalized).catch(() => {});
+      }
+      return { ok: true };
+    });
+  }
+
   registerRoomAccessor('npat', {
     getInviteContext(rawCode) {
-      const code = String(rawCode ?? '').replace(/\D/g, '').slice(0, 6);
+      const code = normalizeNpatCode(rawCode);
       const engine = engines.get(code);
       if (!engine) {
         return { exists: false, hostId: null, playerUserIds: [], joinable: false };
@@ -725,6 +827,10 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     flushAll,
     cleanupStale,
     loadEngine,
+    listRoomsForAdmin,
+    getRoomForAdmin,
+    adminForceClose,
+    adminKickPlayer,
     getObservabilitySnapshot() {
       let roomCount = 0;
       let playerCount = 0;

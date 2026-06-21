@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, Users, MessageSquare, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, Menu, X, Shield, Activity } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/security", label: "Security", icon: Shield },
+  { href: "/admin/live", label: "Live ops", icon: Activity },
   { href: "/admin/feedback", label: "Feedback", icon: MessageSquare },
 ];
 

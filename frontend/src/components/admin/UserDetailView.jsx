@@ -17,6 +17,7 @@ import { Button } from "../Button.jsx";
 import { Input } from "../ui/Input.jsx";
 import { LoadingSkeleton } from "../LoadingSkeleton.jsx";
 import { Avatar } from "../Avatar.jsx";
+import { UserSessionsPanel } from "./UserSessionsPanel.jsx";
 
 const ROLE_OPTIONS = ["user", "admin", "moderator"];
 const GAME_FILTERS = ["all", "typing-race", "npat", "taboo", "hangman", "cah"];
@@ -184,6 +185,8 @@ export function UserDetailView() {
           </dl>
         </div>
       </Card>
+
+      <UserSessionsPanel userId={userId} />
 
       <Card>
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-muted">Account actions</h2>

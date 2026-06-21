@@ -15,6 +15,10 @@ import {
 import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.js';
 import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
 import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from '../../utils/lobbyPlayerAvatar.js';
+import {
+  adminForceClosePartyRoom,
+  adminKickPartyPlayer,
+} from '../partyAdminRoomOps.js';
 import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
 import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import {
@@ -666,6 +670,70 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     userToSocketIds.clear();
   }
 
+  function listRoomsForAdmin() {
+    return [...rooms.values()].map((room) => ({
+      code: room.code,
+      game: 'hangman',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      playerCount: room.players?.length ?? 0,
+      phase: room.game?.phase ?? room.lobby?.phase ?? 'lobby',
+      createdAt: room.createdAt,
+    }));
+  }
+
+  function getRoomForAdmin(code) {
+    const normalized = normalizeCode(code);
+    const room = rooms.get(normalized);
+    if (!room) return null;
+    return {
+      code: room.code,
+      game: 'hangman',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      phase: room.game?.phase ?? room.lobby?.phase ?? 'lobby',
+      players: (room.players ?? []).map((p) => ({
+        userId: String(p.userId),
+        username: p.username,
+        ready: p.ready,
+        score: p.score,
+      })),
+      meta: { lobby: room.lobby, settings: room.settings },
+    };
+  }
+
+  function adminForceClose(code) {
+    const normalized = normalizeCode(code);
+    clearRoomTimers(normalized);
+    return adminForceClosePartyRoom({
+      game: 'hangman',
+      code: normalized,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: hangmanNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
+  function adminKickPlayer(code, targetUserId) {
+    const normalized = normalizeCode(code);
+    return adminKickPartyPlayer({
+      game: 'hangman',
+      code: normalized,
+      targetUserId,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: hangmanNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
   registerRoomAccessor('hangman', {
     getInviteContext(rawCode) {
       const code = normalizeCode(rawCode);
@@ -700,6 +768,10 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     attachActiveRoomForUser,
     emitRoom,
     shutdown,
+    listRoomsForAdmin,
+    getRoomForAdmin,
+    adminForceClose,
+    adminKickPlayer,
     getObservabilitySnapshot() {
       let roomCount = 0;
       let playerCount = 0;

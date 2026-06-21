@@ -13,6 +13,10 @@ import { persistTabooResults } from "../../services/leaderboardStatsService.js";
 import { registerRoomAccessor } from "../../realtime/roomInviteRegistry.js";
 import { onRoomDestroyed, onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
 import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from "../../utils/lobbyPlayerAvatar.js";
+import {
+  adminForceClosePartyRoom,
+  adminKickPartyPlayer,
+} from "../partyAdminRoomOps.js";
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -478,6 +482,69 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     userToSocketIds.clear();
   }
 
+  function listRoomsForAdmin() {
+    return [...rooms.values()].map((room) => ({
+      code: room.code,
+      game: 'taboo',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      playerCount: room.players?.length ?? 0,
+      phase: room.game?.status ?? 'lobby',
+      createdAt: room.createdAt,
+    }));
+  }
+
+  function getRoomForAdmin(code) {
+    const normalized = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    const room = rooms.get(normalized);
+    if (!room) return null;
+    return {
+      code: room.code,
+      game: 'taboo',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      phase: room.game?.status ?? 'lobby',
+      players: (room.players ?? []).map((p) => ({
+        userId: String(p.userId),
+        username: p.username,
+        ready: p.ready,
+        team: p.team,
+      })),
+      meta: { settings: room.settings },
+    };
+  }
+
+  function adminForceClose(code) {
+    const normalized = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    return adminForceClosePartyRoom({
+      game: 'taboo',
+      code: normalized,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: tabooNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
+  function adminKickPlayer(code, targetUserId) {
+    const normalized = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    return adminKickPartyPlayer({
+      game: 'taboo',
+      code: normalized,
+      targetUserId,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: tabooNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
   registerRoomAccessor('taboo', {
     getInviteContext(rawCode) {
       const code = String(rawCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
@@ -512,6 +579,10 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     getRoomForSocket,
     attachActiveRoomForUser,
     shutdown,
+    listRoomsForAdmin,
+    getRoomForAdmin,
+    adminForceClose,
+    adminKickPlayer,
     getObservabilitySnapshot() {
       let roomCount = 0;
       let playerCount = 0;

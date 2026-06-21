@@ -95,7 +95,12 @@ export function AdminDashboardView() {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-muted">Live activity</h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Live activity</h2>
+            <Link href="/admin/live" className="text-xs font-bold text-primary hover:underline">
+              Live ops →
+            </Link>
+          </div>
           {data?.liveActivity?.perInstance && data.liveActivity.instanceCount > 1 ? (
             <p className="mb-3 text-xs text-warning">
               Counts are per instance ({data.liveActivity.instanceCount} replicas). Totals may be higher globally.
@@ -157,6 +162,12 @@ export function AdminDashboardView() {
           </div>
           {health?.cron?.lastRunAt ? (
             <p className="mt-3 text-xs text-muted">Last cron: {new Date(health.cron.lastRunAt).toLocaleString()}</p>
+          ) : null}
+          {health?.npatEvaluation ? (
+            <p className="mt-3 text-xs text-muted">
+              NPAT eval (window): Gemini {health.npatEvaluation.geminiSuccess ?? 0} · fallback{" "}
+              {health.npatEvaluation.fallback ?? 0}
+            </p>
           ) : null}
         </Card>
 

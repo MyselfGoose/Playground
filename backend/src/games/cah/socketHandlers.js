@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { userRepository } from '../../repositories/userRepository.js';
 import { refreshSocketAvatarFromDb } from '../../utils/lobbyPlayerAvatar.js';
+import { assertRoomCreationAllowed } from '../../utils/gameAvailability.js';
 import {
   cahCreateRoomSchema,
   cahJoinRoomSchema,
@@ -60,6 +61,9 @@ function register(socket, logger, event, schema, handler) {
 
 export function installCahHandlers({ socket, registry, logger }) {
   register(socket, logger, 'create_room', cahCreateRoomSchema, async (data) => {
+    assertRoomCreationAllowed('cah', {
+      isAdmin: Array.isArray(socket.data.roles) && socket.data.roles.includes('admin'),
+    });
     await refreshSocketAvatarFromDb(socket, userRepository);
     const room = await registry.createRoom(socket, data);
     registry.emitRoom(room.code, 'room_created');

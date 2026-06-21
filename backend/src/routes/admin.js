@@ -8,6 +8,8 @@ import { requireMongoReady } from './requireMongoReady.js';
 import { createAdminDashboardService, clearDashboardCache } from '../services/admin/adminDashboardService.js';
 import { createAdminUserService } from '../services/admin/adminUserService.js';
 import { createAdminFeedbackService } from '../services/admin/adminFeedbackService.js';
+import { adminAuthSecurityService } from '../services/admin/adminAuthSecurityService.js';
+import { createAdminLiveOpsService } from '../services/admin/adminLiveOpsService.js';
 import { adminAuditService } from '../services/admin/adminAuditService.js';
 import { setMaintenanceMode } from '../services/platformSettingsService.js';
 import { runLeaderboardDailyCron } from '../jobs/leaderboardCron.js';
@@ -19,6 +21,13 @@ import {
   adminMaintenancePatchBodySchema,
   adminMatchHistoryQuerySchema,
   adminFeedbackQuerySchema,
+  adminRoomsQuerySchema,
+  adminRoomKickBodySchema,
+  adminOAuthPatchBodySchema,
+  adminGamesPatchBodySchema,
+  adminRoomCreationPatchBodySchema,
+  adminAbuseQuerySchema,
+  adminNpatListQuerySchema,
 } from '../validation/admin.schemas.js';
 
 /**
@@ -46,6 +55,7 @@ export function createAdminRouter({ env, logger }) {
   const dashboardService = createAdminDashboardService(env);
   const userService = createAdminUserService(env);
   const feedbackService = createAdminFeedbackService(env);
+  const liveOpsService = createAdminLiveOpsService(env);
 
   router.get(
     '/dashboard',
@@ -246,6 +256,212 @@ export function createAdminRouter({ env, logger }) {
           })),
         },
       });
+    }),
+  );
+
+  router.get(
+    '/users/:id/sessions',
+    ...requireAdmin,
+    asyncHandler(async (req, res) => {
+      const sessions = await adminAuthSecurityService.listUserSessions(req.params.id);
+      res.json({ data: { sessions } });
+    }),
+  );
+
+  router.post(
+    '/users/:id/sessions/revoke-all',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.revokeAllSessions(req.user.id, req.params.id);
+      res.json({ data });
+    }),
+  );
+
+  router.post(
+    '/users/:id/sessions/:jti/revoke',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.revokeSession(
+        req.user.id,
+        req.params.id,
+        req.params.jti,
+      );
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/auth/oauth-audit',
+    ...requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const data = await adminAuthSecurityService.getOAuthAudit();
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/auth/oauth-tickets',
+    ...requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const data = await adminAuthSecurityService.getOAuthTickets();
+      res.json({ data });
+    }),
+  );
+
+  router.post(
+    '/auth/oauth-tickets/purge-expired',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.purgeExpiredOAuthTickets(req.user.id);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/auth/abuse-monitor',
+    ...requireAdmin,
+    validateQuery(adminAbuseQuerySchema),
+    asyncHandler(async (req, res) => {
+      const data = adminAuthSecurityService.getAbuseMonitor({ limit: req.query.limit });
+      res.json({ data });
+    }),
+  );
+
+  router.patch(
+    '/settings/oauth',
+    ...requireAdminMutation,
+    validateBody(adminOAuthPatchBodySchema),
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.patchGoogleOAuth(
+        req.user.id,
+        req.body.googleOAuthEnabled,
+      );
+      clearDashboardCache();
+      res.json({ data });
+    }),
+  );
+
+  router.patch(
+    '/settings/games',
+    ...requireAdminMutation,
+    validateBody(adminGamesPatchBodySchema),
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.patchDisabledGames(
+        req.user.id,
+        req.body.disabledGames,
+      );
+      clearDashboardCache();
+      res.json({ data });
+    }),
+  );
+
+  router.patch(
+    '/settings/room-creation',
+    ...requireAdminMutation,
+    validateBody(adminRoomCreationPatchBodySchema),
+    asyncHandler(async (req, res) => {
+      const data = await adminAuthSecurityService.patchBlockNewRooms(
+        req.user.id,
+        req.body.blockNewRooms,
+      );
+      clearDashboardCache();
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/realtime/sockets',
+    ...requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const data = await liveOpsService.getSocketCounts();
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/rooms',
+    ...requireAdmin,
+    validateQuery(adminRoomsQuerySchema),
+    asyncHandler(async (req, res) => {
+      const data = liveOpsService.listRooms(req.query.game);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/rooms/:game/:code',
+    ...requireAdmin,
+    asyncHandler(async (req, res) => {
+      const data = liveOpsService.getRoom(req.params.game, req.params.code);
+      res.json({ data });
+    }),
+  );
+
+  router.post(
+    '/rooms/:game/:code/close',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const data = await liveOpsService.forceCloseRoom(
+        req.user.id,
+        req.params.game,
+        req.params.code,
+        typeof req.body?.reason === 'string' ? req.body.reason : '',
+      );
+      clearDashboardCache();
+      res.json({ data });
+    }),
+  );
+
+  router.post(
+    '/rooms/:game/:code/kick',
+    ...requireAdminMutation,
+    validateBody(adminRoomKickBodySchema),
+    asyncHandler(async (req, res) => {
+      const data = await liveOpsService.kickPlayer(
+        req.user.id,
+        req.params.game,
+        req.params.code,
+        req.body.userId,
+      );
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/npat/rooms',
+    ...requireAdmin,
+    validateQuery(adminNpatListQuerySchema),
+    asyncHandler(async (req, res) => {
+      const rooms = await liveOpsService.listNpatMongoRooms({ limit: req.query.limit });
+      res.json({ data: { rooms } });
+    }),
+  );
+
+  router.get(
+    '/npat/rooms/:code',
+    ...requireAdmin,
+    asyncHandler(async (req, res) => {
+      const room = await liveOpsService.getNpatMongoRoom(req.params.code);
+      res.json({ data: { room } });
+    }),
+  );
+
+  router.get(
+    '/npat/eval-failures',
+    ...requireAdmin,
+    validateQuery(adminNpatListQuerySchema),
+    asyncHandler(async (req, res) => {
+      const failures = await liveOpsService.listNpatEvalFailures({ limit: req.query.limit });
+      res.json({ data: { failures } });
+    }),
+  );
+
+  router.post(
+    '/npat/rooms/:code/retry-eval',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const data = await liveOpsService.retryNpatEval(req.user.id, req.params.code);
+      res.json({ data });
     }),
   );
 

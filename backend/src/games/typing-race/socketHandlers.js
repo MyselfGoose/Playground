@@ -10,6 +10,7 @@ import { persistTypingAttempt } from "../../services/leaderboardStatsService.js"
 import { onRoomGameStarted } from "../../realtime/roomInviteLifecycle.js";
 import { userRepository } from "../../repositories/userRepository.js";
 import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
+import { assertRoomCreationAllowed } from "../../utils/gameAvailability.js";
 
 /**
  * @param {{
@@ -40,6 +41,9 @@ export function installTypingRaceHandlers({ socket, registry, logger }) {
   register("typing_create_room", {
     // createRoom/joinRoom are synchronous; ack returns only after the room is in the registry.
     handler: async () => {
+      assertRoomCreationAllowed('typing-race', {
+        isAdmin: Array.isArray(socket.data.roles) && socket.data.roles.includes('admin'),
+      });
       await refreshSocketAvatarFromDb(socket, userRepository);
       registry.leaveRoom(socket);
       const { room, code } = registry.createRoom(socket, userId, username);

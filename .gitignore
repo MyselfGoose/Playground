@@ -14,7 +14,7 @@ audit 2
 # Package manager stores / caches (keep Yarn Berry tracked files if you use them)
 .pnpm-store/
 **/.pnpm-store/
-.yarn/cache
+.yarn/cached
 .yarn/unplugged
 .yarn/build-state.yml
 .yarn/install-state.gz

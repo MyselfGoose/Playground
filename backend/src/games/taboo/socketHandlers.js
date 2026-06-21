@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { userRepository } from "../../repositories/userRepository.js";
 import { refreshSocketAvatarFromDb } from "../../utils/lobbyPlayerAvatar.js";
+import { assertRoomCreationAllowed } from "../../utils/gameAvailability.js";
 import {
   tabooChangeTeamSchema,
   tabooCreateRoomSchema,
@@ -51,6 +52,9 @@ function register(socket, logger, event, schema, handler) {
 
 export function installTabooHandlers({ socket, registry, logger }) {
   register(socket, logger, "create_room", tabooCreateRoomSchema, async (data) => {
+    assertRoomCreationAllowed("taboo", {
+      isAdmin: Array.isArray(socket.data.roles) && socket.data.roles.includes("admin"),
+    });
     await refreshSocketAvatarFromDb(socket, userRepository);
     const room = registry.createRoom(socket, socket.data.userId, socket.data.username, data);
     registry.emitRoom(room.code, "room_created");

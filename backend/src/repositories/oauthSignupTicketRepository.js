@@ -69,4 +69,27 @@ export const oauthSignupTicketRepository = {
       picture: row.picture ?? null,
     };
   },
+
+  async countPending() {
+    const now = new Date();
+    return OAuthSignupTicket.countDocuments({ consumedAt: null, expiresAt: { $gt: now } });
+  },
+
+  /**
+   * @param {number} limit
+   */
+  listPending(limit = 50) {
+    const now = new Date();
+    return OAuthSignupTicket.find({ consumedAt: null, expiresAt: { $gt: now } })
+      .sort({ expiresAt: 1 })
+      .limit(limit)
+      .lean();
+  },
+
+  deleteExpired() {
+    const now = new Date();
+    return OAuthSignupTicket.deleteMany({
+      $or: [{ expiresAt: { $lte: now } }, { consumedAt: { $ne: null } }],
+    });
+  },
 };

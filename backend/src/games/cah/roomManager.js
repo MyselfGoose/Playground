@@ -7,6 +7,10 @@ import { evictSupersededPartySockets } from '../../realtime/partySocketEviction.
 import { dedupeRoomPlayersInPlace } from '../../realtime/dedupeRoomPlayers.js';
 import { avatarFromSocket, baseLobbyPlayer, mergeAvatarIntoPlayer } from '../../utils/lobbyPlayerAvatar.js';
 import {
+  adminForceClosePartyRoom,
+  adminKickPartyPlayer,
+} from '../partyAdminRoomOps.js';
+import {
   CAH_DEFAULT_HAND_SIZE,
   CAH_DEFAULT_MAX_ROUNDS,
   CAH_MAX_ROUNDS_LIMIT,
@@ -453,6 +457,69 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     userToSocketIds.clear();
   }
 
+  function listRoomsForAdmin() {
+    return [...rooms.values()].map((room) => ({
+      code: room.code,
+      game: 'cah',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      playerCount: room.players?.length ?? 0,
+      phase: room.game?.status ?? 'lobby',
+      createdAt: room.createdAt,
+    }));
+  }
+
+  function getRoomForAdmin(code) {
+    const normalized = normalizeCode(code);
+    const room = rooms.get(normalized);
+    if (!room) return null;
+    return {
+      code: room.code,
+      game: 'cah',
+      hostId: String(room.hostId),
+      hostUsername: room.hostName ?? null,
+      phase: room.game?.status ?? 'lobby',
+      players: (room.players ?? []).map((p) => ({
+        userId: String(p.userId),
+        username: p.username,
+        ready: p.ready,
+        score: p.score,
+      })),
+      meta: { settings: room.settings },
+    };
+  }
+
+  function adminForceClose(code) {
+    const normalized = normalizeCode(code);
+    return adminForceClosePartyRoom({
+      game: 'cah',
+      code: normalized,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: cahNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
+  function adminKickPlayer(code, targetUserId) {
+    const normalized = normalizeCode(code);
+    return adminKickPartyPlayer({
+      game: 'cah',
+      code: normalized,
+      targetUserId,
+      rooms,
+      socketToCode,
+      userToCode,
+      userToSocketIds,
+      ns: cahNs,
+      onDestroyed: onRoomDestroyed,
+      disconnectGrace,
+    });
+  }
+
   registerRoomAccessor('cah', {
     getInviteContext(rawCode) {
       const code = normalizeCode(rawCode);
@@ -488,6 +555,10 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     returnToLobby,
     emitRoom,
     shutdown,
+    listRoomsForAdmin,
+    getRoomForAdmin,
+    adminForceClose,
+    adminKickPlayer,
     getObservabilitySnapshot() {
       let roomCount = 0;
       let playerCount = 0;

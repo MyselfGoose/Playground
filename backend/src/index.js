@@ -16,6 +16,11 @@ import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
 import { scheduleLeaderboardCron } from './jobs/leaderboardCron.js';
 import { runGeminiHealthCheck } from './services/npat/npatGeminiHealth.js';
 import { registerLiveActivityProvider } from './services/admin/adminLiveActivityService.js';
+import {
+  registerAdminSocketRuntime,
+  registerGameAdminAdapter,
+  registerNpatRegistry,
+} from './services/admin/adminRuntimeHub.js';
 import { setAdminRuntimeContext } from './services/admin/adminRuntimeContext.js';
 import { loadPlatformSettingsCache } from './services/platformSettingsService.js';
 
@@ -151,7 +156,28 @@ async function main() {
   setAdminRuntimeContext({
     redisConnected: Boolean(redisClients?.pubClient?.isOpen),
     instanceCount: env.INSTANCE_COUNT ?? 1,
+    bootedAt: new Date().toISOString(),
+    bootId: `boot-${Date.now()}`,
   });
+
+  registerAdminSocketRuntime(io, socialRuntime.presence);
+  registerNpatRegistry(registry);
+
+  const registerGameAdapter = (game, reg) => {
+    registerGameAdminAdapter({
+      game,
+      listRooms: () => reg.listRoomsForAdmin(),
+      getRoom: (code) => reg.getRoomForAdmin(code),
+      forceClose: (code) => reg.adminForceClose(code),
+      kickPlayer: (code, userId) => reg.adminKickPlayer(code, userId),
+    });
+  };
+
+  registerGameAdapter('npat', registry);
+  registerGameAdapter('typing-race', typingRaceRegistry);
+  registerGameAdapter('taboo', tabooRuntime.registry);
+  registerGameAdapter('cah', cahRuntime.registry);
+  registerGameAdapter('hangman', hangmanRuntime.registry);
 
   registerLiveActivityProvider(() => registry.getObservabilitySnapshot());
   registerLiveActivityProvider(() => typingRaceRegistry.getObservabilitySnapshot());
@@ -160,11 +186,11 @@ async function main() {
   registerLiveActivityProvider(() => hangmanRuntime.registry.getObservabilitySnapshot());
 
   mongoose.connection.once('connected', () => {
-    void loadPlatformSettingsCache().catch((err) => {
+    void loadPlatformSettingsCache(env.GOOGLE_OAUTH_ENABLED).catch((err) => {
       logger.warn({ err, event: 'platform_settings_load_error' }, 'admin');
     });
     const settingsRefresh = setInterval(() => {
-      void loadPlatformSettingsCache().catch(() => {});
+      void loadPlatformSettingsCache(env.GOOGLE_OAUTH_ENABLED).catch(() => {});
     }, 60_000);
     settingsRefresh.unref();
   });

@@ -76,11 +76,16 @@ export function createPresenceRegistry() {
     return lastSeenAt.get(userId) ?? null;
   }
 
+  function getOnlineCount() {
+    return userToSockets.size;
+  }
+
   return {
     addSocket,
     removeSocket,
     isOnline,
     filterOnline,
     getLastSeenAt,
+    getOnlineCount,
   };
 }

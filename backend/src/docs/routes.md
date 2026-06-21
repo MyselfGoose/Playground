@@ -243,5 +243,24 @@ All routes require authentication and the `admin` role. Mutations also re-verify
 | GET/PATCH | `/users/:id/stats` | View / patch stats |
 | GET | `/users/:id/matches` | Match history (all games) |
 | GET | `/users/:id/audit` | Admin audit log |
+| GET | `/users/:id/sessions` | Active refresh sessions |
+| POST | `/users/:id/sessions/revoke-all` | Revoke all sessions |
+| POST | `/users/:id/sessions/:jti/revoke` | Revoke one session |
+| GET | `/auth/oauth-audit` | Google vs local auth breakdown |
+| GET | `/auth/oauth-tickets` | Pending OAuth tickets |
+| POST | `/auth/oauth-tickets/purge-expired` | Purge expired/consumed tickets |
+| GET | `/auth/abuse-monitor` | Login failures / rate-limit hits by IP |
+| PATCH | `/settings/oauth` | Toggle `googleOAuthEnabled` |
+| PATCH | `/settings/games` | Update `disabledGames` |
+| PATCH | `/settings/room-creation` | Toggle `blockNewRooms` |
+| GET | `/realtime/sockets` | Socket.IO connection counts per namespace |
+| GET | `/rooms` | Active room summaries (`?game=`) |
+| GET | `/rooms/:game/:code` | Room detail inspector |
+| POST | `/rooms/:game/:code/close` | Force close room |
+| POST | `/rooms/:game/:code/kick` | Admin kick player (`{ userId }`) |
+| GET | `/npat/rooms` | Mongo NPAT room documents |
+| GET | `/npat/rooms/:code` | Full persisted NPAT room |
+| GET | `/npat/eval-failures` | Failed / fallback evaluations |
+| POST | `/npat/rooms/:code/retry-eval` | Retry eval on live engine |
 
 Grant admin to a user: `npm run db:grant-admin` (grants `admin` role to `abubakar20069@gmail.com`).

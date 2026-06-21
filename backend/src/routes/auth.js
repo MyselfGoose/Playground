@@ -16,6 +16,7 @@ import {
   oauthCompleteBodySchema,
   oauthRegisterBodySchema,
 } from '../validation/auth.schemas.js';
+import { recordRateLimitHit } from '../observability/authAbuseMonitor.js';
 import { requireMongoReady } from './requireMongoReady.js';
 
 /**
@@ -56,6 +57,12 @@ export function createAuthRouter({ env }) {
     skip: (req) => req.method === 'OPTIONS',
     validate: { trustProxy: env.TRUST_PROXY > 0 },
     keyGenerator: (req) => req.ip ?? req.socket?.remoteAddress ?? 'unknown',
+    handler: (req, res, next, options) => {
+      recordRateLimitHit(req.ip);
+      res.status(options.statusCode).json({
+        error: { message: options.message, code: 'RATE_LIMITED' },
+      });
+    },
   });
 
   const refreshLimiter = rateLimit({

@@ -41,3 +41,31 @@ export const adminFeedbackQuerySchema = z.object({
   perPage: z.coerce.number().int().min(1).max(100).optional().default(30),
   state: z.enum(['open', 'closed', 'all']).optional().default('open'),
 });
+
+export const adminRoomsQuerySchema = z.object({
+  game: z.enum(['npat', 'typing-race', 'taboo', 'cah', 'hangman']).optional(),
+});
+
+export const adminRoomKickBodySchema = z.object({
+  userId: z.string().min(1),
+});
+
+export const adminOAuthPatchBodySchema = z.object({
+  googleOAuthEnabled: z.boolean(),
+});
+
+export const adminGamesPatchBodySchema = z.object({
+  disabledGames: z.array(z.enum(['npat', 'typing-race', 'taboo', 'cah', 'hangman'])),
+});
+
+export const adminRoomCreationPatchBodySchema = z.object({
+  blockNewRooms: z.boolean(),
+});
+
+export const adminAbuseQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+export const adminNpatListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});

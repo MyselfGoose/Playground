@@ -103,3 +103,113 @@ export function fetchAdminFeedback(params) {
 export function getAdminUsersExportUrl() {
   return "/api/v1/admin/users/export";
 }
+
+export function fetchAdminUserSessions(id) {
+  return adminFetch(`/users/${encodeURIComponent(id)}/sessions`);
+}
+
+export function revokeAdminUserSession(id, jti) {
+  return adminFetch(`/users/${encodeURIComponent(id)}/sessions/${encodeURIComponent(jti)}/revoke`, {
+    method: "POST",
+  });
+}
+
+export function revokeAllAdminUserSessions(id) {
+  return adminFetch(`/users/${encodeURIComponent(id)}/sessions/revoke-all`, { method: "POST" });
+}
+
+export function fetchOAuthAudit() {
+  return adminFetch("/auth/oauth-audit");
+}
+
+export function fetchOAuthTickets() {
+  return adminFetch("/auth/oauth-tickets");
+}
+
+export function purgeExpiredOAuthTickets() {
+  return adminFetch("/auth/oauth-tickets/purge-expired", { method: "POST" });
+}
+
+export function fetchAuthAbuseMonitor(params) {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return adminFetch(`/auth/abuse-monitor${query ? `?${query}` : ""}`);
+}
+
+export function patchGoogleOAuth(body) {
+  return adminFetch("/settings/oauth", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function patchDisabledGames(body) {
+  return adminFetch("/settings/games", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function patchBlockNewRooms(body) {
+  return adminFetch("/settings/room-creation", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchSocketCounts() {
+  return adminFetch("/realtime/sockets");
+}
+
+export function fetchAdminRooms(params) {
+  const qs = new URLSearchParams();
+  if (params?.game) qs.set("game", params.game);
+  const query = qs.toString();
+  return adminFetch(`/rooms${query ? `?${query}` : ""}`);
+}
+
+export function fetchAdminRoom(game, code) {
+  return adminFetch(`/rooms/${encodeURIComponent(game)}/${encodeURIComponent(code)}`);
+}
+
+export function forceCloseAdminRoom(game, code, reason = "") {
+  return adminFetch(`/rooms/${encodeURIComponent(game)}/${encodeURIComponent(code)}/close`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function kickAdminRoomPlayer(game, code, userId) {
+  return adminFetch(`/rooms/${encodeURIComponent(game)}/${encodeURIComponent(code)}/kick`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function fetchNpatMongoRooms(params) {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return adminFetch(`/npat/rooms${query ? `?${query}` : ""}`);
+}
+
+export function fetchNpatMongoRoom(code) {
+  return adminFetch(`/npat/rooms/${encodeURIComponent(code)}`);
+}
+
+export function fetchNpatEvalFailures(params) {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return adminFetch(`/npat/eval-failures${query ? `?${query}` : ""}`);
+}
+
+export function retryNpatEval(code) {
+  return adminFetch(`/npat/rooms/${encodeURIComponent(code)}/retry-eval`, { method: "POST" });
+}
