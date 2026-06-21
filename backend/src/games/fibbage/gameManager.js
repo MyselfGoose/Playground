@@ -218,6 +218,9 @@ export function submitLie(room, userId, text) {
 
   const player = room.players.find((p) => p.userId === userId);
   if (!player) throw new FibbageError('Player not found', 'PLAYER_NOT_FOUND');
+  if (game.submissions.has(userId)) {
+    throw new FibbageError('Already submitted a lie', 'ALREADY_SUBMITTED');
+  }
 
   const trimmed = String(text).trim();
   if (trimmed.length < FIBBAGE_LIE_MIN_LENGTH) {
@@ -264,6 +267,9 @@ export function castVote(room, userId, answerId) {
 
   if (answer.authorUserId === userId) {
     throw new FibbageError('Cannot vote for your own submission', 'SELF_VOTE');
+  }
+  if (game.votes.has(userId)) {
+    throw new FibbageError('Already cast a vote', 'ALREADY_VOTED');
   }
 
   game.votes.set(userId, answerId);
@@ -330,6 +336,52 @@ function enterRevealing(room, now) {
   };
   game.phaseEndsAt = null;
   return 'revealing_started';
+}
+
+/**
+ * Advance writing phase when all active players have submitted.
+ * @param {object} room
+ * @param {number} now
+ * @returns {string|null}
+ */
+export function finalizeWritingIfReady(room, now) {
+  const game = room.game;
+  if (!game || game.status !== 'writing') return null;
+
+  const activeIds = activePlayersInRoom(room).map((p) => p.userId);
+  if (activeIds.length === 0) return null;
+  if (!activeIds.every((id) => game.submissions.has(id))) return null;
+
+  return enterVotingOrSkip(room, now);
+}
+
+/**
+ * Advance voting phase when all active players have voted.
+ * @param {object} room
+ * @param {number} now
+ * @returns {string|null}
+ */
+export function finalizeVotingIfReady(room, now) {
+  const game = room.game;
+  if (!game || game.status !== 'voting') return null;
+
+  const activeIds = activePlayersInRoom(room).map((p) => p.userId);
+  if (activeIds.length === 0) return null;
+  if (!activeIds.every((id) => game.votes.has(id))) return null;
+
+  return enterRevealing(room, now);
+}
+
+/**
+ * Advance reveal sub-steps when the current reveal timer has expired.
+ * @param {object} room
+ * @param {number} now
+ * @returns {string|null}
+ */
+export function advanceRevealIfExpired(room, now) {
+  const game = room.game;
+  if (!game || game.status !== 'revealing') return null;
+  return advanceReveal(room, now);
 }
 
 /**
@@ -588,6 +640,8 @@ function buildRevealAnswers(game, reveal) {
   const lies = game.answers.filter((a) => !a.isTruth);
 
   return game.answers.map((a) => {
+    const voteCount = getVotersForAnswer(game, a.answerId).length;
+
     if (a.isTruth) {
       const showTruth = reveal.step === 'truth' || reveal.step === 'complete';
       return {
@@ -595,6 +649,7 @@ function buildRevealAnswers(game, reveal) {
         text: a.text,
         authorUserId: null,
         isTruth: showTruth,
+        voteCount,
         voters: showTruth ? getVotersForAnswer(game, a.answerId) : [],
       };
     }
@@ -610,6 +665,7 @@ function buildRevealAnswers(game, reveal) {
       text: a.text,
       authorUserId: isRevealed ? a.authorUserId : null,
       isTruth: false,
+      voteCount,
       voters: isRevealed ? getVotersForAnswer(game, a.answerId) : [],
     };
   });

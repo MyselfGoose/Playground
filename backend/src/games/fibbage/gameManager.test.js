@@ -13,6 +13,9 @@ import {
   snapshotFor,
   getWinners,
   advancePhaseIfExpired,
+  advanceRevealIfExpired,
+  finalizeWritingIfReady,
+  finalizeVotingIfReady,
 } from './gameManager.js';
 
 function connectedPlayer(userId, username) {
@@ -170,4 +173,158 @@ test('getWinners returns all players tied at the top score', () => {
     winners.map((w) => w.userId).sort(),
     ['p1', 'p2'],
   );
+});
+
+test('submitLie rejects resubmission', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'My fake answer');
+  assert.throws(() => submitLie(room, 'p1', 'Another fake'), (e) => e.code === 'ALREADY_SUBMITTED');
+});
+
+test('castVote rejects revote', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'voting';
+  room.game.answers = [
+    { answerId: 'a1', text: 'My fake answer', authorUserId: 'p1', isTruth: false },
+    { answerId: 'a2', text: 'Another fake', authorUserId: 'p2', isTruth: false },
+    { answerId: 'a3', text: 'truth', authorUserId: null, isTruth: true },
+  ];
+  castVote(room, 'p1', 'a2');
+  assert.throws(() => castVote(room, 'p1', 'a3'), (e) => e.code === 'ALREADY_VOTED');
+});
+
+test('finalizeWritingIfReady advances when all active players submitted', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  assert.equal(finalizeWritingIfReady(room, Date.now()), null);
+
+  submitLie(room, 'p3', 'Lie three');
+  const reason = finalizeWritingIfReady(room, Date.now());
+  assert.equal(reason, 'voting_started');
+  assert.equal(room.game.status, 'voting');
+});
+
+test('finalizeVotingIfReady advances when all active players voted', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  submitLie(room, 'p3', 'Lie three');
+  finalizeWritingIfReady(room, Date.now());
+
+  const p1Answer = room.game.answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = room.game.answers.find((a) => a.authorUserId === 'p2');
+  const truthAnswer = room.game.answers.find((a) => a.isTruth);
+  assert.ok(p1Answer && p2Answer && truthAnswer);
+
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', truthAnswer.answerId);
+  assert.equal(finalizeVotingIfReady(room, Date.now()), null);
+
+  castVote(room, 'p3', p1Answer.answerId);
+  const reason = finalizeVotingIfReady(room, Date.now());
+  assert.equal(reason, 'revealing_started');
+  assert.equal(room.game.status, 'revealing');
+});
+
+test('advanceRevealIfExpired progresses through reveal sub-steps to scoring', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  submitLie(room, 'p3', 'Lie three');
+  finalizeWritingIfReady(room, Date.now());
+
+  const p1Answer = room.game.answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = room.game.answers.find((a) => a.authorUserId === 'p2');
+  const truthAnswer = room.game.answers.find((a) => a.isTruth);
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', truthAnswer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  assert.equal(room.game.status, 'revealing');
+  assert.equal(room.game.reveal.step, 'votes_summary');
+
+  let now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
+  assert.equal(room.game.reveal.step, 'per_lie');
+
+  now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
+  assert.equal(room.game.reveal.step, 'per_lie');
+  assert.equal(room.game.reveal.lieIndex, 1);
+
+  now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
+  assert.equal(room.game.reveal.step, 'per_lie');
+  assert.equal(room.game.reveal.lieIndex, 2);
+
+  now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
+  assert.equal(room.game.reveal.step, 'truth');
+
+  now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
+  assert.equal(room.game.reveal.step, 'complete');
+
+  now = room.game.reveal.phaseEndsAt;
+  assert.equal(advanceRevealIfExpired(room, now), 'scoring_started');
+  assert.equal(room.game.status, 'scoring');
+  assert.equal(room.game.reveal, null);
+});
+
+test('revealing snapshot exposes vote counts without voters at votes_summary', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  submitLie(room, 'p3', 'Lie three');
+  finalizeWritingIfReady(room, Date.now());
+
+  const p1Answer = room.game.answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = room.game.answers.find((a) => a.authorUserId === 'p2');
+  const truthAnswer = room.game.answers.find((a) => a.isTruth);
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', truthAnswer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  const snap = snapshotFor(room, 'p1');
+  assert.equal(snap.game.reveal.step, 'votes_summary');
+  assert.ok(snap.game.answers.every((a) => a.voters.length === 0));
+  assert.ok(snap.game.answers.some((a) => a.voteCount > 0));
 });

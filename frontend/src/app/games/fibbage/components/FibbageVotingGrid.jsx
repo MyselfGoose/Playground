@@ -1,96 +1,110 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
-import { FibbagePromptCard } from "./FibbagePromptCard.jsx";
-import { TimerBar } from "../../../../components/game-feel/TimerBar.jsx";
+import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
+import { Avatar } from "../../../../components/Avatar.jsx";
+import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 
 export function FibbageVotingGrid() {
-  const { room, castVote, localUserId } = useFibbage();
+  const { room, castVote } = useFibbage();
   const game = room?.game;
-  const [voting, setVoting] = useState(false);
-  const [voteError, setVoteError] = useState(null);
+  const [pendingId, setPendingId] = useState(null);
+  const [error, setError] = useState(null);
 
-  if (!game || game.status !== "voting") return null;
+  const votingSeconds = room?.settings?.votingSeconds ?? 45;
+  const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, votingSeconds);
+  const answers = game?.answers ?? [];
+  const canVote = Boolean(game?.permissions?.canVote);
+  const hasVoted = Boolean(game?.viewerVote);
+  const votedUserIds = game?.votedUserIds ?? [];
+  const ownAnswerId = game?.permissions?.ownAnswerId ?? null;
 
-  const answers = game.answers ?? [];
-  const viewerVote = game.viewerVote;
-  const ownAnswerId = room.permissions?.ownAnswerId ?? null;
-  const hasVoted = Boolean(viewerVote);
+  const waitingFor = useMemo(() => {
+    const activePlayers = room?.players?.filter((p) => p.connected !== false) ?? [];
+    return activePlayers.filter((p) => !votedUserIds.includes(p.userId));
+  }, [room?.players, votedUserIds]);
 
-  async function handleVote(answerId) {
-    if (hasVoted || voting || answerId === ownAnswerId) return;
-    setVoting(true);
-    setVoteError(null);
-    const res = await castVote(answerId);
-    if (!res.ok) setVoteError(res.error?.message ?? "Vote failed");
-    setVoting(false);
-  }
+  const handleVote = useCallback(
+    async (answerId) => {
+      if (!canVote || pendingId || answerId === ownAnswerId) return;
+      setPendingId(answerId);
+      setError(null);
+      try {
+        const result = await castVote(answerId);
+        if (result && !result.ok) {
+          setError(result.error?.message ?? "Could not cast vote.");
+        }
+      } catch {
+        setError("Could not cast vote.");
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [canVote, castVote, ownAnswerId, pendingId],
+  );
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
-      <FibbagePromptCard
-        text={game.prompt?.text}
-        category={game.prompt?.category}
-        round={game.round}
-        totalRounds={room.settings?.roundCount}
-      />
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="fibbage-card text-center">
+        <p className="text-sm text-[var(--fibbage-text-muted)]">Which answer is the truth?</p>
+        <p className="mt-2 text-lg font-bold text-[var(--fibbage-text)]">{game?.prompt?.text}</p>
+      </div>
 
-      {game.phaseEndsAt && <TimerBar endsAt={game.phaseEndsAt} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {answers.map((answer) => {
+          const isOwn = answer.answerId === ownAnswerId;
+          const isSelected = game?.viewerVote === answer.answerId;
+          const disabled = !canVote || pendingId !== null || isOwn;
 
-      <p className="text-center text-sm font-semibold text-[var(--fibbage-text-muted)]">
-        {hasVoted
-          ? "Vote locked in. Waiting for others..."
-          : "Pick the answer you think is TRUE"}
+          return (
+            <button
+              key={answer.answerId}
+              type="button"
+              disabled={disabled}
+              onClick={() => void handleVote(answer.answerId)}
+              className={`fibbage-card text-left transition ${
+                isSelected ? "fibbage-card--selected" : ""
+              } ${isOwn ? "fibbage-card--disabled" : ""}`}
+            >
+              <p className="font-semibold text-[var(--fibbage-text)]">{answer.text}</p>
+              {isOwn ? (
+                <p className="mt-2 text-xs font-bold uppercase text-[var(--fibbage-accent)]">Your lie</p>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {hasVoted ? (
+        <div className="fibbage-card text-center">
+          <p className="font-bold text-[var(--fibbage-accent)]">Vote cast!</p>
+          <p className="mt-2 text-sm text-[var(--fibbage-text-muted)]">
+            Waiting for {waitingFor.length} player{waitingFor.length === 1 ? "" : "s"}…
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {waitingFor.map((player) => (
+              <div key={player.userId} className="flex items-center gap-2 rounded-lg bg-[var(--fibbage-canvas)] px-3 py-1.5">
+                <Avatar
+                  username={player.username}
+                  avatarUrl={player.avatarUrl}
+                  avatarEmoji={player.avatarEmoji}
+                  size="sm"
+                />
+                <span className="text-xs font-semibold">{player.username}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {error ? <p className="text-center text-sm font-semibold text-[var(--fibbage-lie)]">{error}</p> : null}
+
+      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={votingSeconds} />
+
+      <p className="text-center text-xs text-[var(--fibbage-text-muted)]">
+        {votedUserIds.length} of {room?.players?.filter((p) => p.connected !== false).length ?? 0} voted
       </p>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <AnimatePresence>
-          {answers.map((a, idx) => {
-            const isOwn = a.answerId === ownAnswerId;
-            const isSelected = a.answerId === viewerVote;
-            const isDisabled = hasVoted || isOwn || voting;
-
-            return (
-              <motion.button
-                key={a.answerId}
-                type="button"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.08, duration: 0.3 }}
-                disabled={isDisabled}
-                onClick={() => handleVote(a.answerId)}
-                className={[
-                  "fibbage-card text-left transition-all",
-                  isSelected && "fibbage-card--selected",
-                  isOwn && "fibbage-card--disabled",
-                  !isDisabled && "cursor-pointer hover:scale-[1.02]",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                title={isOwn ? "That's yours, cheater." : undefined}
-              >
-                <p className="text-sm font-bold leading-relaxed">{a.text}</p>
-                {isOwn && (
-                  <p className="mt-1 text-xs italic text-[var(--fibbage-text-muted)]">
-                    Your lie — can&rsquo;t vote for it
-                  </p>
-                )}
-              </motion.button>
-            );
-          })}
-        </AnimatePresence>
-      </div>
-
-      {voteError && (
-        <p className="text-center text-sm text-red-400">{voteError}</p>
-      )}
-
-      <div className="text-center text-xs text-[var(--fibbage-text-muted)]">
-        {game.votedUserIds?.length ?? game.voteCount ?? 0} of{" "}
-        {room.players?.length ?? 0} voted
-      </div>
     </div>
   );
 }

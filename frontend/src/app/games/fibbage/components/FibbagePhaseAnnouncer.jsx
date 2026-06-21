@@ -1,35 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-const PHASE_ANNOUNCEMENTS = {
-  starting: "Game starting",
-  prompt_reveal: "New prompt revealed",
-  writing: "Writing phase — submit your lie",
-  voting: "Voting phase — pick the truth",
-  revealing: "Revealing answers",
-  scoring: "Scores updated",
-  between_rounds: "Next round starting soon",
-  finished: "Game over — final results",
+const PHASE_LABELS = {
+  starting: "Get ready…",
+  prompt_reveal: "New prompt incoming",
+  writing: "Write your lie",
+  voting: "Pick the truth",
+  revealing: "Revealing votes",
+  scoring: "Round scores",
+  between_rounds: "Next round coming up",
 };
 
 /**
  * @param {{ status?: string }} props
  */
 export function FibbagePhaseAnnouncer({ status }) {
-  const [announcement, setAnnouncement] = useState("");
-  const prevStatus = useRef(status);
-
-  useEffect(() => {
-    if (status && status !== prevStatus.current) {
-      setAnnouncement(PHASE_ANNOUNCEMENTS[status] ?? "");
-      prevStatus.current = status;
-    }
-  }, [status]);
-
+  const label = status ? PHASE_LABELS[status] ?? "Fibbage" : "Fibbage";
   return (
-    <div className="sr-only" aria-live="assertive" aria-atomic="true" role="status">
-      {announcement}
-    </div>
+    <p className="sr-only" aria-live="polite" aria-atomic="true">
+      {label}
+    </p>
   );
 }

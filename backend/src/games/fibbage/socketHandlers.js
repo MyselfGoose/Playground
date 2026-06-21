@@ -109,14 +109,14 @@ export function installFibbageHandlers({ socket, registry, logger }) {
   });
 
   register(socket, logger, 'submit_lie', fibbageSubmitLieSchema, async (data) => {
-    const room = registry.submitRoomLie(socket, data.text);
-    registry.emitRoom(room.code, 'lie_submitted');
+    const { room, transitionReason } = registry.submitRoomLie(socket, data.text);
+    registry.emitRoom(room.code, transitionReason ?? 'lie_submitted');
     return { room: registry.snapshotForSocket(socket) };
   });
 
   register(socket, logger, 'cast_vote', fibbageCastVoteSchema, async (data) => {
-    const room = registry.castRoomVote(socket, data.answerId);
-    registry.emitRoom(room.code, 'vote_cast');
+    const { room, transitionReason } = registry.castRoomVote(socket, data.answerId);
+    registry.emitRoom(room.code, transitionReason ?? 'vote_cast');
     return { room: registry.snapshotForSocket(socket) };
   });
 

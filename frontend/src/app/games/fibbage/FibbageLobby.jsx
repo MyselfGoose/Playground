@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFibbage } from "../../../lib/fibbage/FibbageSocketContext.jsx";
 import { useLeaveLobby } from "../../../lib/party/useLeaveLobby.js";
+import { mapPartyPlayer } from "../../../lib/party/mapPartyPlayer.js";
 import { PartyLobby } from "../../../components/party/PartyLobby.jsx";
+import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
 import { FIBBAGE_PATHS } from "./fibbage-shared.js";
 
 const MIN_PLAYERS = 3;
+const DEFAULT_WRITING_SECONDS = 90;
+const DEFAULT_VOTING_SECONDS = 45;
 
 export function FibbageLobby() {
   const router = useRouter();
@@ -15,6 +19,7 @@ export function FibbageLobby() {
     room,
     localUserId,
     connected,
+    socketError,
     leaveRoom,
     setReady,
     updateSettings,
@@ -25,15 +30,21 @@ export function FibbageLobby() {
   const [readyPending, setReadyPending] = useState(false);
   const [error, setError] = useState(null);
 
-  const players = room?.players ?? [];
+  const partyPlayers = useMemo(
+    () => (room?.players ?? []).map((p) => mapPartyPlayer(p, { hostId: room?.hostUserId })),
+    [room?.players, room?.hostUserId],
+  );
+
   const settings = room?.settings ?? {};
   const isHost = localUserId === room?.hostUserId;
-  const localPlayer = players.find((p) => p.userId === localUserId);
+  const localPlayer = room?.players?.find((p) => p.userId === localUserId);
   const ready = localPlayer?.ready ?? false;
 
-  const connectedCount = players.filter((p) => p.connected).length;
-  const readyCount = players.filter((p) => p.ready).length;
+  const connectedCount = partyPlayers.filter((p) => p.connected).length;
+  const readyCount = partyPlayers.filter((p) => p.ready).length;
   const canStart = isHost && connectedCount >= MIN_PLAYERS && readyCount === connectedCount;
+
+  const displayError = error ?? socketError ?? null;
 
   const { requestLeave } = useLeaveLobby({
     leaveRoom,
@@ -45,7 +56,10 @@ export function FibbageLobby() {
     setReadyPending(true);
     setError(null);
     try {
-      await setReady(!ready);
+      const result = await setReady(!ready);
+      if (result && !result.ok) {
+        setError(result.error?.message ?? "Could not update ready state.");
+      }
     } catch {
       setError("Could not update ready state.");
     } finally {
@@ -72,7 +86,10 @@ export function FibbageLobby() {
     async (key, value) => {
       setError(null);
       try {
-        await updateSettings({ [key]: value });
+        const result = await updateSettings({ [key]: value });
+        if (result && !result.ok) {
+          setError(result.error?.message ?? "Could not update settings.");
+        }
       } catch {
         setError("Could not update settings.");
       }
@@ -80,10 +97,23 @@ export function FibbageLobby() {
     [updateSettings],
   );
 
-  const settingsPanel = isHost ? (
-    <FibbageSettingsPanel settings={settings} onChange={handleSettingsChange} />
-  ) : (
-    <FibbageSettingsDisplay settings={settings} />
+  const settingsPanel = (
+    <>
+      {isHost ? (
+        <FibbageSettingsPanel settings={settings} onChange={handleSettingsChange} />
+      ) : (
+        <FibbageSettingsDisplay settings={settings} />
+      )}
+      {room?.code && room?.hostUserId ? (
+        <LobbyInviteFriends
+          gameSlug="fibbage"
+          roomCode={room.code}
+          hostId={room.hostUserId}
+          localUserId={localUserId ?? ""}
+          playerUserIds={partyPlayers.map((p) => p.id)}
+        />
+      ) : null}
+    </>
   );
 
   return (
@@ -91,7 +121,7 @@ export function FibbageLobby() {
       <PartyLobby
         gameSlug="fibbage"
         code={room?.code}
-        players={players}
+        players={partyPlayers}
         localUserId={localUserId}
         startPolicy="host"
         startRules={
@@ -120,7 +150,7 @@ export function FibbageLobby() {
         onLeave={requestLeave}
         leaveConfirmTitle="Leave Fibbage?"
         leaveConfirmDescription="You'll lose your spot in this lobby."
-        error={error}
+        error={displayError}
       />
     </div>
   );
@@ -139,27 +169,27 @@ function FibbageSettingsPanel({ settings, onChange }) {
         min={3}
         max={10}
         step={1}
-        onChange={(v) => onChange("roundCount", v)}
+        onCommit={(v) => onChange("roundCount", v)}
         format={(v) => `${v} rounds`}
       />
 
       <SettingSlider
         label="Writing Time"
-        value={settings.writingSeconds ?? 60}
+        value={settings.writingSeconds ?? DEFAULT_WRITING_SECONDS}
         min={45}
         max={120}
         step={5}
-        onChange={(v) => onChange("writingSeconds", v)}
+        onCommit={(v) => onChange("writingSeconds", v)}
         format={(v) => `${v}s`}
       />
 
       <SettingSlider
         label="Voting Time"
-        value={settings.votingSeconds ?? 45}
+        value={settings.votingSeconds ?? DEFAULT_VOTING_SECONDS}
         min={30}
         max={90}
         step={5}
-        onChange={(v) => onChange("votingSeconds", v)}
+        onCommit={(v) => onChange("votingSeconds", v)}
         format={(v) => `${v}s`}
       />
     </div>
@@ -175,21 +205,29 @@ function FibbageSettingsDisplay({ settings }) {
       <div className="flex flex-wrap gap-3 text-sm text-[var(--fibbage-text)]">
         <span>{settings.roundCount ?? 5} rounds</span>
         <span className="text-[var(--fibbage-text-muted)]">·</span>
-        <span>{settings.writingSeconds ?? 60}s writing</span>
+        <span>{settings.writingSeconds ?? DEFAULT_WRITING_SECONDS}s writing</span>
         <span className="text-[var(--fibbage-text-muted)]">·</span>
-        <span>{settings.votingSeconds ?? 45}s voting</span>
+        <span>{settings.votingSeconds ?? DEFAULT_VOTING_SECONDS}s voting</span>
       </div>
     </div>
   );
 }
 
-function SettingSlider({ label, value, min, max, step, onChange, format }) {
+function SettingSlider({ label, value, min, max, step, onCommit, format }) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const displayValue = localValue;
+
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <label className="text-sm font-semibold text-[var(--fibbage-text)]">{label}</label>
         <span className="text-sm font-bold text-[var(--fibbage-accent)]">
-          {format ? format(value) : value}
+          {format ? format(displayValue) : displayValue}
         </span>
       </div>
       <input
@@ -197,8 +235,10 @@ function SettingSlider({ label, value, min, max, step, onChange, format }) {
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={displayValue}
+        onChange={(e) => setLocalValue(Number(e.target.value))}
+        onMouseUp={() => onCommit(displayValue)}
+        onTouchEnd={() => onCommit(displayValue)}
         className="w-full accent-[var(--fibbage-accent)]"
       />
     </div>

@@ -7,7 +7,6 @@ import { registerRoomAccessor } from '../../realtime/roomInviteRegistry.js';
 import { onRoomDestroyed, onRoomGameStarted } from '../../realtime/roomInviteLifecycle.js';
 import { activePlayersInRoom } from '../../realtime/playerPresence.js';
 import { FibbagePrompt } from '../../models/FibbagePrompt.js';
-import { FibbageGameLedger } from '../../models/FibbageGameLedger.js';
 import {
   FIBBAGE_DATASET_VERSION,
   FIBBAGE_MIN_PLAYERS,
@@ -17,6 +16,9 @@ import {
   normalizeSettings,
   initGame,
   advancePhaseIfExpired,
+  advanceRevealIfExpired,
+  finalizeWritingIfReady,
+  finalizeVotingIfReady,
   submitLie,
   castVote,
   snapshotFor,
@@ -87,6 +89,24 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
       if (!socket) continue;
       socket.emit('room_update', { reason, room: snapshotFor(room, socket.data.userId) });
     }
+  }
+
+  async function persistFinishedGameIfNeeded(room) {
+    const game = room.game;
+    if (!game || game.status !== 'finished' || room.statsPersisted) return;
+    room.statsPersisted = true;
+    try {
+      await persistFibbageGameResult(room, log);
+    } catch (err) {
+      log?.warn({ err, event: 'persist_fibbage_game_unhandled' }, 'fibbage');
+    }
+  }
+
+  function applyPhaseTransition(code, room, reason) {
+    if (!reason) return;
+    bumpStateVersion(room);
+    emitRoom(code, reason);
+    void persistFinishedGameIfNeeded(room);
   }
 
   function destroyRoom(code) {
@@ -385,12 +405,14 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
       throw Object.assign(new Error('Game already in progress'), { code: 'GAME_ALREADY_STARTED' });
     }
     const active = activePlayersInRoom(room);
-    const readyCount = active.filter((p) => p.ready).length;
-    if (readyCount < FIBBAGE_MIN_PLAYERS) {
+    if (active.length < FIBBAGE_MIN_PLAYERS) {
       throw Object.assign(
         new Error(`Need at least ${FIBBAGE_MIN_PLAYERS} ready players`),
         { code: 'NOT_ENOUGH_PLAYERS' },
       );
+    }
+    if (!active.every((p) => p.ready)) {
+      throw Object.assign(new Error('All players must be ready'), { code: 'NOT_ALL_READY' });
     }
 
     const prompt = await fetchRandomPrompt(room);
@@ -412,16 +434,20 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     submitLie(room, socket.data.userId, text);
+    const now = Date.now();
+    const transitionReason = finalizeWritingIfReady(room, now);
     bumpStateVersion(room);
-    return room;
+    return { room, transitionReason };
   }
 
   function castRoomVote(socket, answerId) {
     const room = getRoomForSocket(socket);
     if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
     castVote(room, socket.data.userId, answerId);
+    const now = Date.now();
+    const transitionReason = finalizeVotingIfReady(room, now);
     bumpStateVersion(room);
-    return room;
+    return { room, transitionReason };
   }
 
   function snapshotForSocket(socket) {
@@ -463,32 +489,23 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
    */
   function tick() {
     const now = Date.now();
-    const updates = [];
 
     for (const [code, room] of rooms) {
-      if (!room.game) continue;
+      if (!room.game || room.phaseTransitionInFlight) continue;
 
       const game = room.game;
 
       if (game.status === 'revealing' && game.reveal) {
         if (now >= game.reveal.phaseEndsAt) {
+          room.phaseTransitionInFlight = true;
           void (async () => {
             try {
-              const reason = await advancePhaseIfExpired(room, now, () => fetchRandomPrompt(room));
-              if (reason) {
-                bumpStateVersion(room);
-                emitRoom(code, reason);
-                if (game.status === 'finished' && !room.statsPersisted) {
-                  room.statsPersisted = true;
-                  try {
-                    await persistFibbageGameResult(room, log);
-                  } catch (err) {
-                    log?.warn({ err, event: 'persist_fibbage_game_unhandled' }, 'fibbage');
-                  }
-                }
-              }
+              const reason = advanceRevealIfExpired(room, now);
+              applyPhaseTransition(code, room, reason);
             } catch (err) {
               log?.error({ err, code, event: 'fibbage_reveal_tick_error' }, 'fibbage');
+            } finally {
+              room.phaseTransitionInFlight = false;
             }
           })();
         }
@@ -497,28 +514,24 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
 
       if (!game.phaseEndsAt || now < game.phaseEndsAt) continue;
 
+      if (game.status === 'between_rounds') {
+        game.phaseEndsAt = null;
+      }
+
+      room.phaseTransitionInFlight = true;
       void (async () => {
         try {
           const reason = await advancePhaseIfExpired(room, now, () => fetchRandomPrompt(room));
-          if (reason) {
-            bumpStateVersion(room);
-            emitRoom(code, reason);
-            if (game.status === 'finished' && !room.statsPersisted) {
-              room.statsPersisted = true;
-              try {
-                await persistFibbageGameResult(room, log);
-              } catch (err) {
-                log?.warn({ err, event: 'persist_fibbage_game_unhandled' }, 'fibbage');
-              }
-            }
-          }
+          applyPhaseTransition(code, room, reason);
         } catch (err) {
           log?.error({ err, code, event: 'fibbage_tick_error' }, 'fibbage');
+        } finally {
+          room.phaseTransitionInFlight = false;
         }
       })();
     }
 
-    return updates;
+    return [];
   }
 
   function shutdown() {

@@ -12,12 +12,14 @@ const PODIUM_LABELS = ["1st", "2nd", "3rd"];
 
 export function FibbageResult() {
   const router = useRouter();
-  const { room, localUserId, returnToLobby, leaveRoom } = useFibbage();
+  const { room, localUserId, socketError, returnToLobby, leaveRoom } = useFibbage();
   const [returnPending, setReturnPending] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
+  const [error, setError] = useState(null);
 
   const players = room?.players ?? [];
   const isHost = localUserId === room?.hostUserId;
+  const displayError = error ?? socketError ?? null;
 
   const sorted = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   const podium = sorted.slice(0, 3);
@@ -26,9 +28,15 @@ export function FibbageResult() {
   const handleReturnToLobby = useCallback(async () => {
     if (returnPending) return;
     setReturnPending(true);
+    setError(null);
     try {
-      await returnToLobby();
+      const result = await returnToLobby();
+      if (result && !result.ok) {
+        setError(result.error?.message ?? "Could not return to lobby.");
+        setReturnPending(false);
+      }
     } catch {
+      setError("Could not return to lobby.");
       setReturnPending(false);
     }
   }, [returnToLobby, returnPending]);
@@ -36,10 +44,17 @@ export function FibbageResult() {
   const handleLeave = useCallback(async () => {
     if (leavePending) return;
     setLeavePending(true);
+    setError(null);
     try {
-      await leaveRoom();
+      const result = await leaveRoom();
+      if (result && !result.ok) {
+        setError(result.error?.message ?? "Could not leave room.");
+        setLeavePending(false);
+        return;
+      }
       router.replace(FIBBAGE_PATHS.entry);
     } catch {
+      setError("Could not leave room.");
       setLeavePending(false);
     }
   }, [leaveRoom, router, leavePending]);
@@ -152,6 +167,10 @@ export function FibbageResult() {
             Waiting for host to start a new game…
           </p>
         )}
+
+        {displayError ? (
+          <p className="text-center text-sm font-semibold text-[var(--fibbage-lie)]">{displayError}</p>
+        ) : null}
       </motion.div>
     </div>
   );
