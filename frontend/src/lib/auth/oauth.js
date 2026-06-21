@@ -1,4 +1,4 @@
-import { getSocketBase } from "../api.js";
+import { getApiBase, getSocketBase } from "../api.js";
 
 /**
  * @param {unknown} raw
@@ -14,12 +14,16 @@ export function safeNextPath(raw) {
  * @param {string} [nextPath]
  */
 export function googleSignInHref(nextPath = "/") {
-  const base = getSocketBase();
-  if (!base) {
-    return "";
-  }
   const qs = new URLSearchParams({ next: safeNextPath(nextPath) });
-  return `${base}/api/v1/auth/google?${qs.toString()}`;
+  const socketBase = getSocketBase();
+  if (socketBase) {
+    return `${socketBase}/api/v1/auth/google?${qs.toString()}`;
+  }
+  // Same-origin API proxy: OAuth can start via Next rewrite to the backend.
+  if (!getApiBase()) {
+    return `/api/v1/auth/google?${qs.toString()}`;
+  }
+  return "";
 }
 
 /** @type {Record<string, string>} */

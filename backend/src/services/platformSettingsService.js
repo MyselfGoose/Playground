@@ -1,4 +1,4 @@
-import { PlatformSettings } from '../../models/PlatformSettings.js';
+import { PlatformSettings } from '../models/PlatformSettings.js';
 
 /** @type {{ maintenanceMode: boolean, maintenanceMessage: string, updatedAt: string | null }} */
 let cache = {

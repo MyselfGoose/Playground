@@ -14,6 +14,7 @@ export function GoogleSignInButton({ nextPath = "/", disabled = false }) {
       href={unavailable ? undefined : href}
       aria-label="Continue with Google"
       aria-disabled={disabled || unavailable}
+      title={unavailable ? "Google sign-in is not configured (missing API URL)" : undefined}
       className={`flex w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-foreground/20 bg-background px-6 py-3 font-bold text-foreground transition-all hover:border-foreground/35 hover:bg-muted-bright/30 ${
         disabled || unavailable ? "pointer-events-none opacity-50" : ""
       }`}
