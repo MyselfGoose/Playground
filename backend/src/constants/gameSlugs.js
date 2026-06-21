@@ -7,6 +7,7 @@ export const GAME_INVITE_SLUGS = [
   'cah',
   'taboo',
   'typing-race',
+  'fibbage',
 ];
 
 /** @type {Record<string, GameSlugMeta>} */
@@ -45,6 +46,13 @@ export const GAME_SLUG_META = {
     emoji: '⌨️',
     gameId: 'typing-race',
     codePattern: 'digits6',
+  },
+  fibbage: {
+    slug: 'fibbage',
+    title: 'Fibbage',
+    emoji: '🎭',
+    gameId: 'fibbage',
+    codePattern: 'alpha4',
   },
 };
 
@@ -110,7 +118,7 @@ export function buildJoinPathForSlug(slug, code) {
   if (slug === 'typing-race') {
     return `/games/typing-race/join?code=${encodeURIComponent(normalized)}`;
   }
-  if (slug === 'npat' || slug === 'hangman' || slug === 'cah' || slug === 'taboo') {
+  if (slug === 'npat' || slug === 'hangman' || slug === 'cah' || slug === 'taboo' || slug === 'fibbage') {
     return `/games/${slug}/lobby?code=${encodeURIComponent(normalized)}`;
   }
   return `/games/${slug}/join?code=${encodeURIComponent(normalized)}`;

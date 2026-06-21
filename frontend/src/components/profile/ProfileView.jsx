@@ -66,7 +66,8 @@ function SelfProfile() {
       (stats.npat?.totalGames ?? 0) +
       (stats.taboo?.gamesPlayed ?? 0) +
       (stats.cah?.gamesPlayed ?? 0) +
-      (stats.hangman?.totalGames ?? 0)
+      (stats.hangman?.totalGames ?? 0) +
+      (stats.fibbage?.gamesPlayed ?? 0)
     : 0;
   const globalScore = stats?.global?.score ?? 0;
   const globalRank = stats?.global?.rank;
@@ -207,6 +208,29 @@ function SelfProfile() {
                   />
                 </div>
               </div>
+
+              <div>
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-foreground">
+                  <span>🎭</span> Fibbage
+                </h3>
+                <p className="mb-4 max-w-xl text-xs text-foreground/55">
+                  Ranking combines how often you fool others, how often you spot the truth, and your win rate.
+                  Minimum four completed games are required to appear on the Fibbage leaderboard.
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ProfileStatRow icon="🎯" label="Composite score" value={(stats.fibbage?.score ?? 0).toFixed(1)} />
+                  <ProfileStatRow icon="🏆" label="Games won" value={String(stats.fibbage?.gamesWon ?? 0)} />
+                  <ProfileStatRow icon="📈" label="Win rate" value={`${(stats.fibbage?.winRate ?? 0).toFixed(1)}%`} />
+                  <ProfileStatRow icon="🎭" label="Fools earned" value={String(stats.fibbage?.foolsEarned ?? 0)} />
+                  <ProfileStatRow icon="🔍" label="Truths found" value={String(stats.fibbage?.truthsFound ?? 0)} />
+                  <ProfileStatRow icon="🎮" label="Games played" value={String(stats.fibbage?.gamesPlayed ?? 0)} />
+                  <ProfileStatRow
+                    icon="📊"
+                    label="Fibbage rank"
+                    value={stats.fibbage?.fibbageRank ? `#${stats.fibbage.fibbageRank}` : "Unranked"}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -285,10 +309,15 @@ function PublicProfile({ userId }) {
   const typing = stats.typing ?? {};
   const npat = stats.npat ?? {};
   const hangman = stats.hangman ?? {};
+  const fibbage = stats.fibbage ?? {};
   const global = stats.global ?? {};
   const breakdown = global.breakdown ?? {};
   const recentActivity = data.recentActivity ?? [];
-  const totalGames = (typing.totalGames ?? 0) + (npat.totalGames ?? 0) + (hangman.totalGames ?? 0);
+  const totalGames =
+    (typing.totalGames ?? 0) +
+    (npat.totalGames ?? 0) +
+    (hangman.totalGames ?? 0) +
+    (fibbage.gamesPlayed ?? 0);
 
   const heroMetrics = (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -299,6 +328,7 @@ function PublicProfile({ userId }) {
       <ProfileMetric label="Accuracy rank" value={typing.accuracyRank != null ? `#${typing.accuracyRank}` : "Unranked"} />
       <ProfileMetric label="NPAT rank" value={npat.npatRank != null ? `#${npat.npatRank}` : "Unranked"} />
       <ProfileMetric label="Hangman rank" value={hangman.hangmanRank != null ? `#${hangman.hangmanRank}` : "Unranked"} />
+      <ProfileMetric label="Fibbage rank" value={fibbage.fibbageRank != null ? `#${fibbage.fibbageRank}` : "Unranked"} />
     </div>
   );
 
@@ -310,6 +340,7 @@ function PublicProfile({ userId }) {
         { label: "NPAT contribution", value: `${(breakdown.npat ?? 0).toFixed(0)}%` },
         { label: "Activity contribution", value: `${(breakdown.activity ?? 0).toFixed(0)}%` },
         { label: "Hangman contribution", value: `${(breakdown.hangman ?? 0).toFixed(0)}%` },
+        { label: "Fibbage contribution", value: `${(breakdown.fibbage ?? 0).toFixed(0)}%` },
       ].map((item) => (
         <ProfileMetric key={item.label} label={item.label} value={item.value} />
       ))}
@@ -359,6 +390,17 @@ function PublicProfile({ userId }) {
             <ProfileMetric label="Wins" value={String(hangman.totalWins ?? 0)} />
             <ProfileMetric label="Games played" value={String(Math.round(hangman.totalGames ?? 0))} />
             <ProfileMetric label="Hangman rank" value={hangman.hangmanRank != null ? `#${hangman.hangmanRank}` : "Unranked"} />
+          </div>
+        </ProfileSection>
+
+        <ProfileSection title="Fibbage Performance" subtitle="Deception skill and truth detection">
+          <div className="grid grid-cols-2 gap-3">
+            <ProfileMetric label="Score" value={(fibbage.score ?? 0).toFixed(1)} accent />
+            <ProfileMetric label="Win rate" value={`${(fibbage.winRate ?? 0).toFixed(1)}%`} />
+            <ProfileMetric label="Fools earned" value={String(fibbage.foolsEarned ?? 0)} />
+            <ProfileMetric label="Truths found" value={String(fibbage.truthsFound ?? 0)} />
+            <ProfileMetric label="Games played" value={String(fibbage.gamesPlayed ?? 0)} />
+            <ProfileMetric label="Fibbage rank" value={fibbage.fibbageRank != null ? `#${fibbage.fibbageRank}` : "Unranked"} />
           </div>
         </ProfileSection>
 

@@ -2,7 +2,7 @@
  * Player-facing connection errors — never expose env var names or ops jargon.
  */
 
-/** @typedef {'npat' | 'cah' | 'taboo' | 'hangman' | 'typing-race' | 'generic'} GameContext */
+/** @typedef {'npat' | 'cah' | 'taboo' | 'hangman' | 'fibbage' | 'typing-race' | 'generic'} GameContext */
 
 /** @typedef {'retry' | 'sign_in' | 'leave' | 'create_room'} ConnectionActionId */
 
@@ -23,6 +23,7 @@ const NOT_CONNECTED = {
   cah: "Joining your party…",
   taboo: "Joining your party…",
   hangman: "Joining your party…",
+  fibbage: "Joining your party…",
   "typing-race": "Joining your race…",
   generic: "Joining your party…",
 };
@@ -32,6 +33,7 @@ const CONNECT_FAILED = {
   cah: "We lost the connection — check your network and try again.",
   taboo: "We lost the connection — check your network and try again.",
   hangman: "We lost the connection — check your network and try again.",
+  fibbage: "We lost the connection — check your network and try again.",
   "typing-race": "We lost the connection — check your network and try again.",
   generic: "We lost the connection — check your network and try again.",
 };
@@ -41,6 +43,7 @@ const TIMEOUT = {
   cah: "This is taking a while — try again in a moment.",
   taboo: "This is taking a while — try again in a moment.",
   hangman: "This is taking a while — try again in a moment.",
+  fibbage: "This is taking a while — try again in a moment.",
   "typing-race": "This is taking a while — try again in a moment.",
   generic: "This is taking a while — try again in a moment.",
 };
@@ -50,6 +53,7 @@ const RECONNECTING = {
   cah: "Back online — syncing your game…",
   taboo: "Back online — syncing your room…",
   hangman: "Back online — syncing your game…",
+  fibbage: "Back online — syncing your game…",
   "typing-race": "Back online — syncing your race…",
   generic: "Back online — syncing…",
 };

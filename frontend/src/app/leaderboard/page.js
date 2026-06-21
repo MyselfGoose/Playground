@@ -54,6 +54,13 @@ const BOARDS = [
     explainer:
       "Ranking is based on win rate, accuracy, and efficiency with anti-abuse normalization and minimum 5 completed Hangman games.",
   },
+  {
+    key: "fibbage",
+    label: "Fibbage",
+    subtitle: "Ranked by deception skill and truth detection",
+    explainer:
+      "Fibbage ranking combines how often you fool others, how often you spot the truth, and your win rate. Minimum 4 completed Fibbage games required.",
+  },
 ];
 
 function primaryMetric(board, entry, { cahSort } = {}) {
@@ -68,6 +75,7 @@ function primaryMetric(board, entry, { cahSort } = {}) {
     return { label: "Score", value: (entry.cah_score ?? 0).toFixed(1) };
   }
   if (board === "hangman") return { label: "Skill", value: (entry.hangman_skill ?? 0).toFixed(1) };
+  if (board === "fibbage") return { label: "Score", value: (entry.fibbage_score ?? 0).toFixed(1) };
   return { label: "Score", value: "—" };
 }
 
@@ -120,6 +128,14 @@ function boardStats(board, entry) {
       { label: "Games", value: String(Math.round(entry.hangman_totalGames ?? 0)) },
     ];
   }
+  if (board === "fibbage") {
+    return [
+      { label: "Score", value: (entry.fibbage_score ?? 0).toFixed(1) },
+      { label: "Win Rate", value: `${(entry.fibbage_winRate ?? 0).toFixed(1)}%` },
+      { label: "Fools Earned", value: String(entry.fibbage_foolsEarned ?? 0) },
+      { label: "Truths Found", value: String(entry.fibbage_truthsFound ?? 0) },
+    ];
+  }
   return [
     { label: "Global Score", value: (entry.globalScore ?? 0).toFixed(1) },
     { label: "Typing Skill", value: `${(entry.breakdown?.typing ?? 0).toFixed(0)}%` },
@@ -136,6 +152,7 @@ function contributionBreakdown(entry) {
     taboo: Math.round(entry.taboo_score ?? 0),
     cah: Math.round(entry.cah_score ?? 0),
     hangman: Math.round(entry.hangman_skill ?? 0),
+    fibbage: Math.round(entry.fibbage_score ?? 0),
     activity: Math.round(Math.min((entry.totalGames ?? 0) / 100, 1) * 100),
     consistency: 0,
   };
@@ -148,6 +165,7 @@ function badgeFor(entry) {
   if ((entry.taboo_score ?? 0) >= 80) return "Elite Taboo";
   if ((entry.cah_score ?? 0) >= 75 && (entry.cah_gamesPlayed ?? 0) >= 4) return "CAH Sharp";
   if ((entry.hangman_skill ?? 0) >= 75 && (entry.hangman_totalGames ?? 0) >= 5) return "Hangman Ace";
+  if ((entry.fibbage_score ?? 0) >= 75 && (entry.fibbage_gamesPlayed ?? 0) >= 4) return "Master Liar";
   if ((entry.typing_bestWpm ?? 0) >= 100) return "Speedster";
   return null;
 }
@@ -165,6 +183,7 @@ function explanationFromBreakdown(entry) {
     taboo: "Taboo contribution",
     cah: "Cards Against Humanity skill",
     hangman: "Hangman skill",
+    fibbage: "Fibbage deception",
     activity: "overall activity",
     consistency: "consistency",
   };
@@ -199,6 +218,7 @@ export default function LeaderboardPage() {
     if (activeBoard === "taboo") return myStats.data.taboo?.tabooRank;
     if (activeBoard === "cah") return myStats.data.cah?.cahRank;
     if (activeBoard === "hangman") return myStats.data.hangman?.hangmanRank;
+    if (activeBoard === "fibbage") return myStats.data.fibbage?.fibbageRank;
     return null;
   })();
 
@@ -378,6 +398,7 @@ export default function LeaderboardPage() {
                                     <Metric label="Taboo" value={`${(breakdown.taboo ?? 0).toFixed(0)}%`} />
                                     <Metric label="CAH" value={`${(breakdown.cah ?? 0).toFixed(0)}%`} />
                                     <Metric label="Hangman" value={`${(breakdown.hangman ?? 0).toFixed(0)}%`} />
+                                    <Metric label="Fibbage" value={`${(breakdown.fibbage ?? 0).toFixed(0)}%`} />
                                     <Metric label="Activity" value={`${breakdown.activity.toFixed(0)}%`} />
                                     <Metric label="Consistency" value={`${breakdown.consistency.toFixed(0)}%`} />
                                   </div>

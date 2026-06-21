@@ -145,7 +145,7 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, socialRuntime, redisClients } =
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, fibbageRuntime, socialRuntime, redisClients } =
     await attachSocketIo({
       server,
       env,
@@ -178,12 +178,14 @@ async function main() {
   registerGameAdapter('taboo', tabooRuntime.registry);
   registerGameAdapter('cah', cahRuntime.registry);
   registerGameAdapter('hangman', hangmanRuntime.registry);
+  registerGameAdapter('fibbage', fibbageRuntime.registry);
 
   registerLiveActivityProvider(() => registry.getObservabilitySnapshot());
   registerLiveActivityProvider(() => typingRaceRegistry.getObservabilitySnapshot());
   registerLiveActivityProvider(() => tabooRuntime.registry.getObservabilitySnapshot());
   registerLiveActivityProvider(() => cahRuntime.registry.getObservabilitySnapshot());
   registerLiveActivityProvider(() => hangmanRuntime.registry.getObservabilitySnapshot());
+  registerLiveActivityProvider(() => fibbageRuntime.registry.getObservabilitySnapshot());
 
   mongoose.connection.once('connected', () => {
     void loadPlatformSettingsCache(env.GOOGLE_OAUTH_ENABLED).catch((err) => {
@@ -231,6 +233,11 @@ async function main() {
         hangmanRuntime.close();
       } catch (err) {
         logger.warn({ err, event: 'hangman_shutdown_error' }, 'hangman');
+      }
+      try {
+        fibbageRuntime.close();
+      } catch (err) {
+        logger.warn({ err, event: 'fibbage_shutdown_error' }, 'fibbage');
       }
       try {
         socialRuntime.close();

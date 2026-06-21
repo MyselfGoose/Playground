@@ -51,6 +51,13 @@ export const GAMES = [
     emoji: "🪢",
     accent: "butter",
   },
+  {
+    id: "fibbage",
+    title: "Fibbage",
+    description: "Write a lie, fool your friends, spot the truth.",
+    emoji: "🎭",
+    accent: "sky",
+  },
 ];
 
 /** @type {readonly string[]} */
@@ -60,6 +67,7 @@ export const PLAYABLE_GAME_IDS = [
   "taboo",
   "cards-against-humanity",
   "hangman",
+  "fibbage",
 ];
 
 /**
@@ -88,6 +96,7 @@ export function getGameHref(gameId) {
     taboo: "/games/taboo",
     "cards-against-humanity": "/games/cah",
     hangman: "/games/hangman",
+    fibbage: "/games/fibbage",
   };
   return routes[gameId] ?? "/games";
 }

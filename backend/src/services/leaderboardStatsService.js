@@ -3,6 +3,8 @@ import { npatResultRepository } from '../repositories/npatResultRepository.js';
 import { tabooResultRepository } from '../repositories/tabooResultRepository.js';
 import { cahLeaderboardLedgerRepository } from '../repositories/cahLeaderboardLedgerRepository.js';
 import { userStatsRepository } from '../repositories/userStatsRepository.js';
+import { FibbageGameLedger } from '../models/FibbageGameLedger.js';
+import { getGameResults } from '../games/fibbage/gameManager.js';
 
 const WPM_HARD_CAP = 300;
 const MIN_ELAPSED_RATIO = 60_000 / (25 * 5);
@@ -438,6 +440,63 @@ export async function persistCahGameResult(room, log) {
       });
     } catch (err) {
       log?.warn({ err, userId: uid, event: 'cah_game_completed_stats_failed' }, 'leaderboard');
+    }
+  }
+}
+
+/**
+ * Persist completed Fibbage game stats (idempotent via FibbageGameLedger).
+ * @param {Record<string, unknown>} room
+ * @param {import('pino').Logger | undefined} log
+ */
+export async function persistFibbageGameResult(room, log) {
+  const game = room?.game;
+  if (!game?.gameSessionId || game.status !== 'finished') return;
+  const gameSessionId = String(game.gameSessionId);
+
+  let inserted = false;
+  try {
+    await FibbageGameLedger.create({ gameSessionId });
+    inserted = true;
+  } catch (err) {
+    if (err?.code === 11000) {
+      inserted = false;
+    } else {
+      log?.warn({ err, event: 'fibbage_game_ledger_failed' }, 'leaderboard');
+      return;
+    }
+  }
+  if (!inserted) return;
+
+  const results = getGameResults(room);
+  const roundsPlayed = game.round || 0;
+  const sessionStats = game.sessionStats ?? {};
+
+  for (const result of results) {
+    const uid = String(result.userId || '');
+    if (!uid) continue;
+
+    const stats = sessionStats[uid] ?? {
+      liesSubmitted: 0,
+      foolsEarned: 0,
+      truthsFound: 0,
+      soloTruths: 0,
+    };
+
+    try {
+      await userStatsRepository.recordFibbageGameResult({
+        userId: uid,
+        username: result.username,
+        won: result.won,
+        roundsPlayed,
+        liesSubmitted: stats.liesSubmitted,
+        foolsEarned: stats.foolsEarned,
+        truthsFound: stats.truthsFound,
+        soloTruths: stats.soloTruths,
+        totalScore: result.score,
+      });
+    } catch (err) {
+      log?.warn({ err, userId: uid, event: 'fibbage_stats_failed' }, 'leaderboard');
     }
   }
 }

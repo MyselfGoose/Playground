@@ -16,24 +16,44 @@ export function computeGlobalScore(doc) {
   const tabooSkill = doc.taboo_score || 0;
   const cahSkill = doc.cah_score || 0;
   const hangmanSkill = doc.hangman_skill || 0;
+  const fibbageSkill = doc.fibbage_score || 0;
   const totalGames =
     (doc.typing_totalGames || 0) +
     (doc.npat_totalGames || 0) +
     (doc.taboo_gamesPlayed || 0) +
     (doc.cah_gamesPlayed || 0) +
-    (doc.hangman_totalGames || 0);
+    (doc.hangman_totalGames || 0) +
+    (doc.fibbage_gamesPlayed || 0);
   const activityScore = Math.min(totalGames / 100, 1) * 100;
   const consistencyScore = Math.min((doc.activeDaysLast30 || 0) / 20, 1) * 100;
   return (
-    typingSkill * 0.22 +
-    accuracySkill * 0.14 +
-    npatSkill * 0.16 +
-    tabooSkill * 0.14 +
-    cahSkill * 0.14 +
-    hangmanSkill * 0.2 +
-    activityScore * 0.1 +
+    typingSkill * 0.18 +
+    accuracySkill * 0.12 +
+    npatSkill * 0.14 +
+    tabooSkill * 0.12 +
+    cahSkill * 0.12 +
+    hangmanSkill * 0.16 +
+    fibbageSkill * 0.12 +
+    activityScore * 0.08 +
     consistencyScore * 0.04
   );
+}
+
+export function computeFibbageDerived(doc) {
+  const gamesPlayed = doc.fibbage_gamesPlayed || 0;
+  const gamesWon = doc.fibbage_gamesWon || 0;
+  const winRate = gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 10000) / 100 : 0;
+  const foolsEarned = doc.fibbage_foolsEarned || 0;
+  const truthsFound = doc.fibbage_truthsFound || 0;
+  const roundsPlayed = doc.fibbage_roundsPlayed || 0;
+
+  const foolRate = roundsPlayed > 0 ? foolsEarned / roundsPlayed : 0;
+  const truthRate = roundsPlayed > 0 ? truthsFound / roundsPlayed : 0;
+  const score = Math.round(
+    (foolRate * 40 + truthRate * 30 + winRate * 0.3) * Math.min(gamesPlayed / 4, 1) * 100,
+  ) / 100;
+
+  return { fibbage_winRate: winRate, fibbage_score: score };
 }
 
 function clamp(min, v, max) {
@@ -540,6 +560,40 @@ export const userStatsRepository = {
       { hangman_totalGames: { $lt: HANGMAN_LEADERBOARD_MIN_GAMES } },
       { $set: { hangman_rank: null } },
     );
+  },
+
+  async recordFibbageGameResult({
+    userId,
+    username,
+    won,
+    roundsPlayed,
+    liesSubmitted,
+    foolsEarned,
+    truthsFound,
+    soloTruths,
+    totalScore,
+  }) {
+    const oid = toUserOid(userId);
+    if (!oid) return;
+    const updated = await UserStats.findOneAndUpdate(
+      { userId: oid },
+      {
+        $inc: {
+          fibbage_gamesPlayed: 1,
+          fibbage_gamesWon: won ? 1 : 0,
+          fibbage_roundsPlayed: roundsPlayed,
+          fibbage_liesSubmitted: liesSubmitted,
+          fibbage_foolsEarned: foolsEarned,
+          fibbage_truthsFound: truthsFound,
+          fibbage_soloTruths: soloTruths,
+        },
+        $set: { lastPlayedAt: new Date(), username },
+      },
+      { upsert: true, new: true, lean: true },
+    );
+    const fibbageDerived = computeFibbageDerived(updated);
+    const globalScore = Math.round(computeGlobalScore({ ...updated, ...fibbageDerived }) * 100) / 100;
+    await UserStats.updateOne({ userId: oid }, { $set: { ...fibbageDerived, global_score: globalScore } });
   },
 
   /** Get all user IDs for daily cron iteration. */

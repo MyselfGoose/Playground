@@ -1,0 +1,1402 @@
+[
+  {
+    "sourceId": "fib-001",
+    "text": "The official state sport of Maryland is ______.",
+    "answer": "jousting",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-002",
+    "text": "Scotland's national animal is the ______.",
+    "answer": "unicorn",
+    "category": "weird",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-003",
+    "text": "The shortest war in recorded history lasted approximately ______ minutes.",
+    "answer": "38",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-004",
+    "text": "In 1932, Australia waged a military campaign against a population of ______.",
+    "answer": "emus",
+    "category": "history",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-005",
+    "text": "A group of flamingos is called a ______.",
+    "answer": "flamboyance",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-006",
+    "text": "Honey never spoils. Archaeologists have found edible honey in ______ tombs.",
+    "answer": "Egyptian",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-007",
+    "text": "The fear of long words is ironically called ______.",
+    "answer": "hippopotomonstrosesquippedaliophobia",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-008",
+    "text": "The first computer programmer is widely considered to be ______.",
+    "answer": "Ada Lovelace",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-009",
+    "text": "The country with the most time zones is ______.",
+    "answer": "France",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-010",
+    "text": "An octopus has ______ hearts.",
+    "answer": "three",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-011",
+    "text": "The Olympic Games originally awarded medals made of ______ for first place.",
+    "answer": "silver",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-012",
+    "text": "Venus is the only planet in our solar system that spins ______.",
+    "answer": "clockwise",
+    "category": "science",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-013",
+    "text": "The dot over a lowercase 'i' or 'j' is called a ______.",
+    "answer": "tittle",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-014",
+    "text": "Nintendo was originally founded as a company that made ______.",
+    "answer": "playing cards",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-015",
+    "text": "The smallest bone in the human body is the ______.",
+    "answer": "stapes",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-016",
+    "text": "In Switzerland, it is illegal to own just one ______.",
+    "answer": "guinea pig",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-017",
+    "text": "The national dish of Singapore is ______ rice.",
+    "answer": "chicken",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-018",
+    "text": "Cleopatra lived closer in time to the ______ than to the building of the Great Pyramid.",
+    "answer": "Moon landing",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-019",
+    "text": "The original name of the search engine Google was ______.",
+    "answer": "Backrub",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-020",
+    "text": "A jiffy is an actual unit of time equal to ______ of a second.",
+    "answer": "one hundredth",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-021",
+    "text": "The hashtag symbol (#) is technically called an ______.",
+    "answer": "octothorpe",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-022",
+    "text": "The largest desert in the world is the ______.",
+    "answer": "Antarctic Desert",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-023",
+    "text": "A group of porcupines is called a ______.",
+    "answer": "prickle",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-024",
+    "text": "The most expensive spice in the world by weight is ______.",
+    "answer": "saffron",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-025",
+    "text": "In professional baseball, the distance between bases is ______ feet.",
+    "answer": "90",
+    "category": "sports",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-026",
+    "text": "The TV show 'Friends' was originally going to be called ______.",
+    "answer": "Insomnia Cafe",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-027",
+    "text": "The only letter that doesn't appear in any U.S. state name is ______.",
+    "answer": "Q",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-028",
+    "text": "In Japan, there is a holiday called ______ Day where KFC is traditionally eaten.",
+    "answer": "Christmas",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-029",
+    "text": "The inventor of the Pringles can is buried in one. His name was ______.",
+    "answer": "Fredric Baur",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-030",
+    "text": "The longest hiccuping spree lasted ______ years.",
+    "answer": "68",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-031",
+    "text": "A bolt of lightning is ______ times hotter than the surface of the sun.",
+    "answer": "five",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-032",
+    "text": "The first product to have a barcode scanned in a store was a pack of ______ gum.",
+    "answer": "Wrigley's Juicy Fruit",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-033",
+    "text": "The last letter added to the English alphabet was ______.",
+    "answer": "J",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-034",
+    "text": "The sport of ______ was once an Olympic event from 1900 to 1920.",
+    "answer": "tug of war",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-035",
+    "text": "Bananas are technically classified as ______.",
+    "answer": "berries",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-036",
+    "text": "The Mona Lisa was stolen from the Louvre in ______ and was missing for two years.",
+    "answer": "1911",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-037",
+    "text": "A shrimp's heart is located in its ______.",
+    "answer": "head",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-038",
+    "text": "The Twitter bird logo has an official name: ______.",
+    "answer": "Larry",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-039",
+    "text": "The only continent with no active volcanoes is ______.",
+    "answer": "Australia",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-040",
+    "text": "Oxford University is older than the ______ Empire.",
+    "answer": "Aztec",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-041",
+    "text": "The space between your eyebrows is called the ______.",
+    "answer": "glabella",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-042",
+    "text": "The color of the universe, when averaged, is a beige shade called ______.",
+    "answer": "cosmic latte",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-043",
+    "text": "The first email was sent by ______ in 1971.",
+    "answer": "Ray Tomlinson",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-044",
+    "text": "A group of crows is called a ______.",
+    "answer": "murder",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-045",
+    "text": "In the movie 'The Wizard of Oz,' the horse of a different color was colored using ______.",
+    "answer": "Jell-O powder",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-046",
+    "text": "The national sport of Canada's winter season is ______.",
+    "answer": "ice hockey",
+    "category": "sports",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-047",
+    "text": "In the town of Naco, Arizona, volleyball is played across the ______ border.",
+    "answer": "Mexican",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-048",
+    "text": "Ketchup was sold in the 1830s as ______.",
+    "answer": "medicine",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-049",
+    "text": "The only country whose flag is not rectangular or square is ______.",
+    "answer": "Nepal",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-050",
+    "text": "Before alarm clocks, people were hired to tap on windows with long sticks. They were called ______.",
+    "answer": "knocker-uppers",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-051",
+    "text": "Cows have best friends and get stressed when ______.",
+    "answer": "separated",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-052",
+    "text": "The plastic or metal tip on the end of a shoelace is called an ______.",
+    "answer": "aglet",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-053",
+    "text": "The first video game easter egg was hidden in the 1980 Atari game ______.",
+    "answer": "Adventure",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-054",
+    "text": "A regulation golf ball has exactly ______ dimples.",
+    "answer": "336",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-055",
+    "text": "The human nose can detect over ______ trillion different scents.",
+    "answer": "one",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-056",
+    "text": "In the original Monopoly game, the character in jail is named ______.",
+    "answer": "Jake the Jailbird",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-057",
+    "text": "The shortest place name in the world is ______, a village in Sweden.",
+    "answer": "Å",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-058",
+    "text": "Carrots were originally ______ before being selectively bred.",
+    "answer": "purple",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-059",
+    "text": "In 1923, a jockey named Frank Hayes won a race despite being ______.",
+    "answer": "dead",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-060",
+    "text": "It is illegal to die in the Norwegian town of ______.",
+    "answer": "Longyearbyen",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-061",
+    "text": "The element with atomic number 119 has not been synthesized yet, but element 117 is named ______.",
+    "answer": "tennessine",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-062",
+    "text": "The word 'set' has the most ______ of any English word in the Oxford English Dictionary.",
+    "answer": "definitions",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-063",
+    "text": "The Great Wall of China was held together with a mortar made of ______.",
+    "answer": "sticky rice",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-064",
+    "text": "Dolphins sleep with one ______ open.",
+    "answer": "eye",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-065",
+    "text": "The first iPhone was released in ______.",
+    "answer": "2007",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-066",
+    "text": "The character of Shrek was originally voiced by ______ before Mike Myers took over.",
+    "answer": "Chris Farley",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-067",
+    "text": "Russia has a larger surface area than ______.",
+    "answer": "Pluto",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-068",
+    "text": "In a standard deck of cards, the king of ______ is the only king without a mustache.",
+    "answer": "hearts",
+    "category": "weird",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-069",
+    "text": "Peanuts are one of the ingredients used to make ______.",
+    "answer": "dynamite",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-070",
+    "text": "The longest tennis match in history lasted ______ hours over three days at Wimbledon.",
+    "answer": "11",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-071",
+    "text": "Wombat droppings are shaped like ______.",
+    "answer": "cubes",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-072",
+    "text": "The term 'bug' in computing originated when a real ______ was found in a computer.",
+    "answer": "moth",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-073",
+    "text": "The word 'nerd' was first used by ______ in a 1950 book.",
+    "answer": "Dr. Seuss",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-074",
+    "text": "Abraham Lincoln is in the ______ Hall of Fame.",
+    "answer": "Wrestling",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-075",
+    "text": "The Sun makes up approximately ______% of the total mass of the solar system.",
+    "answer": "99.86",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-076",
+    "text": "The first YouTube video ever uploaded was titled ______.",
+    "answer": "Me at the zoo",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-077",
+    "text": "Lake Baikal in Russia contains about ______% of the world's surface fresh water.",
+    "answer": "20",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-078",
+    "text": "The original flavor of Froot Loops cereal was ______.",
+    "answer": "all the same",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-079",
+    "text": "In competitive ______, participants race on hobby horses over jumps.",
+    "answer": "hobbyhorsing",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-080",
+    "text": "A cloud can weigh more than ______ pounds.",
+    "answer": "one million",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-081",
+    "text": "The world record for most T-shirts worn at once is ______.",
+    "answer": "260",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-082",
+    "text": "Sea otters hold ______ while they sleep so they don't drift apart.",
+    "answer": "hands",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-083",
+    "text": "The QWERTY keyboard was designed to ______ typing speed.",
+    "answer": "slow down",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-084",
+    "text": "The ampersand (&) is a ligature of the Latin word ______.",
+    "answer": "et",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-085",
+    "text": "In the Pixar movie 'Up,' the number of balloons shown lifting the house is approximately ______.",
+    "answer": "10,297",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-086",
+    "text": "The oldest known recipe is for ______.",
+    "answer": "beer",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-087",
+    "text": "Napoleon was once attacked by a horde of ______.",
+    "answer": "rabbits",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-088",
+    "text": "The capital of Myanmar is ______.",
+    "answer": "Naypyidaw",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-089",
+    "text": "A platypus doesn't have a ______; it uses electroreception to find food.",
+    "answer": "stomach",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-090",
+    "text": "The first text message ever sent said ______.",
+    "answer": "Merry Christmas",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-091",
+    "text": "In ancient Rome, a slave's testimony was only admissible in court if given under ______.",
+    "answer": "torture",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-092",
+    "text": "The shortest international border in the world is between ______ and Zambia.",
+    "answer": "Botswana",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-093",
+    "text": "The role of Neo in 'The Matrix' was originally offered to ______.",
+    "answer": "Will Smith",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-094",
+    "text": "The voice of Bugs Bunny, Mel Blanc, was allergic to ______.",
+    "answer": "carrots",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-095",
+    "text": "In competitive wife-carrying races, the prize is the wife's weight in ______.",
+    "answer": "beer",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-096",
+    "text": "In bowling, three consecutive strikes is called a ______.",
+    "answer": "turkey",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-097",
+    "text": "The infinity symbol is called a ______.",
+    "answer": "lemniscate",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-098",
+    "text": "SpongeBob SquarePants' address is ______ Conch Street.",
+    "answer": "124",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-099",
+    "text": "In space, astronauts cannot ______ because there is no gravity to separate liquids and gas in the stomach.",
+    "answer": "burp",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-100",
+    "text": "The average person walks the equivalent of ______ times around the world in a lifetime.",
+    "answer": "five",
+    "category": "weird",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-101",
+    "text": "The city of Istanbul straddles two ______.",
+    "answer": "continents",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-102",
+    "text": "The longest word in English with all letters in alphabetical order is ______.",
+    "answer": "almost",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-103",
+    "text": "The MGM lion's real name was ______.",
+    "answer": "Leo",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-104",
+    "text": "The sport of ______ involves sliding stones on a sheet of ice toward a target.",
+    "answer": "curling",
+    "category": "sports",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-105",
+    "text": "Strawberries are not true berries, but ______ are.",
+    "answer": "avocados",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-106",
+    "text": "The Wright Brothers' first flight was shorter than the wingspan of a ______.",
+    "answer": "Boeing 747",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-107",
+    "text": "Tardigrades can survive the vacuum of ______.",
+    "answer": "outer space",
+    "category": "science",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-108",
+    "text": "A rhinoceros's horn is made of ______.",
+    "answer": "keratin",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-109",
+    "text": "The first domain name ever registered was ______.",
+    "answer": "symbolics.com",
+    "category": "technology",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-110",
+    "text": "In the state of Alabama, it is illegal to wear a fake ______ to church.",
+    "answer": "mustache",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-111",
+    "text": "The Canary Islands are named after ______, not canaries.",
+    "answer": "dogs",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-112",
+    "text": "The sentence 'The quick brown fox jumps over the lazy dog' uses every ______ in the English alphabet.",
+    "answer": "letter",
+    "category": "language",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-113",
+    "text": "Before becoming president, Abraham Lincoln was a licensed ______.",
+    "answer": "bartender",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-114",
+    "text": "The original Star Wars movie was released in ______.",
+    "answer": "1977",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-115",
+    "text": "A snail can sleep for up to ______ years.",
+    "answer": "three",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-116",
+    "text": "The Hawaiian pizza was invented in ______.",
+    "answer": "Canada",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-117",
+    "text": "In cricket, a score of zero is called a ______.",
+    "answer": "duck",
+    "category": "sports",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-118",
+    "text": "The number of possible iterations of a Rubik's Cube is approximately 43 ______.",
+    "answer": "quintillion",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-119",
+    "text": "The Firefox browser logo actually depicts a ______, not a fox.",
+    "answer": "red panda",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-120",
+    "text": "In the town of Monowi, Nebraska, the population is ______.",
+    "answer": "one",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-121",
+    "text": "The longest river in Europe is the ______.",
+    "answer": "Volga",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-122",
+    "text": "Typewriter is the longest English word that can be typed using only the ______ row of a keyboard.",
+    "answer": "top",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-123",
+    "text": "The ancient Romans used crushed ______ as toothpaste.",
+    "answer": "mouse brains",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-124",
+    "text": "James Brown's hit 'I Got You (I Feel Good)' was used in over ______ movies.",
+    "answer": "100",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-125",
+    "text": "The tongue of a blue whale weighs as much as an ______.",
+    "answer": "elephant",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-126",
+    "text": "The world's hottest chili pepper as of 2023 is ______.",
+    "answer": "Pepper X",
+    "category": "food",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-127",
+    "text": "In the original rules of basketball, ______ was not allowed.",
+    "answer": "dribbling",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-128",
+    "text": "Glass is technically a ______, not a solid.",
+    "answer": "amorphous solid",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-129",
+    "text": "The programming language Python is named after ______.",
+    "answer": "Monty Python",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-130",
+    "text": "There is a town in Austria called ______.",
+    "answer": "Fucking",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-131",
+    "text": "The deepest point in the ocean is the ______ Trench.",
+    "answer": "Mariana",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-132",
+    "text": "The word 'checkmate' comes from the Persian phrase meaning 'the king is ______.'",
+    "answer": "dead",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-133",
+    "text": "During World War II, the U.S. military developed a bomb that used ______ as delivery devices.",
+    "answer": "bats",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-134",
+    "text": "The 'Saved by the Bell' character Screech's real first name is ______.",
+    "answer": "Samuel",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-135",
+    "text": "Elephants are the only animals that can't ______.",
+    "answer": "jump",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-136",
+    "text": "The fortune cookie was invented in ______, not China.",
+    "answer": "San Francisco",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-137",
+    "text": "In table tennis, the ball must weigh exactly ______ grams.",
+    "answer": "2.7",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-138",
+    "text": "Neutron stars are so dense that a teaspoon of one would weigh about ______ billion tons.",
+    "answer": "six",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-139",
+    "text": "The first computer virus for MS-DOS was called ______.",
+    "answer": "Brain",
+    "category": "technology",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-140",
+    "text": "In Oklahoma, it is illegal to take a bite of another person's ______.",
+    "answer": "hamburger",
+    "category": "weird",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-141",
+    "text": "The country with the most islands in the world is ______.",
+    "answer": "Sweden",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-142",
+    "text": "The pangram 'Pack my box with five dozen liquor jugs' uses exactly ______ letters.",
+    "answer": "32",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-143",
+    "text": "The Roman Emperor Caligula once made his ______ a senator.",
+    "answer": "horse",
+    "category": "history",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-144",
+    "text": "The highest-grossing film of all time (not adjusted for inflation) is ______.",
+    "answer": "Avatar",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-145",
+    "text": "Butterflies taste with their ______.",
+    "answer": "feet",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-146",
+    "text": "White chocolate is technically not chocolate because it contains no ______.",
+    "answer": "cocoa solids",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-147",
+    "text": "The first Olympic Games in 776 BC featured only one event: ______.",
+    "answer": "a footrace",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-148",
+    "text": "If you could fold a piece of paper 42 times, it would reach the ______.",
+    "answer": "Moon",
+    "category": "science",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-149",
+    "text": "The @ symbol was nearly removed from keyboards until it was used for ______.",
+    "answer": "email addresses",
+    "category": "technology",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-150",
+    "text": "The average person spends ______ weeks of their lifetime waiting for traffic lights.",
+    "answer": "two",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-151",
+    "text": "The longest place name in the world belongs to a hill in ______.",
+    "answer": "New Zealand",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-152",
+    "text": "The word 'sandwich' is named after the Earl of ______.",
+    "answer": "Sandwich",
+    "category": "language",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-153",
+    "text": "Heroin was once marketed as a children's ______ remedy by Bayer.",
+    "answer": "cough",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-154",
+    "text": "In 'The Simpsons,' the city of Springfield is located in the state of ______.",
+    "answer": "no particular state",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-155",
+    "text": "The fingerprints of a ______ are nearly indistinguishable from human fingerprints.",
+    "answer": "koala",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-156",
+    "text": "Worcestershire sauce is made from dissolved ______.",
+    "answer": "anchovies",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-157",
+    "text": "In fencing, the three weapons are the foil, the épée, and the ______.",
+    "answer": "sabre",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-158",
+    "text": "The hottest temperature ever recorded on Earth was ______ degrees Fahrenheit in Death Valley.",
+    "answer": "134",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-159",
+    "text": "The first commercially available cell phone, the Motorola DynaTAC, cost ______.",
+    "answer": "$3,995",
+    "category": "technology",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-160",
+    "text": "In France, it is legal to marry a ______ person.",
+    "answer": "dead",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-161",
+    "text": "The driest place on Earth is the ______ Desert in Antarctica.",
+    "answer": "McMurdo Dry Valleys",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-162",
+    "text": "A palindrome that reads the same forwards and backwards is called ______ in Japanese wordplay.",
+    "answer": "kaibun",
+    "category": "language",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-163",
+    "text": "During the French Revolution, the guillotine was nicknamed ______.",
+    "answer": "the National Razor",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-164",
+    "text": "The song 'Happy Birthday to You' was not in the public domain until ______.",
+    "answer": "2016",
+    "category": "pop-culture",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-165",
+    "text": "The pistol shrimp can create a sound louder than a ______.",
+    "answer": "gunshot",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-166",
+    "text": "Nutmeg in large quantities can act as a ______.",
+    "answer": "hallucinogen",
+    "category": "food",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-167",
+    "text": "The fastest goal ever scored in a soccer World Cup took only ______ seconds.",
+    "answer": "11",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-168",
+    "text": "Water can exist in all three states of matter at 0.01°C and 611.73 Pa, known as the ______.",
+    "answer": "triple point",
+    "category": "science",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-169",
+    "text": "The first webcam was created to monitor a ______ at Cambridge University.",
+    "answer": "coffee pot",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-170",
+    "text": "There is a sport in Finland called ______ where competitors sit in a sauna until only one remains.",
+    "answer": "sauna endurance",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-171",
+    "text": "The only capital city that has no ______ is Nauru.",
+    "answer": "official capital",
+    "category": "geography",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-172",
+    "text": "The longest English word without a vowel is ______.",
+    "answer": "rhythms",
+    "category": "language",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-173",
+    "text": "Vikings used the skulls of their enemies as ______. (This is actually a myth; they really used curved horns.)",
+    "answer": "drinking cups",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-174",
+    "text": "The iconic Wilhelm ______ has been used in over 400 movies and TV shows.",
+    "answer": "scream",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-175",
+    "text": "A group of jellyfish is called a ______.",
+    "answer": "smack",
+    "category": "animals",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-176",
+    "text": "Apples belong to the same plant family as ______.",
+    "answer": "roses",
+    "category": "food",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-177",
+    "text": "The diameter of a basketball hoop is ______ inches.",
+    "answer": "18",
+    "category": "sports",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-178",
+    "text": "The Earth's inner core is approximately as hot as the surface of the ______.",
+    "answer": "Sun",
+    "category": "science",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-179",
+    "text": "The first .com domain to sell for over $1 million was ______.",
+    "answer": "business.com",
+    "category": "technology",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-180",
+    "text": "A law in Vermont requires that every citizen must take at least one ______ per week.",
+    "answer": "bath",
+    "category": "weird",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-181",
+    "text": "The country of Lesotho is entirely surrounded by ______.",
+    "answer": "South Africa",
+    "category": "geography",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-182",
+    "text": "The exclamation mark (!) is sometimes called a ______ in programming jargon.",
+    "answer": "bang",
+    "category": "language",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-183",
+    "text": "The ancient Egyptians used ______ as currency before coins were invented.",
+    "answer": "grain",
+    "category": "history",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-184",
+    "text": "The original name of the band 'Radiohead' was ______.",
+    "answer": "On a Friday",
+    "category": "pop-culture",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-185",
+    "text": "Crows can recognize and remember individual human ______.",
+    "answer": "faces",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-186",
+    "text": "The most stolen food in the world is ______.",
+    "answer": "cheese",
+    "category": "food",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-187",
+    "text": "A badminton shuttlecock has exactly ______ feathers.",
+    "answer": "16",
+    "category": "sports",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-188",
+    "text": "The only metal that is liquid at standard room temperature is ______.",
+    "answer": "mercury",
+    "category": "science",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-189",
+    "text": "The Java programming language was originally named ______.",
+    "answer": "Oak",
+    "category": "technology",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-190",
+    "text": "There is a town in Texas called ______ that has a population of zero.",
+    "answer": "Blank",
+    "category": "weird",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-191",
+    "text": "The flag of ______ features a map of the country on it.",
+    "answer": "Cyprus",
+    "category": "geography",
+    "difficulty": 2
+  },
+  {
+    "sourceId": "fib-192",
+    "text": "The word 'emoji' comes from the Japanese words for ______ and character.",
+    "answer": "picture",
+    "category": "language",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-193",
+    "text": "The oldest known complaint letter is from ancient ______, dating to around 1750 BC.",
+    "answer": "Mesopotamia",
+    "category": "history",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-194",
+    "text": "In 'Back to the Future,' the DeLorean time machine needs to reach ______ mph to time travel.",
+    "answer": "88",
+    "category": "pop-culture",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-195",
+    "text": "The only mammals capable of true flight are ______.",
+    "answer": "bats",
+    "category": "animals",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-196",
+    "text": "Arachibutyrophobia is the fear of ______ sticking to the roof of your mouth.",
+    "answer": "peanut butter",
+    "category": "food",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-197",
+    "text": "The ball used in ______ is the largest ball in any major sport.",
+    "answer": "basketball",
+    "category": "sports",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-198",
+    "text": "Olympus Mons on Mars is the tallest known ______ in the solar system.",
+    "answer": "volcano",
+    "category": "science",
+    "difficulty": 1
+  },
+  {
+    "sourceId": "fib-199",
+    "text": "The first message sent over ARPANET was ______.",
+    "answer": "lo",
+    "category": "technology",
+    "difficulty": 3
+  },
+  {
+    "sourceId": "fib-200",
+    "text": "In Kentucky, it is illegal to remarry the same person ______ times.",
+    "answer": "four",
+    "category": "weird",
+    "difficulty": 2
+  }
+]

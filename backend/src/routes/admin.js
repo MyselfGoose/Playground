@@ -14,6 +14,7 @@ import { adminAuditService } from '../services/admin/adminAuditService.js';
 import { setMaintenanceMode } from '../services/platformSettingsService.js';
 import { runLeaderboardDailyCron } from '../jobs/leaderboardCron.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { FibbagePrompt } from '../models/FibbagePrompt.js';
 import {
   adminUserSearchQuerySchema,
   adminUserPatchBodySchema,
@@ -462,6 +463,102 @@ export function createAdminRouter({ env, logger }) {
     asyncHandler(async (req, res) => {
       const data = await liveOpsService.retryNpatEval(req.user.id, req.params.code);
       res.json({ data });
+    }),
+  );
+
+  // ── Fibbage prompt CRUD ─────────────────────────────────────────
+  router.get(
+    '/fibbage/prompts',
+    ...requireAdmin,
+    asyncHandler(async (req, res) => {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+      const skip = (page - 1) * limit;
+      const filter = { datasetVersion: 'fibbage-v1' };
+      if (req.query.category) filter.category = String(req.query.category);
+      if (req.query.q) {
+        filter.$or = [
+          { text: { $regex: String(req.query.q), $options: 'i' } },
+          { answer: { $regex: String(req.query.q), $options: 'i' } },
+        ];
+      }
+      const [prompts, total] = await Promise.all([
+        FibbagePrompt.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        FibbagePrompt.countDocuments(filter),
+      ]);
+      res.json({ data: { prompts, total, page } });
+    }),
+  );
+
+  router.post(
+    '/fibbage/prompts',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const { text, answer, category, difficulty } = req.body;
+      if (!text || !answer || !category) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'text, answer, and category are required' } });
+      }
+      const { createHash } = await import('node:crypto');
+      const textHash = createHash('sha256').update(String(text).trim().toLowerCase()).digest('hex').slice(0, 16);
+      const sourceId = `admin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const prompt = await FibbagePrompt.create({
+        sourceId,
+        datasetVersion: 'fibbage-v1',
+        text: String(text).trim(),
+        answer: String(answer).trim(),
+        category: String(category).trim(),
+        difficulty: Number(difficulty) || 2,
+        textHash,
+        locale: 'en',
+        active: true,
+      });
+      await adminAuditService.log({
+        actorId: req.user.id,
+        action: 'fibbage_prompt_created',
+        metadata: { promptId: prompt._id.toString(), text: prompt.text },
+      });
+      res.status(201).json({ data: { prompt } });
+    }),
+  );
+
+  router.patch(
+    '/fibbage/prompts/:id',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const { text, answer, category, difficulty, active } = req.body;
+      const update = {};
+      if (text !== undefined) update.text = String(text).trim();
+      if (answer !== undefined) update.answer = String(answer).trim();
+      if (category !== undefined) update.category = String(category).trim();
+      if (difficulty !== undefined) update.difficulty = Number(difficulty);
+      if (active !== undefined) update.active = Boolean(active);
+      if (update.text) {
+        const { createHash } = await import('node:crypto');
+        update.textHash = createHash('sha256').update(update.text.toLowerCase()).digest('hex').slice(0, 16);
+      }
+      const prompt = await FibbagePrompt.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, lean: true });
+      if (!prompt) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Prompt not found' } });
+      await adminAuditService.log({
+        actorId: req.user.id,
+        action: 'fibbage_prompt_updated',
+        metadata: { promptId: req.params.id, ...update },
+      });
+      res.json({ data: { prompt } });
+    }),
+  );
+
+  router.delete(
+    '/fibbage/prompts/:id',
+    ...requireAdminMutation,
+    asyncHandler(async (req, res) => {
+      const result = await FibbagePrompt.findByIdAndDelete(req.params.id);
+      if (!result) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Prompt not found' } });
+      await adminAuditService.log({
+        actorId: req.user.id,
+        action: 'fibbage_prompt_deleted',
+        metadata: { promptId: req.params.id },
+      });
+      res.json({ data: { deleted: true } });
     }),
   );
 

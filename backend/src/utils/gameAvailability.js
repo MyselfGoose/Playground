@@ -2,7 +2,7 @@ import { AppError } from '../errors/AppError.js';
 import { getPlatformSettingsCached } from '../services/platformSettingsService.js';
 
 /** @type {readonly string[]} */
-export const GAME_SLUGS = ['npat', 'typing-race', 'taboo', 'cah', 'hangman'];
+export const GAME_SLUGS = ['npat', 'typing-race', 'taboo', 'cah', 'hangman', 'fibbage'];
 
 /**
  * @param {string} slug

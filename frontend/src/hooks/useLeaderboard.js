@@ -12,6 +12,7 @@ export const BOARD_PATHS = {
   taboo: "/api/v1/leaderboard/taboo",
   cah: "/api/v1/leaderboard/cah",
   hangman: "/api/v1/leaderboard/hangman",
+  fibbage: "/api/v1/leaderboard/fibbage",
 };
 
 /**

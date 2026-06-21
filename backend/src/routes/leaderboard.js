@@ -10,6 +10,7 @@ import {
   HANGMAN_LEADERBOARD_MIN_GAMES,
   userStatsRepository,
 } from '../repositories/userStatsRepository.js';
+import { FIBBAGE_LEADERBOARD_MIN_GAMES } from '../games/fibbage/constants.js';
 import { persistTypingAttempt } from '../services/leaderboardStatsService.js';
 import { dailyTypingSeedFromDate, utcDateString } from '../lib/dailyTypingSeed.js';
 import { requireMongoReady } from './requireMongoReady.js';
@@ -91,7 +92,8 @@ function mapEntries(entries, skip, primaryField, extraFields = []) {
         (e.npat_totalGames ?? 0) +
         (e.taboo_gamesPlayed ?? 0) +
         (e.cah_gamesPlayed ?? 0) +
-        (e.hangman_totalGames ?? 0),
+        (e.hangman_totalGames ?? 0) +
+        (e.fibbage_gamesPlayed ?? 0),
     };
     base[primaryField] = e[primaryField];
     for (const f of extraFields) {
@@ -278,12 +280,16 @@ export function createLeaderboardRouter({ env }) {
           hangman_skill: e.hangman_skill ?? 0,
           hangman_accuracy: e.hangman_accuracy ?? 0,
           hangman_winRate: e.hangman_winRate ?? 0,
+          fibbage_gamesPlayed: e.fibbage_gamesPlayed ?? 0,
+          fibbage_score: e.fibbage_score ?? 0,
+          fibbage_winRate: e.fibbage_winRate ?? 0,
           totalGames:
             (e.typing_totalGames ?? 0) +
             (e.npat_totalGames ?? 0) +
             (e.taboo_gamesPlayed ?? 0) +
             (e.cah_gamesPlayed ?? 0) +
-            (e.hangman_totalGames ?? 0),
+            (e.hangman_totalGames ?? 0) +
+            (e.fibbage_gamesPlayed ?? 0),
           breakdown: {
             typing: Math.round(Math.min(e.typing_bestWpm / 150, 1) * 100 * 100) / 100,
             accuracy: Math.round((e.typing_weightedAccuracy ?? 0) * 100) / 100,
@@ -291,6 +297,7 @@ export function createLeaderboardRouter({ env }) {
             taboo: Math.round(e.taboo_score ?? 0),
             cah: Math.round(e.cah_score ?? 0),
             hangman: Math.round(e.hangman_skill ?? 0),
+            fibbage: Math.round(e.fibbage_score ?? 0),
             activity:
               Math.round(
                 Math.min(
@@ -298,7 +305,8 @@ export function createLeaderboardRouter({ env }) {
                     (e.npat_totalGames ?? 0) +
                     (e.taboo_gamesPlayed ?? 0) +
                     (e.cah_gamesPlayed ?? 0) +
-                    (e.hangman_totalGames ?? 0)) /
+                    (e.hangman_totalGames ?? 0) +
+                    (e.fibbage_gamesPlayed ?? 0)) /
                     100,
                   1,
                 ) *
@@ -376,6 +384,40 @@ export function createLeaderboardRouter({ env }) {
           'taboo_guessAccuracy',
           'taboo_speakerSuccessRate',
           'taboo_tabooViolations',
+        ]),
+        total: result.total,
+        page,
+      };
+      cacheSet(cacheKey, data);
+      res.json({ data });
+    }),
+  );
+
+  router.get(
+    '/fibbage',
+    asyncHandler(async (req, res) => {
+      const { page, limit } = pageQuerySchema.parse(req.query);
+      const cacheKey = `fibbage:${page}:${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json({ data: cached });
+
+      const result = await userStatsRepository.leaderboard({
+        sortField: 'fibbage_score',
+        minGamesField: 'fibbage_gamesPlayed',
+        minGames: FIBBAGE_LEADERBOARD_MIN_GAMES,
+        page,
+        limit,
+      });
+      const data = {
+        entries: await mapEntriesWithAvatars(result.entries, (page - 1) * limit, 'fibbage_score', [
+          'fibbage_gamesPlayed',
+          'fibbage_gamesWon',
+          'fibbage_winRate',
+          'fibbage_foolsEarned',
+          'fibbage_truthsFound',
+          'fibbage_soloTruths',
+          'fibbage_roundsPlayed',
+          'fibbage_liesSubmitted',
         ]),
         total: result.total,
         page,
@@ -471,16 +513,28 @@ export function createLeaderboardRouter({ env }) {
               fastFinishRate: 0,
               hangmanRank: null,
             },
+            fibbage: {
+              score: 0,
+              gamesPlayed: 0,
+              gamesWon: 0,
+              winRate: 0,
+              foolsEarned: 0,
+              truthsFound: 0,
+              soloTruths: 0,
+              roundsPlayed: 0,
+              liesSubmitted: 0,
+              fibbageRank: null,
+            },
             global: {
               score: 0,
               rank: null,
-              breakdown: { typing: 0, accuracy: 0, npat: 0, taboo: 0, cah: 0, hangman: 0, activity: 0, consistency: 0 },
+              breakdown: { typing: 0, accuracy: 0, npat: 0, taboo: 0, cah: 0, hangman: 0, fibbage: 0, activity: 0, consistency: 0 },
             },
           },
         });
       }
 
-      const [wpmRank, accRank, npatRank, tabooRank, cahRank, hangmanRank] = await Promise.all([
+      const [wpmRank, accRank, npatRank, tabooRank, cahRank, hangmanRank, fibbageRank] = await Promise.all([
         userStatsRepository.rankFor({ userId, sortField: 'typing_bestWpm', minGamesField: 'typing_totalGames', minGames: 3 }),
         userStatsRepository.rankFor({ userId, sortField: 'typing_weightedAccuracy', minGamesField: 'typing_totalGames', minGames: 3 }),
         userStatsRepository.rankFor({ userId, sortField: 'npat_averageScore', minGamesField: 'npat_totalGames', minGames: 2 }),
@@ -497,6 +551,12 @@ export function createLeaderboardRouter({ env }) {
           minGamesField: 'hangman_totalGames',
           minGames: HANGMAN_LEADERBOARD_MIN_GAMES,
         }),
+        userStatsRepository.rankFor({
+          userId,
+          sortField: 'fibbage_score',
+          minGamesField: 'fibbage_gamesPlayed',
+          minGames: FIBBAGE_LEADERBOARD_MIN_GAMES,
+        }),
       ]);
 
       const totalGames =
@@ -504,7 +564,8 @@ export function createLeaderboardRouter({ env }) {
         (stats.npat_totalGames ?? 0) +
         (stats.taboo_gamesPlayed ?? 0) +
         (stats.cah_gamesPlayed ?? 0) +
-        (stats.hangman_totalGames ?? 0);
+        (stats.hangman_totalGames ?? 0) +
+        (stats.fibbage_gamesPlayed ?? 0);
       res.json({
         data: {
           typing: {
@@ -563,6 +624,18 @@ export function createLeaderboardRouter({ env }) {
             fastFinishRate: stats.hangman_fastFinishRate ?? 0,
             hangmanRank,
           },
+          fibbage: {
+            score: stats.fibbage_score ?? 0,
+            gamesPlayed: stats.fibbage_gamesPlayed ?? 0,
+            gamesWon: stats.fibbage_gamesWon ?? 0,
+            winRate: stats.fibbage_winRate ?? 0,
+            foolsEarned: stats.fibbage_foolsEarned ?? 0,
+            truthsFound: stats.fibbage_truthsFound ?? 0,
+            soloTruths: stats.fibbage_soloTruths ?? 0,
+            roundsPlayed: stats.fibbage_roundsPlayed ?? 0,
+            liesSubmitted: stats.fibbage_liesSubmitted ?? 0,
+            fibbageRank,
+          },
           global: {
             score: stats.global_score ?? 0,
             rank: stats.global_rank ?? null,
@@ -574,6 +647,7 @@ export function createLeaderboardRouter({ env }) {
               taboo: Math.round(stats.taboo_score ?? 0),
               cah: Math.round(stats.cah_score ?? 0),
               hangman: Math.round(stats.hangman_skill ?? 0),
+              fibbage: Math.round(stats.fibbage_score ?? 0),
               activity: Math.round(Math.min(totalGames / 100, 1) * 100 * 100) / 100,
               consistency: Math.round(Math.min((stats.activeDaysLast30 ?? 0) / 20, 1) * 100 * 100) / 100,
             },

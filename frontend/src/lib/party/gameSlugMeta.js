@@ -7,6 +7,7 @@ export const GAME_SLUG_META = {
   cah: { slug: "cah", title: "Cards Against Humanity", emoji: "🃏", gameId: "cards-against-humanity" },
   taboo: { slug: "taboo", title: "Taboo", emoji: "🎯", gameId: "taboo" },
   "typing-race": { slug: "typing-race", title: "Typing Race", emoji: "⌨️", gameId: "typing-race" },
+  fibbage: { slug: "fibbage", title: "Fibbage", emoji: "🎭", gameId: "fibbage" },
 };
 
 /**
@@ -28,7 +29,7 @@ export function buildInviteJoinPath(slug, code) {
     const digits = normalized.replace(/\D/g, "").slice(0, 6);
     return `/games/typing-race/join?code=${encodeURIComponent(digits)}`;
   }
-  if (slug === "npat" || slug === "hangman" || slug === "cah" || slug === "taboo") {
+  if (slug === "npat" || slug === "hangman" || slug === "cah" || slug === "taboo" || slug === "fibbage") {
     return `/games/${slug}/lobby?code=${encodeURIComponent(normalized)}`;
   }
   return `/games/${slug}/join?code=${encodeURIComponent(normalized)}`;

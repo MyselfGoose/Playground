@@ -59,6 +59,16 @@ const userStatsSchema = new mongoose.Schema(
     hangman_skill: { type: Number, default: 0 },
     hangman_rank: { type: Number, default: null },
 
+    fibbage_gamesPlayed: { type: Number, default: 0 },
+    fibbage_gamesWon: { type: Number, default: 0 },
+    fibbage_roundsPlayed: { type: Number, default: 0 },
+    fibbage_liesSubmitted: { type: Number, default: 0 },
+    fibbage_foolsEarned: { type: Number, default: 0 },
+    fibbage_truthsFound: { type: Number, default: 0 },
+    fibbage_soloTruths: { type: Number, default: 0 },
+    fibbage_score: { type: Number, default: 0 },
+    fibbage_winRate: { type: Number, default: 0 },
+
     global_score: { type: Number, default: 0 },
     global_rank: { type: Number, default: null },
 
@@ -79,6 +89,7 @@ userStatsSchema.index({ cah_roundWins: -1 });
 userStatsSchema.index({ hangman_skill: -1 });
 userStatsSchema.index({ hangman_rank: 1, hangman_skill: -1 });
 userStatsSchema.index({ hangman_winRate: -1 });
+userStatsSchema.index({ fibbage_score: -1 });
 userStatsSchema.index({ global_score: -1 });
 
 export const UserStats =

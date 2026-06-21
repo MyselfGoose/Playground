@@ -22,6 +22,7 @@ export function gameLabel(game) {
     taboo: "Taboo",
     cah: "Cards Against Humanity",
     hangman: "Hangman",
+    fibbage: "Fibbage",
   };
   return labels[game] ?? game;
 }
