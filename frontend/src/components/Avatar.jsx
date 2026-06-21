@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { resolveAvatarDisplay } from "../lib/profile/resolveAvatarDisplay.js";
 
@@ -61,17 +62,23 @@ export function Avatar({
   const gradientIndex = hashName(username || "");
   const gradient = gradients[gradientIndex];
   const display = resolveAvatarDisplay({ src, emoji, avatarUrl, avatarEmoji });
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(display.src) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [display.src]);
 
   return (
     <div
       className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${gradient} ring-2 ring-white/40 shadow-[var(--shadow-md)] ${s.box} ${className}`}
-      aria-hidden={display.src || display.emoji ? undefined : true}
+      aria-hidden={showImage || display.emoji ? undefined : true}
     >
       {display.emoji ? (
         <span className={`select-none leading-none ${s.emoji}`} aria-hidden>
           {display.emoji}
         </span>
-      ) : display.src ? (
+      ) : showImage && display.src ? (
         <Image
           src={display.src}
           alt=""
@@ -79,6 +86,7 @@ export function Avatar({
           height={128}
           className="h-full w-full object-cover"
           unoptimized
+          onError={() => setImageFailed(true)}
         />
       ) : (
         <span className={`font-extrabold text-white ${s.text}`}>{label}</span>

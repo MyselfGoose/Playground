@@ -4,10 +4,12 @@ import { useCallback, useState } from "react";
 import Cropper from "react-easy-crop";
 import { ImageMinus, ImagePlus, RotateCw } from "lucide-react";
 import { Button } from "../../Button.jsx";
+import {
+  ACCEPTED_INPUT_MIMES,
+  avatarSourceRejectionMessage,
+  MAX_AVATAR_SOURCE_BYTES,
+} from "../../../lib/profile/avatarUpload.js";
 import { blobToBase64Payload, getCroppedImageBlob } from "./cropImage.js";
-
-const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 /**
  * @param {{
@@ -34,20 +36,21 @@ export function ImageCropStep({ onCancel, onApply }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setError("Use a PNG, JPEG, or WebP image.");
-      return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      setError("Image must be 4 MB or smaller.");
+    const rejection = avatarSourceRejectionMessage(file);
+    if (rejection) {
+      setError(rejection);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
+      setCroppedAreaPixels(null);
       setImageSrc(typeof reader.result === "string" ? reader.result : null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
       setRotation(0);
+    };
+    reader.onerror = () => {
+      setError("Could not read that image. Try another photo.");
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -55,6 +58,7 @@ export function ImageCropStep({ onCancel, onApply }) {
 
   function handleReset() {
     setImageSrc(null);
+    setCroppedAreaPixels(null);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
     setRotation(0);
@@ -62,7 +66,11 @@ export function ImageCropStep({ onCancel, onApply }) {
   }
 
   async function handleApply() {
-    if (!imageSrc || !croppedAreaPixels) return;
+    if (!imageSrc) return;
+    if (!croppedAreaPixels) {
+      setError("Preparing crop area… try again in a moment or adjust the image slightly.");
+      return;
+    }
     if (croppedAreaPixels.width < 64 || croppedAreaPixels.height < 64) {
       setError("Crop area is too small. Zoom out or choose a larger image.");
       return;
@@ -80,6 +88,9 @@ export function ImageCropStep({ onCancel, onApply }) {
     }
   }
 
+  const canApply = Boolean(imageSrc && croppedAreaPixels && !pending);
+  const maxMb = Math.round(MAX_AVATAR_SOURCE_BYTES / (1024 * 1024));
+
   if (!imageSrc) {
     return (
       <div className="px-5 py-6 sm:px-6">
@@ -87,11 +98,13 @@ export function ImageCropStep({ onCancel, onApply }) {
           <span className="text-4xl" aria-hidden>
             📷
           </span>
-          <span className="text-sm font-bold text-foreground">Click to upload an image</span>
-          <span className="text-xs text-foreground/55">PNG, JPEG, or WebP up to 4 MB</span>
+          <span className="text-sm font-bold text-foreground">Tap to choose a photo</span>
+          <span className="text-xs text-foreground/55">
+            PNG, JPEG, WebP, or HEIC up to {maxMb} MB
+          </span>
           <input
             type="file"
-            accept={ACCEPTED_TYPES.join(",")}
+            accept={[...ACCEPTED_INPUT_MIMES, "image/*"].join(",")}
             className="sr-only"
             onChange={handleFileChange}
           />
@@ -161,7 +174,7 @@ export function ImageCropStep({ onCancel, onApply }) {
           <Button type="button" variant="secondary" onClick={onCancel} disabled={pending}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void handleApply()} disabled={pending}>
+          <Button type="button" onClick={() => void handleApply()} disabled={!canApply}>
             {pending ? "Applying…" : "Apply"}
           </Button>
         </div>

@@ -38,6 +38,11 @@ const nextConfig = {
         pathname: "/7.x/**",
       },
       {
+        protocol: "https",
+        hostname: "**.googleusercontent.com",
+        pathname: "/**",
+      },
+      {
         protocol: "http",
         hostname: "localhost",
         port: "4000",

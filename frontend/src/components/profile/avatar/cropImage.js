@@ -8,7 +8,9 @@ function createImage(url) {
     const image = new Image();
     image.addEventListener("load", () => resolve(image));
     image.addEventListener("error", (error) => reject(error));
-    image.setAttribute("crossOrigin", "anonymous");
+    if (!url.startsWith("data:") && !url.startsWith("blob:")) {
+      image.setAttribute("crossOrigin", "anonymous");
+    }
     image.src = url;
   });
 }
@@ -75,15 +77,28 @@ export async function getCroppedImageBlob(
     outputSize.height,
   );
 
-  const blob = await new Promise((resolve, reject) => {
-    croppedCanvas.toBlob(
+  const blob = await exportCanvasBlob(croppedCanvas);
+
+  return blob;
+}
+
+/**
+ * @param {HTMLCanvasElement} canvas
+ */
+async function exportCanvasBlob(canvas) {
+  const webp = await new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b), "image/webp", 0.9);
+  });
+  if (webp) return webp;
+
+  const jpeg = await new Promise((resolve, reject) => {
+    canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("Failed to export image"))),
-      "image/webp",
+      "image/jpeg",
       0.9,
     );
   });
-
-  return blob;
+  return jpeg;
 }
 
 /**
@@ -96,8 +111,9 @@ export async function blobToBase64Payload(blob) {
   for (let i = 0; i < bytes.length; i += 1) {
     binary += String.fromCharCode(bytes[i]);
   }
+  const mime = blob.type === "image/jpeg" ? "image/jpeg" : "image/webp";
   return {
-    mime: "image/webp",
+    mime,
     data: btoa(binary),
   };
 }
