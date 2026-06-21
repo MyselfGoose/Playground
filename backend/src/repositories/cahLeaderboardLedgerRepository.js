@@ -77,4 +77,23 @@ export const cahLeaderboardLedgerRepository = {
     const days = await this.activeDayKeysSince(userOid, since);
     return days.length;
   },
+
+  /**
+   * @param {string} userId
+   * @param {{ limit?: number, skip?: number }} [opts]
+   */
+  findByUser(userId, { limit = 25, skip = 0 } = {}) {
+    return CahActivityEvent.find({ userId })
+      .sort({ occurredAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  },
+
+  /**
+   * @param {Date} since
+   */
+  countSince(since) {
+    return CahGameLedger.countDocuments({ occurredAt: { $gte: since } });
+  },
 };

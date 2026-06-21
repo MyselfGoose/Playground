@@ -87,3 +87,79 @@ export async function createGithubIssueWithLabelFallback({
   Object.assign(err, { status: lastStatus, githubBody: lastJson });
   throw err;
 }
+
+/**
+ * @param {{
+ *   token: string,
+ *   owner: string,
+ *   repo: string,
+ *   page?: number,
+ *   perPage?: number,
+ *   state?: 'open' | 'closed' | 'all',
+ *   log?: import('pino').Logger,
+ * }} params
+ */
+export async function listGithubIssues({
+  token,
+  owner,
+  repo,
+  page = 1,
+  perPage = 30,
+  state = 'open',
+  log,
+}) {
+  const params = new URLSearchParams({
+    state,
+    page: String(Math.max(1, page)),
+    per_page: String(Math.max(1, Math.min(100, perPage))),
+    sort: 'created',
+    direction: 'desc',
+  });
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?${params}`;
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+
+  const text = await res.text();
+  /** @type {unknown} */
+  let json = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { raw: text };
+    }
+  }
+
+  if (!res.ok) {
+    logGithubError(log, { status: res.status, json });
+    const err = new Error(`GitHub API failed (${res.status})`);
+    Object.assign(err, { status: res.status, githubBody: json });
+    throw err;
+  }
+
+  if (!Array.isArray(json)) {
+    return { issues: [], page, perPage };
+  }
+
+  const issues = json
+    .filter((item) => item && typeof item === 'object' && !('pull_request' in item && item.pull_request))
+    .map((item) => ({
+      number: item.number,
+      title: item.title,
+      state: item.state,
+      htmlUrl: item.html_url,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+      labels: Array.isArray(item.labels)
+        ? item.labels.map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean)
+        : [],
+    }));
+
+  return { issues, page, perPage };
+}

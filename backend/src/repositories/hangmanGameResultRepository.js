@@ -35,4 +35,23 @@ export const hangmanGameResultRepository = {
   async gamesPlayedSince(userOid, since) {
     return HangmanGameResult.countDocuments({ userId: userOid, finishedAt: { $gte: since } });
   },
+
+  /**
+   * @param {string} userId
+   * @param {{ limit?: number, skip?: number }} [opts]
+   */
+  findByUser(userId, { limit = 25, skip = 0 } = {}) {
+    return HangmanGameResult.find({ userId })
+      .sort({ finishedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  },
+
+  /**
+   * @param {Date} since
+   */
+  countSince(since) {
+    return HangmanGameResult.countDocuments({ finishedAt: { $gte: since } });
+  },
 };

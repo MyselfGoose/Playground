@@ -15,6 +15,9 @@ import { attachSocketIo } from './realtime/socketServer.js';
 import { createMinimalListenApp } from './bootstrap/minimalListenApp.js';
 import { scheduleLeaderboardCron } from './jobs/leaderboardCron.js';
 import { runGeminiHealthCheck } from './services/npat/npatGeminiHealth.js';
+import { registerLiveActivityProvider } from './services/admin/adminLiveActivityService.js';
+import { setAdminRuntimeContext } from './services/admin/adminRuntimeContext.js';
+import { loadPlatformSettingsCache } from './services/platformSettingsService.js';
 
 if (globalThis.__server_started) {
   console.error('[boot] FATAL: index.js executed more than once — aborting duplicate start');
@@ -137,13 +140,34 @@ async function main() {
   bootTrace('TRACE_AFTER_CREATE_APP');
 
   bootTrace('TRACE_BEFORE_SOCKET_IO');
-  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, socialRuntime } =
+  const { io, registry, typingRaceRegistry, tabooRuntime, cahRuntime, hangmanRuntime, socialRuntime, redisClients } =
     await attachSocketIo({
       server,
       env,
       logger,
     });
   bootTrace('TRACE_AFTER_SOCKET_IO');
+
+  setAdminRuntimeContext({
+    redisConnected: Boolean(redisClients?.pubClient?.isOpen),
+    instanceCount: env.INSTANCE_COUNT ?? 1,
+  });
+
+  registerLiveActivityProvider(() => registry.getObservabilitySnapshot());
+  registerLiveActivityProvider(() => typingRaceRegistry.getObservabilitySnapshot());
+  registerLiveActivityProvider(() => tabooRuntime.registry.getObservabilitySnapshot());
+  registerLiveActivityProvider(() => cahRuntime.registry.getObservabilitySnapshot());
+  registerLiveActivityProvider(() => hangmanRuntime.registry.getObservabilitySnapshot());
+
+  mongoose.connection.once('connected', () => {
+    void loadPlatformSettingsCache().catch((err) => {
+      logger.warn({ err, event: 'platform_settings_load_error' }, 'admin');
+    });
+    const settingsRefresh = setInterval(() => {
+      void loadPlatformSettingsCache().catch(() => {});
+    }, 60_000);
+    settingsRefresh.unref();
+  });
 
   scheduleNpatBootHydrateWhenMongoReady(registry, logger);
 

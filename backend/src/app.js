@@ -16,6 +16,9 @@ import { createUsersRouter } from './routes/users.js';
 import { createHangmanRouter } from './routes/hangman.js';
 import { createFriendsRouter } from './routes/friends.js';
 import { createGameInvitesRouter } from './routes/gameInvites.js';
+import { createAdminRouter } from './routes/admin.js';
+import { createTokenService } from './services/tokenService.js';
+import { createMaintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
 
 /**
  * Express application factory (no listen). Reusable for tests and future HTTP upgrades.
@@ -116,6 +119,10 @@ export function createApp({ env, logger }) {
   });
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
 
+  const tokenService = createTokenService(env);
+  const maintenanceMiddleware = createMaintenanceMiddleware({ tokenService });
+  app.use(maintenanceMiddleware);
+
   // Routes mount only after CORS + parsers.
   app.use(apiRouter);
   app.use('/api/v1/auth', createAuthRouter({ env }));
@@ -125,6 +132,7 @@ export function createApp({ env, logger }) {
   app.use('/api/v1/hangman', createHangmanRouter({ env }));
   app.use('/api/v1/friends', createFriendsRouter({ env }));
   app.use('/api/v1/game-invites', createGameInvitesRouter({ env }));
+  app.use('/api/v1/admin', createAdminRouter({ env, logger }));
   app.use(createHealthRouter({ env }));
 
   app.use(notFound);

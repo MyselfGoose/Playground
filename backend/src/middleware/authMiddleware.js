@@ -3,6 +3,7 @@ import { ACCESS_TOKEN_COOKIE } from '../constants/auth.js';
 import { AppError } from '../errors/AppError.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { refreshSessionRepository } from '../repositories/refreshSessionRepository.js';
+import { isModerationBlocked } from '../utils/moderation.js';
 
 /**
  * @param {import('express').Request} req
@@ -28,6 +29,9 @@ export async function resolveAccessContext(token, { tokenService }) {
   const user = await userRepository.findByIdLean(sub);
   if (!user?.isActive) {
     throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+  }
+  if (isModerationBlocked(user)) {
+    throw new AppError(403, 'Account suspended', { code: 'ACCOUNT_SUSPENDED', expose: true });
   }
   const sessionAlive = await refreshSessionRepository.isJtiActive(sid);
   if (!sessionAlive) {
@@ -66,6 +70,9 @@ export async function resolveSocketCredential(rawToken, { tokenService }) {
     const user = await userRepository.findByIdLean(sub);
     if (!user?.isActive) {
       throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+    }
+    if (isModerationBlocked(user)) {
+      throw new AppError(403, 'Account suspended', { code: 'ACCOUNT_SUSPENDED', expose: true });
     }
     return {
       id: String(user._id),
@@ -124,5 +131,28 @@ export function createAuthMiddleware({ tokenService }) {
     };
   }
 
-  return { requireAuth, optionalRoleGuard, authenticate: requireAuth };
+  /**
+   * After `requireAuth`, reload user from DB and verify admin role (prevents stale JWT roles).
+   * @type {import('express').RequestHandler}
+   */
+  async function requireAdminFromDb(req, res, next) {
+    try {
+      if (!req.user?.id) {
+        throw new AppError(401, 'Authentication required', { code: 'UNAUTHENTICATED', expose: true });
+      }
+      const user = await userRepository.findByIdLean(req.user.id);
+      if (!user?.isActive) {
+        throw new AppError(401, 'Invalid credentials', { code: 'INVALID_CREDENTIALS', expose: true });
+      }
+      if (!user.roles?.includes('admin')) {
+        throw new AppError(403, 'Forbidden', { code: 'FORBIDDEN', expose: true });
+      }
+      req.adminUser = user;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  return { requireAuth, optionalRoleGuard, requireAdminFromDb, authenticate: requireAuth };
 }

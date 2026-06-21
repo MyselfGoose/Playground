@@ -24,6 +24,7 @@ const navLinkBase =
 export function Navbar() {
   const pathname = usePathname();
   const { user, loading, logout } = useUser();
+  const isAdmin = Boolean(user?.roles?.includes("admin"));
   const [open, setOpen] = useState(false);
   const { isDark, toggleTheme, ready: themeReady } = useTheme();
   const [soundEnabled, setSoundEnabled] = useState(() =>
@@ -79,6 +80,18 @@ export function Navbar() {
           >
             Feedback
           </Link>
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className={`${navLinkBase} ${
+                pathname.startsWith("/admin")
+                  ? "bg-primary-dark text-white shadow-[var(--shadow-play)]"
+                  : "text-foreground hover:bg-muted-bright/50 hover:text-primary"
+              }`}
+            >
+              Admin
+            </Link>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3">
@@ -202,6 +215,15 @@ export function Navbar() {
               >
                 Feedback
               </Link>
+              {isAdmin ? (
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="rounded-xl px-4 py-3 text-base font-bold text-foreground transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright/50"
+                >
+                  Admin
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {

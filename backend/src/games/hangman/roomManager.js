@@ -700,5 +700,14 @@ export function createHangmanRoomManager({ hangmanNs, logger }) {
     attachActiveRoomForUser,
     emitRoom,
     shutdown,
+    getObservabilitySnapshot() {
+      let roomCount = 0;
+      let playerCount = 0;
+      for (const room of rooms.values()) {
+        roomCount += 1;
+        playerCount += room.players?.length ?? 0;
+      }
+      return { game: 'hangman', rooms: roomCount, players: playerCount };
+    },
   };
 }

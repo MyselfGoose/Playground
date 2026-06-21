@@ -25,4 +25,23 @@ export const tabooResultRepository = {
     const days = await this.activeDayKeysSince(userOid, since);
     return days.length;
   },
+
+  /**
+   * @param {string} userId
+   * @param {{ limit?: number, skip?: number }} [opts]
+   */
+  findByUser(userId, { limit = 25, skip = 0 } = {}) {
+    return TabooResult.find({ userId })
+      .sort({ finishedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  },
+
+  /**
+   * @param {Date} since
+   */
+  countSince(since) {
+    return TabooResult.countDocuments({ finishedAt: { $gte: since } });
+  },
 };

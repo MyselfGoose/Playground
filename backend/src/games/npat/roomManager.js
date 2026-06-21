@@ -725,5 +725,14 @@ export function createNpatRoomRegistry({ env, logger, npatNs }) {
     flushAll,
     cleanupStale,
     loadEngine,
+    getObservabilitySnapshot() {
+      let roomCount = 0;
+      let playerCount = 0;
+      for (const engine of engines.values()) {
+        roomCount += 1;
+        playerCount += engine.players?.size ?? 0;
+      }
+      return { game: 'npat', rooms: roomCount, players: playerCount };
+    },
   };
 }

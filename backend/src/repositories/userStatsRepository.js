@@ -40,7 +40,7 @@ function clamp(min, v, max) {
   return Math.max(min, Math.min(v, max));
 }
 
-function computeTabooDerived(updated) {
+export function computeTabooDerived(updated) {
   const gamesPlayed = updated.taboo_gamesPlayed || 0;
   const gamesWon = updated.taboo_gamesWon || 0;
   const speakerRounds = updated.taboo_speakerRounds || 0;

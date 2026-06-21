@@ -54,10 +54,29 @@ export async function runLeaderboardDailyCron(logger) {
 
     bumpMetric('leaderboard_cron_complete');
     const elapsed = Date.now() - start;
+    lastCronRun = {
+      at: new Date().toISOString(),
+      status: 'success',
+      elapsedMs: elapsed,
+      updated,
+    };
     logger.info({ event: 'leaderboard_cron_done', updated, elapsed }, 'leaderboard_cron');
   } catch (err) {
+    lastCronRun = {
+      at: new Date().toISOString(),
+      status: 'failed',
+      elapsedMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    };
     logger.error({ err, event: 'leaderboard_cron_failed' }, 'leaderboard_cron');
   }
+}
+
+/** @type {{ at: string | null, status: string, elapsedMs: number | null, updated?: number, error?: string }} */
+let lastCronRun = { at: null, status: 'never', elapsedMs: null };
+
+export function getLeaderboardCronStatus() {
+  return { ...lastCronRun };
 }
 
 const DAILY_MS = 24 * 60 * 60 * 1000;

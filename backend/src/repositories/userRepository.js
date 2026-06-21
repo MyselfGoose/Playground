@@ -1,4 +1,28 @@
+import mongoose from 'mongoose';
 import { User } from '../models/User.js';
+
+/**
+ * @param {string} raw
+ */
+function buildSearchFilter(raw) {
+  const q = raw.trim();
+  if (!q) return {};
+
+  if (mongoose.Types.ObjectId.isValid(q) && String(new mongoose.Types.ObjectId(q)) === q) {
+    return { _id: new mongoose.Types.ObjectId(q) };
+  }
+
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escaped, 'i');
+
+  return {
+    $or: [
+      { username: regex },
+      { email: regex },
+      { googleId: q },
+    ],
+  };
+}
 
 export const userRepository = {
   /**
@@ -120,5 +144,70 @@ export const userRepository = {
       .select('-__v')
       .lean();
     return updated;
+  },
+
+  /**
+   * @param {string} query
+   * @param {{ page?: number, limit?: number }} [opts]
+   */
+  async searchUsers(query, { page = 1, limit = 20 } = {}) {
+    const filter = buildSearchFilter(query);
+    const cappedLimit = Math.max(1, Math.min(100, limit));
+    const skip = Math.max(0, (Math.max(1, page) - 1) * cappedLimit);
+
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select('-passwordHash -__v')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(cappedLimit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    return { users, total, page: Math.max(1, page), limit: cappedLimit };
+  },
+
+  countUsers() {
+    return User.countDocuments({});
+  },
+
+  /**
+   * @param {Date} since
+   */
+  countSignupsSince(since) {
+    return User.countDocuments({ createdAt: { $gte: since } });
+  },
+
+  /**
+   * @param {Date} since
+   */
+  countActiveSince(since) {
+    return User.countDocuments({ lastLoginAt: { $gte: since } });
+  },
+
+  /**
+   * @param {number} limit
+   */
+  listRecentSignups(limit = 10) {
+    const capped = Math.max(1, Math.min(50, limit));
+    return User.find({})
+      .select('username email authProviders isActive roles createdAt lastLoginAt')
+      .sort({ createdAt: -1 })
+      .limit(capped)
+      .lean();
+  },
+
+  /**
+   * Stream users for CSV export (cursor).
+   * @param {{ maxRows?: number }} [opts]
+   */
+  exportUsersCursor({ maxRows = 50_000 } = {}) {
+    return User.find({})
+      .select('email username createdAt lastLoginAt isActive')
+      .sort({ createdAt: -1 })
+      .limit(maxRows)
+      .lean()
+      .cursor();
   },
 };

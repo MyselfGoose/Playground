@@ -333,5 +333,14 @@ export function createTypingRaceRegistry({ typingNs, logger }) {
     kickPlayer,
     attachActiveRoomForUser,
     shutdown,
+    getObservabilitySnapshot() {
+      let roomCount = 0;
+      let playerCount = 0;
+      for (const room of rooms.values()) {
+        roomCount += 1;
+        playerCount += room.players?.size ?? 0;
+      }
+      return { game: 'typing-race', rooms: roomCount, players: playerCount };
+    },
   };
 }

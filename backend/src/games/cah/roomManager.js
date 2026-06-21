@@ -488,5 +488,14 @@ export function createCahRoomManager({ cahNs, logger, maxPlayers: lobbyMaxPlayer
     returnToLobby,
     emitRoom,
     shutdown,
+    getObservabilitySnapshot() {
+      let roomCount = 0;
+      let playerCount = 0;
+      for (const room of rooms.values()) {
+        roomCount += 1;
+        playerCount += room.players?.length ?? 0;
+      }
+      return { game: 'cah', rooms: roomCount, players: playerCount };
+    },
   };
 }

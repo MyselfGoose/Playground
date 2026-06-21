@@ -42,4 +42,11 @@ export const typingAttemptRepository = {
     const days = await this.activeDayKeysSince(userOid, since);
     return days.length;
   },
+
+  /**
+   * @param {Date} since
+   */
+  countSince(since) {
+    return TypingAttempt.countDocuments({ finishedAt: { $gte: since } });
+  },
 };

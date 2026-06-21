@@ -75,6 +75,18 @@ const userSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    moderation: {
+      status: {
+        type: String,
+        enum: ['none', 'suspended', 'banned'],
+        default: 'none',
+      },
+      reason: { type: String, default: '', maxlength: 2000 },
+      expiresAt: { type: Date, default: null },
+      internalNotes: { type: String, default: '', maxlength: 5000 },
+      updatedAt: { type: Date, default: null },
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
   },
   { timestamps: true },
 );

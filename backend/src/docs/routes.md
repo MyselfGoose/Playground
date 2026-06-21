@@ -220,4 +220,28 @@ A user is **online** while any Playground tab maintains a `/social` connection; 
 
 ## Role guard (internal use)
 
-`optionalRoleGuard('admin', ...)` from [middleware/authMiddleware.js](../middleware/authMiddleware.js) is intended to be composed **after** `requireAuth` on future admin routes. It is not mounted on a public URL in the starter.
+`optionalRoleGuard('admin', ...)` from [middleware/authMiddleware.js](../middleware/authMiddleware.js) is composed **after** `requireAuth` on `/api/v1/admin/*` routes.
+
+---
+
+## Admin API (`/api/v1/admin`)
+
+All routes require authentication and the `admin` role. Mutations also re-verify admin from the database via `requireAdminFromDb`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/dashboard` | Platform snapshot, live activity, popularity, health, alerts |
+| GET | `/health` | Health + deployment subset |
+| POST | `/actions/recompute-leaderboards` | Trigger leaderboard cron |
+| PATCH | `/settings/maintenance` | Toggle maintenance mode |
+| GET | `/feedback` | List GitHub feedback issues |
+| GET | `/users` | Search users (`q`, `page`, `limit`) |
+| GET | `/users/export` | CSV export |
+| GET | `/users/:id` | User detail + stats |
+| PATCH | `/users/:id` | Update user (active, roles, username, moderation) |
+| DELETE | `/users/:id/avatar` | Remove avatar |
+| GET/PATCH | `/users/:id/stats` | View / patch stats |
+| GET | `/users/:id/matches` | Match history (all games) |
+| GET | `/users/:id/audit` | Admin audit log |
+
+Grant admin to a user: `npm run db:grant-admin` (grants `admin` role to `abubakar20069@gmail.com`).

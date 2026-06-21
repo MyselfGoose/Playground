@@ -512,5 +512,14 @@ export function createTabooRoomManager({ tabooNs, logger }) {
     getRoomForSocket,
     attachActiveRoomForUser,
     shutdown,
+    getObservabilitySnapshot() {
+      let roomCount = 0;
+      let playerCount = 0;
+      for (const room of rooms.values()) {
+        roomCount += 1;
+        playerCount += room.players?.length ?? 0;
+      }
+      return { game: 'taboo', rooms: roomCount, players: playerCount };
+    },
   };
 }

@@ -37,4 +37,11 @@ export const npatResultRepository = {
     const days = await this.activeDayKeysSince(userOid, since);
     return days.length;
   },
+
+  /**
+   * @param {Date} since
+   */
+  countSince(since) {
+    return NpatResult.countDocuments({ finishedAt: { $gte: since } });
+  },
 };
