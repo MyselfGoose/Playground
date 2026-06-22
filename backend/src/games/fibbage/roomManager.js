@@ -514,10 +514,6 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
 
       if (!game.phaseEndsAt || now < game.phaseEndsAt) continue;
 
-      if (game.status === 'between_rounds') {
-        game.phaseEndsAt = null;
-      }
-
       room.phaseTransitionInFlight = true;
       void (async () => {
         try {

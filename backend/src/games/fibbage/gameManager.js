@@ -10,6 +10,8 @@ import {
   FIBBAGE_PROMPT_REVEAL_MS,
   FIBBAGE_SCORING_MS,
   FIBBAGE_BETWEEN_ROUNDS_MS,
+  FIBBAGE_PROMPT_FETCH_RETRY_MS,
+  FIBBAGE_PROMPT_FETCH_MAX_RETRIES,
   FIBBAGE_REVEAL_VOTES_SUMMARY_MS,
   FIBBAGE_REVEAL_PER_LIE_MS,
   FIBBAGE_REVEAL_TRUTH_MS,
@@ -190,14 +192,29 @@ export async function advancePhaseIfExpired(room, now, fetchPrompt) {
       return 'between_rounds';
 
     case 'between_rounds': {
-      const prompt = await fetchPrompt();
-      if (!prompt) {
-        game.status = 'finished';
-        game.phaseEndsAt = null;
-        return 'game_finished';
+      game.phaseEndsAt = null;
+      try {
+        const prompt = await fetchPrompt();
+        if (!prompt) {
+          game.status = 'finished';
+          game.phaseEndsAt = null;
+          game.promptFetchRetries = 0;
+          return 'game_finished';
+        }
+        game.promptFetchRetries = 0;
+        initRound(room, prompt);
+        return 'new_round';
+      } catch {
+        const retries = Number(game.promptFetchRetries ?? 0) + 1;
+        game.promptFetchRetries = retries;
+        if (retries >= FIBBAGE_PROMPT_FETCH_MAX_RETRIES) {
+          game.status = 'finished';
+          game.phaseEndsAt = null;
+          return 'game_finished';
+        }
+        game.phaseEndsAt = now + FIBBAGE_PROMPT_FETCH_RETRY_MS;
+        return 'prompt_fetch_retry';
       }
-      initRound(room, prompt);
-      return 'new_round';
     }
 
     default:

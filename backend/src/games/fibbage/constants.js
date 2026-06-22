@@ -23,6 +23,8 @@ export const FIBBAGE_STARTING_MS = 3000;
 export const FIBBAGE_PROMPT_REVEAL_MS = 4000;
 export const FIBBAGE_SCORING_MS = 4000;
 export const FIBBAGE_BETWEEN_ROUNDS_MS = 3000;
+export const FIBBAGE_PROMPT_FETCH_RETRY_MS = 2000;
+export const FIBBAGE_PROMPT_FETCH_MAX_RETRIES = 3;
 
 /** Reveal sub-phase durations */
 export const FIBBAGE_REVEAL_VOTES_SUMMARY_MS = 4000;

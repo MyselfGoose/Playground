@@ -328,3 +328,103 @@ test('revealing snapshot exposes vote counts without voters at votes_summary', (
   assert.ok(snap.game.answers.every((a) => a.voters.length === 0));
   assert.ok(snap.game.answers.some((a) => a.voteCount > 0));
 });
+
+test('scoring advances to between_rounds when not the final round', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'scoring';
+  room.game.round = 1;
+  const now = Date.now();
+  room.game.phaseEndsAt = now - 1;
+
+  const reason = await advancePhaseIfExpired(room, now, async () => null);
+  assert.equal(reason, 'between_rounds');
+  assert.equal(room.game.status, 'between_rounds');
+  assert.ok(room.game.phaseEndsAt > now);
+});
+
+test('between_rounds advances to new round when timer expires', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'between_rounds';
+  room.game.round = 1;
+  const now = Date.now();
+  room.game.phaseEndsAt = now - 1;
+
+  const nextPrompt = { id: 'p2', text: 'Another ______.', answer: 'answer', category: 'weird' };
+  const reason = await advancePhaseIfExpired(room, now, async () => nextPrompt);
+  assert.equal(reason, 'new_round');
+  assert.equal(room.game.status, 'starting');
+  assert.equal(room.game.round, 2);
+  assert.equal(room.game.prompt.id, 'p2');
+});
+
+test('scoring on final round finishes the game without between_rounds', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.settings.roundCount = 1;
+  room.game.round = 1;
+  room.game.status = 'scoring';
+  const now = Date.now();
+  room.game.phaseEndsAt = now - 1;
+
+  const reason = await advancePhaseIfExpired(room, now, async () => null);
+  assert.equal(reason, 'game_finished');
+  assert.equal(room.game.status, 'finished');
+});
+
+test('advancePhaseIfExpired no-ops when between_rounds phaseEndsAt was cleared early (regression)', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'between_rounds';
+  room.game.phaseEndsAt = null;
+
+  const reason = await advancePhaseIfExpired(room, Date.now(), async () => ({
+    id: 'p2',
+    text: 'Another ______.',
+    answer: 'answer',
+    category: 'weird',
+  }));
+  assert.equal(reason, null);
+  assert.equal(room.game.status, 'between_rounds');
+});
+
+test('between_rounds retries prompt fetch before finishing the game', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'between_rounds';
+  room.game.round = 1;
+  const now = Date.now();
+  room.game.phaseEndsAt = now - 1;
+
+  let attempts = 0;
+  const reason = await advancePhaseIfExpired(room, now, async () => {
+    attempts += 1;
+    throw new Error('db unavailable');
+  });
+  assert.equal(reason, 'prompt_fetch_retry');
+  assert.equal(room.game.status, 'between_rounds');
+  assert.equal(room.game.promptFetchRetries, 1);
+  assert.ok(room.game.phaseEndsAt > now);
+  assert.equal(attempts, 1);
+});

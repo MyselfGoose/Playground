@@ -5,13 +5,18 @@ import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js"
 import { Avatar } from "../../../../components/Avatar.jsx";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 
+const SCORING_SECONDS = 4;
+const BETWEEN_ROUNDS_SECONDS = 3;
+
 export function FibbageScoreboard() {
   const { room } = useFibbage();
   const game = room?.game;
   const players = room?.players ?? [];
   const roundScores = game?.roundScores ?? {};
-  const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, 4);
   const isBetweenRounds = game?.status === "between_rounds";
+  const timerSeconds = isBetweenRounds ? BETWEEN_ROUNDS_SECONDS : SCORING_SECONDS;
+  const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, timerSeconds);
+  const waitingForNextPrompt = isBetweenRounds && secondsRemaining === 0;
 
   const sortedPlayers = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
@@ -22,7 +27,11 @@ export function FibbageScoreboard() {
           {isBetweenRounds ? "Next round" : "Round scores"}
         </p>
         <h2 className="mt-2 text-2xl font-black text-[var(--fibbage-text)]">
-          {isBetweenRounds ? "Get ready…" : `Round ${game?.round ?? 1} results`}
+          {waitingForNextPrompt
+            ? "Loading next prompt…"
+            : isBetweenRounds
+              ? "Get ready…"
+              : `Round ${game?.round ?? 1} results`}
         </h2>
       </div>
 
@@ -55,7 +64,13 @@ export function FibbageScoreboard() {
         })}
       </div>
 
-      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={4} />
+      {waitingForNextPrompt ? (
+        <div className="flex justify-center py-2">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--fibbage-accent)] border-t-transparent" />
+        </div>
+      ) : (
+        <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={timerSeconds} />
+      )}
     </div>
   );
 }
