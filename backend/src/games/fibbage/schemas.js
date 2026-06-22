@@ -14,6 +14,7 @@ export const fibbageCreateRoomSchema = z
   .object({
     settings: z
       .object({
+        presetId: z.enum(['classic', 'blitz', 'marathon', 'custom']).optional(),
         roundCount: z.number().int().min(FIBBAGE_MIN_ROUND_COUNT).max(FIBBAGE_MAX_ROUND_COUNT).optional(),
         writingSeconds: z.number().int().min(FIBBAGE_MIN_WRITING_SECONDS).max(FIBBAGE_MAX_WRITING_SECONDS).optional(),
         votingSeconds: z.number().int().min(FIBBAGE_MIN_VOTING_SECONDS).max(FIBBAGE_MAX_VOTING_SECONDS).optional(),
@@ -34,6 +35,7 @@ export const fibbageSetReadySchema = z.object({
 });
 
 export const fibbageUpdateSettingsSchema = z.object({
+  presetId: z.enum(['classic', 'blitz', 'marathon', 'custom']).optional(),
   roundCount: z.number().int().min(FIBBAGE_MIN_ROUND_COUNT).max(FIBBAGE_MAX_ROUND_COUNT).optional(),
   writingSeconds: z.number().int().min(FIBBAGE_MIN_WRITING_SECONDS).max(FIBBAGE_MAX_WRITING_SECONDS).optional(),
   votingSeconds: z.number().int().min(FIBBAGE_MIN_VOTING_SECONDS).max(FIBBAGE_MAX_VOTING_SECONDS).optional(),

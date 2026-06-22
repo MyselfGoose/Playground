@@ -7,8 +7,10 @@ import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { useFibbageFeedback } from "../../../../lib/fibbage/FibbageFeedbackContext.jsx";
 import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
 import { cardStagger, sectionEnter } from "../../../../lib/fibbage/motion.js";
+import { waitingForLabel } from "../fibbage-waiting.js";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 import { FibbagePlayerStatus } from "./FibbagePlayerStatus.jsx";
+import { FibbagePhaseSkipButton } from "./FibbagePhaseSkipButton.jsx";
 
 export function FibbageVotingGrid() {
   const reduce = useReducedMotion();
@@ -35,6 +37,9 @@ export function FibbageVotingGrid() {
     () => activePlayers.filter((p) => !votedUserIds.includes(p.userId)),
     [activePlayers, votedUserIds],
   );
+
+  const allVoted = activePlayers.length > 0 && waitingFor.length === 0 && game?.status === "voting";
+  const waitLabel = waitingForLabel(waitingFor);
 
   const handleVote = useCallback(
     async (answerId) => {
@@ -125,21 +130,23 @@ export function FibbageVotingGrid() {
         {hasVoted ? (
           <motion.div key="voted-wait" className="fibbage-card text-center" {...waitingMotion}>
             <p className="font-bold text-[var(--fibbage-accent)]">Vote cast!</p>
-            <p className="mt-2 fibbage-body">
-              Waiting for {waitingFor.length} player{waitingFor.length === 1 ? "" : "s"}…
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <AnimatePresence>
-                {waitingFor.map((player) => (
-                  <FibbagePlayerStatus
-                    key={player.userId}
-                    player={player}
-                    isSubmitted
-                    isVoted={false}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
+            {waitLabel ? (
+              <p className="mt-2 fibbage-body">{waitLabel}</p>
+            ) : null}
+            {waitingFor.length > 0 ? (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <AnimatePresence>
+                  {waitingFor.map((player) => (
+                    <FibbagePlayerStatus
+                      key={player.userId}
+                      player={player}
+                      isSubmitted
+                      isVoted={false}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            ) : null}
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -157,7 +164,16 @@ export function FibbageVotingGrid() {
         ) : null}
       </AnimatePresence>
 
-      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={votingSeconds} className="mx-auto" />
+      <div className="flex items-end justify-between gap-4">
+        <FibbagePhaseSkipButton phase="voting" />
+        <FibbageTimerBar
+          secondsRemaining={secondsRemaining}
+          totalSeconds={votingSeconds}
+          accelerating={allVoted}
+          urgent={room?.settings?.presetId === "blitz"}
+          className="mx-auto flex-1"
+        />
+      </div>
 
       <p className="text-center fibbage-micro" aria-live="polite">
         {votedUserIds.length} of {activePlayers.length} voted

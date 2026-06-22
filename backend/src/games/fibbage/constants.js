@@ -15,13 +15,41 @@ export const FIBBAGE_DEFAULT_VOTING_SECONDS = 45;
 export const FIBBAGE_MIN_VOTING_SECONDS = 30;
 export const FIBBAGE_MAX_VOTING_SECONDS = 90;
 
+/** Game mode presets — selecting one sets roundCount, writingSeconds, votingSeconds atomically */
+export const FIBBAGE_PRESETS = {
+  classic: {
+    id: 'classic',
+    label: 'Classic',
+    description: 'Balanced pace for most groups',
+    roundCount: 5,
+    writingSeconds: 90,
+    votingSeconds: 45,
+  },
+  blitz: {
+    id: 'blitz',
+    label: 'Blitz',
+    description: 'Fast lies, quick votes — ~10 min games',
+    roundCount: 3,
+    writingSeconds: 45,
+    votingSeconds: 30,
+  },
+  marathon: {
+    id: 'marathon',
+    label: 'Marathon',
+    description: 'More rounds, more time to craft lies',
+    roundCount: 8,
+    writingSeconds: 120,
+    votingSeconds: 60,
+  },
+};
+
 export const FIBBAGE_LIE_MIN_LENGTH = 3;
 export const FIBBAGE_LIE_MAX_LENGTH = 120;
 
 /** Phase durations in milliseconds */
 export const FIBBAGE_STARTING_MS = 3000;
 export const FIBBAGE_PROMPT_REVEAL_MS = 4000;
-export const FIBBAGE_SCORING_MS = 4000;
+export const FIBBAGE_SCORING_MS = 6000;
 export const FIBBAGE_BETWEEN_ROUNDS_MS = 3000;
 export const FIBBAGE_PROMPT_FETCH_RETRY_MS = 2000;
 export const FIBBAGE_PROMPT_FETCH_MAX_RETRIES = 3;

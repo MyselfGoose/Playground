@@ -6,9 +6,11 @@ import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { useFibbageFeedback } from "../../../../lib/fibbage/FibbageFeedbackContext.jsx";
 import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
 import { sectionEnter } from "../../../../lib/fibbage/motion.js";
+import { waitingForLabel } from "../fibbage-waiting.js";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 import { FibbageButton } from "./FibbageButton.jsx";
 import { FibbagePlayerStatus } from "./FibbagePlayerStatus.jsx";
+import { FibbagePhaseSkipButton } from "./FibbagePhaseSkipButton.jsx";
 
 export function FibbageWritingPanel() {
   const reduce = useReducedMotion();
@@ -34,6 +36,10 @@ export function FibbageWritingPanel() {
     () => activePlayers.filter((p) => !submittedUserIds.includes(p.userId)),
     [activePlayers, submittedUserIds],
   );
+
+  const allSubmitted =
+    activePlayers.length > 0 && waitingFor.length === 0 && game?.status === "writing";
+  const waitLabel = waitingForLabel(waitingFor);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || pending || !text.trim()) return;
@@ -77,21 +83,23 @@ export function FibbageWritingPanel() {
         {submitted ? (
           <motion.div key="waiting" className="fibbage-card text-center" {...swapMotion}>
             <p className="font-bold text-[var(--fibbage-accent)]">Lie submitted!</p>
-            <p className="mt-2 fibbage-body">
-              Waiting for {waitingFor.length} player{waitingFor.length === 1 ? "" : "s"}…
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <AnimatePresence>
-                {waitingFor.map((player) => (
-                  <FibbagePlayerStatus
-                    key={player.userId}
-                    player={player}
-                    isSubmitted={false}
-                    isVoted={false}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
+            {waitLabel ? (
+              <p className="mt-2 fibbage-body">{waitLabel}</p>
+            ) : null}
+            {waitingFor.length > 0 ? (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <AnimatePresence>
+                  {waitingFor.map((player) => (
+                    <FibbagePlayerStatus
+                      key={player.userId}
+                      player={player}
+                      isSubmitted={false}
+                      isVoted={false}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            ) : null}
           </motion.div>
         ) : (
           <motion.div key="form" className="fibbage-card space-y-4" {...swapMotion}>
@@ -134,7 +142,16 @@ export function FibbageWritingPanel() {
         )}
       </AnimatePresence>
 
-      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={writingSeconds} className="mx-auto" />
+      <div className="flex items-end justify-between gap-4">
+        <FibbagePhaseSkipButton phase="writing" />
+        <FibbageTimerBar
+          secondsRemaining={secondsRemaining}
+          totalSeconds={writingSeconds}
+          accelerating={allSubmitted}
+          urgent={room?.settings?.presetId === "blitz"}
+          className="mx-auto flex-1"
+        />
+      </div>
 
       <p className="text-center fibbage-micro" aria-live="polite">
         {submittedUserIds.length} of {activePlayers.length} submitted

@@ -11,10 +11,13 @@ const PHASE_LABELS = {
 };
 
 /**
- * @param {{ status?: string }} props
+ * @param {{ status?: string, topHighlight?: { title?: string, body?: string } | null }} props
  */
-export function FibbagePhaseAnnouncer({ status }) {
-  const label = status ? PHASE_LABELS[status] ?? "Fibbage" : "Fibbage";
+export function FibbagePhaseAnnouncer({ status, topHighlight }) {
+  let label = status ? (PHASE_LABELS[status] ?? "Fibbage") : "Fibbage";
+  if (status === "scoring" && topHighlight?.title && topHighlight?.body) {
+    label = `${topHighlight.title}: ${topHighlight.body}`;
+  }
   return (
     <p className="sr-only" aria-live="polite" aria-atomic="true">
       {label}

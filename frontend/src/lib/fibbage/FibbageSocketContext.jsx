@@ -13,6 +13,14 @@ export function FibbageProvider({ children }) {
   const { user, loading } = useUser();
   const { holdActive } = useGameSession();
   const [categories, setCategories] = useState(/** @type {string[]} */ ([]));
+  const [roomUpdateReason, setRoomUpdateReason] = useState(/** @type {string | null} */ (null));
+
+  const onRoomUpdate = useCallback((payload) => {
+    const reason = payload?.reason;
+    if (typeof reason === "string" && reason.length > 0) {
+      setRoomUpdateReason(reason);
+    }
+  }, []);
 
   const socket = useGameSocket({
     namespace: "/fibbage",
@@ -21,6 +29,7 @@ export function FibbageProvider({ children }) {
     enabled: Boolean(!loading && getSocketBase() && (user?.id || holdActive)),
     trackSyncState: true,
     mergeRoom: mergeRoomByStateVersion,
+    onRoomUpdate,
   });
 
   const roomCode = typeof socket.room?.code === "string" ? socket.room.code : null;
@@ -49,6 +58,7 @@ export function FibbageProvider({ children }) {
       socketError: socket.socketError,
       socketErrorCode: socket.socketErrorCode,
       reconnectedAt: socket.reconnectedAt,
+      roomUpdateReason,
       localUserId: user?.id ?? null,
       localUsername: user?.username ?? "",
       createRoom: socket.createRoom,
@@ -59,6 +69,7 @@ export function FibbageProvider({ children }) {
       startGame: () => socket.send("start_game", {}),
       submitLie: (/** @type {string} */ text) => socket.send("submit_lie", { text }),
       castVote: (/** @type {string} */ answerId) => socket.send("cast_vote", { answerId }),
+      skipPhase: () => socket.send("skip_phase", {}),
       getRoomState: () => socket.send("get_room_state", {}),
       returnToLobby: () => socket.send("return_to_lobby", {}),
       getCategories,
@@ -73,6 +84,7 @@ export function FibbageProvider({ children }) {
       socket.socketError,
       socket.socketErrorCode,
       socket.reconnectedAt,
+      roomUpdateReason,
       categories,
       user?.id,
       user?.username,

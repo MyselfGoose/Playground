@@ -16,6 +16,7 @@ import {
   advanceRevealIfExpired,
   finalizeWritingIfReady,
   finalizeVotingIfReady,
+  skipCurrentPhase,
 } from './gameManager.js';
 
 function connectedPlayer(userId, username) {
@@ -40,10 +41,16 @@ function createRoom(players) {
 const prompt = { id: 'p1', text: 'Test ______.', answer: 'truth', category: 'weird' };
 
 test('normalizeSettings clamps values to allowed ranges', () => {
-  const settings = normalizeSettings({ roundCount: 999, writingSeconds: 1, votingSeconds: 1000 });
+  const settings = normalizeSettings({
+    presetId: 'custom',
+    roundCount: 999,
+    writingSeconds: 1,
+    votingSeconds: 1000,
+  });
   assert.equal(settings.roundCount, 10);
   assert.equal(settings.writingSeconds, 45);
   assert.equal(settings.votingSeconds, 90);
+  assert.equal(settings.presetId, 'custom');
 });
 
 test('initGame requires at least three connected players', () => {
@@ -427,4 +434,213 @@ test('between_rounds retries prompt fetch before finishing the game', async () =
   assert.equal(room.game.promptFetchRetries, 1);
   assert.ok(room.game.phaseEndsAt > now);
   assert.equal(attempts, 1);
+});
+
+test('normalizeSettings applies blitz preset', () => {
+  const settings = normalizeSettings({ presetId: 'blitz' });
+  assert.equal(settings.presetId, 'blitz');
+  assert.equal(settings.roundCount, 3);
+  assert.equal(settings.writingSeconds, 45);
+  assert.equal(settings.votingSeconds, 30);
+});
+
+function playRoundToScoring(room) {
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  submitLie(room, 'p3', 'Lie three');
+  finalizeWritingIfReady(room, Date.now());
+  return room.game.answers;
+}
+
+test('round highlights: master_fool when two players vote for same lie', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  const highlights = room.game.roundHighlights ?? [];
+  assert.ok(highlights.some((h) => h.id === 'master_fool'));
+  const fool = highlights.find((h) => h.id === 'master_fool');
+  assert.match(fool.body, /fooled 2 players/);
+  assert.equal(highlights.length, 3);
+});
+
+test('round highlights: truth_drought when nobody votes for truth', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  const highlights = room.game.roundHighlights ?? [];
+  assert.ok(highlights.some((h) => h.id === 'truth_drought'));
+});
+
+test('round highlights: solo_detective when only one truth vote', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  const truthAnswer = answers.find((a) => a.isTruth);
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', truthAnswer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  const highlights = room.game.roundHighlights ?? [];
+  assert.ok(highlights.some((h) => h.id === 'solo_detective'));
+});
+
+test('snapshotFor includes roundHighlights during scoring phase', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+  room.game.status = 'scoring';
+
+  const snap = snapshotFor(room, 'p1');
+  assert.ok(Array.isArray(snap.game.roundHighlights));
+  assert.ok(snap.game.roundHighlights.length > 0);
+});
+
+test('timesFooled increments when voting for a lie', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  assert.equal(room.game.sessionStats.p1.timesFooled, 1);
+  assert.equal(room.game.sessionStats.p2.timesFooled, 1);
+  assert.equal(room.game.sessionStats.p3.timesFooled, 1);
+});
+
+test('bestRoundPoints tracks highest single round score', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  const p1Stat = room.game.sessionStats.p1;
+  assert.ok(p1Stat.bestRoundPoints > 0);
+  assert.equal(p1Stat.bestRoundNumber, 1);
+});
+
+test('sessionSummary built when game finishes', async () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  const answers = playRoundToScoring(room);
+  const p1Answer = answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = answers.find((a) => a.authorUserId === 'p2');
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', p1Answer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  room.settings.roundCount = 1;
+  room.game.round = 1;
+  room.game.status = 'scoring';
+  const now = Date.now();
+  room.game.phaseEndsAt = now - 1;
+  await advancePhaseIfExpired(room, now, async () => null);
+
+  assert.ok(room.game.sessionSummary);
+  const ids = room.game.sessionSummary.stats.map((s) => s.id);
+  assert.ok(ids.includes('biggest_liar'));
+  assert.ok(ids.includes('best_detective') || ids.includes('most_gullible'));
+});
+
+test('skipCurrentPhase from host during writing starts voting', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+
+  const reason = skipCurrentPhase(room, 'p1', Date.now());
+  assert.equal(reason, 'voting_started');
+  assert.equal(room.game.status, 'voting');
+});
+
+test('skipCurrentPhase rejects non-host', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+
+  assert.throws(
+    () => skipCurrentPhase(room, 'p2', Date.now()),
+    (e) => e.code === 'NOT_HOST',
+  );
+});
+
+test('snapshotFor does not expose sessionSummary during active game', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  const snap = snapshotFor(room, 'p1');
+  assert.equal(snap.game.sessionSummary, undefined);
 });

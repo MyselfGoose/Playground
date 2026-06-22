@@ -8,6 +8,7 @@ import { sectionEnter } from "../../../lib/fibbage/motion.js";
 import { Avatar } from "../../../components/Avatar.jsx";
 import { FIBBAGE_PATHS } from "./fibbage-shared.js";
 import { FibbageButton } from "./components/FibbageButton.jsx";
+import { FibbageGameStats } from "./components/FibbageGameStats.jsx";
 
 const PODIUM_COLORS = ["var(--fibbage-gold)", "var(--fibbage-accent)", "var(--fibbage-cta)"];
 const PODIUM_LABELS = ["1st", "2nd", "3rd"];
@@ -20,6 +21,7 @@ export function FibbageResult() {
   const [leavePending, setLeavePending] = useState(false);
   const [error, setError] = useState(null);
 
+  const game = room?.game;
   const players = room?.players ?? [];
   const isHost = localUserId === room?.hostUserId;
   const displayError = error ?? socketError ?? null;
@@ -27,6 +29,9 @@ export function FibbageResult() {
   const sorted = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   const podium = sorted.slice(0, 3);
   const rest = sorted.slice(3);
+  const winnerUserId = sorted[0]?.userId ?? null;
+  const sessionSummary = game?.sessionSummary ?? null;
+  const viewerSessionStat = game?.viewerSessionStat ?? null;
   const pageMotion = sectionEnter(reduce, 0);
 
   const handleReturnToLobby = useCallback(async () => {
@@ -142,7 +147,19 @@ export function FibbageResult() {
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <FibbageGameStats
+          summary={sessionSummary}
+          players={players}
+          viewerSessionStat={viewerSessionStat}
+          winnerUserId={winnerUserId}
+        />
+
+        <motion.div
+          className="flex flex-col gap-3 sm:flex-row sm:justify-center"
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: reduce ? 0 : 1.2, duration: 0.3 }}
+        >
           {isHost ? (
             <FibbageButton pending={returnPending} onClick={handleReturnToLobby}>
               {returnPending ? "Returning…" : "Play Again"}
@@ -151,7 +168,7 @@ export function FibbageResult() {
           <FibbageButton variant="secondary" pending={leavePending} onClick={handleLeave}>
             {leavePending ? "Leaving…" : "Leave"}
           </FibbageButton>
-        </div>
+        </motion.div>
 
         {!isHost ? (
           <p className="text-center fibbage-micro">

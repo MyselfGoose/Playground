@@ -22,6 +22,13 @@ import {
   FIBBAGE_FINAL_ROUND_MULTIPLIER,
   FIBBAGE_LIE_MIN_LENGTH,
   FIBBAGE_LIE_MAX_LENGTH,
+  FIBBAGE_MIN_ROUND_COUNT,
+  FIBBAGE_MAX_ROUND_COUNT,
+  FIBBAGE_MIN_WRITING_SECONDS,
+  FIBBAGE_MAX_WRITING_SECONDS,
+  FIBBAGE_MIN_VOTING_SECONDS,
+  FIBBAGE_MAX_VOTING_SECONDS,
+  FIBBAGE_PRESETS,
 } from './constants.js';
 import { activePlayersInRoom } from '../../realtime/playerPresence.js';
 
@@ -52,7 +59,15 @@ function generateAnswerId() {
 }
 
 function emptySessionStat() {
-  return { liesSubmitted: 0, foolsEarned: 0, truthsFound: 0, soloTruths: 0 };
+  return {
+    liesSubmitted: 0,
+    foolsEarned: 0,
+    truthsFound: 0,
+    soloTruths: 0,
+    timesFooled: 0,
+    bestRoundPoints: 0,
+    bestRoundNumber: 0,
+  };
 }
 
 function ensureSessionStat(game, userId) {
@@ -67,18 +82,48 @@ function ensureSessionStat(game, userId) {
  * @param {Record<string, unknown>} [input]
  */
 export function normalizeSettings(input = {}) {
-  const roundCount = Number(input.roundCount ?? FIBBAGE_DEFAULT_ROUND_COUNT);
-  const writingSeconds = Number(input.writingSeconds ?? FIBBAGE_DEFAULT_WRITING_SECONDS);
-  const votingSeconds = Number(input.votingSeconds ?? FIBBAGE_DEFAULT_VOTING_SECONDS);
+  let roundCount = Number(input.roundCount ?? FIBBAGE_DEFAULT_ROUND_COUNT);
+  let writingSeconds = Number(input.writingSeconds ?? FIBBAGE_DEFAULT_WRITING_SECONDS);
+  let votingSeconds = Number(input.votingSeconds ?? FIBBAGE_DEFAULT_VOTING_SECONDS);
+  let presetId = typeof input.presetId === 'string' ? input.presetId : 'classic';
+
+  if (presetId !== 'custom' && FIBBAGE_PRESETS[presetId]) {
+    const preset = FIBBAGE_PRESETS[presetId];
+    roundCount = preset.roundCount;
+    writingSeconds = preset.writingSeconds;
+    votingSeconds = preset.votingSeconds;
+  } else if (presetId !== 'custom' && !FIBBAGE_PRESETS[presetId]) {
+    presetId = 'classic';
+  }
+
   const categoryMode = input.categoryMode === 'single' ? 'single' : 'all';
   const categoryIds = Array.isArray(input.categoryIds)
     ? [...new Set(input.categoryIds.map((c) => String(c).trim()).filter(Boolean))]
     : [];
 
   return {
-    roundCount: Math.max(3, Math.min(10, Number.isFinite(roundCount) ? roundCount : FIBBAGE_DEFAULT_ROUND_COUNT)),
-    writingSeconds: Math.max(45, Math.min(120, Number.isFinite(writingSeconds) ? writingSeconds : FIBBAGE_DEFAULT_WRITING_SECONDS)),
-    votingSeconds: Math.max(30, Math.min(90, Number.isFinite(votingSeconds) ? votingSeconds : FIBBAGE_DEFAULT_VOTING_SECONDS)),
+    presetId,
+    roundCount: Math.max(
+      FIBBAGE_MIN_ROUND_COUNT,
+      Math.min(
+        FIBBAGE_MAX_ROUND_COUNT,
+        Number.isFinite(roundCount) ? roundCount : FIBBAGE_DEFAULT_ROUND_COUNT,
+      ),
+    ),
+    writingSeconds: Math.max(
+      FIBBAGE_MIN_WRITING_SECONDS,
+      Math.min(
+        FIBBAGE_MAX_WRITING_SECONDS,
+        Number.isFinite(writingSeconds) ? writingSeconds : FIBBAGE_DEFAULT_WRITING_SECONDS,
+      ),
+    ),
+    votingSeconds: Math.max(
+      FIBBAGE_MIN_VOTING_SECONDS,
+      Math.min(
+        FIBBAGE_MAX_VOTING_SECONDS,
+        Number.isFinite(votingSeconds) ? votingSeconds : FIBBAGE_DEFAULT_VOTING_SECONDS,
+      ),
+    ),
     categoryMode,
     categoryIds,
   };
@@ -113,7 +158,10 @@ export function initGame(room, prompt) {
     votes: new Map(),
     reveal: null,
     roundScores: null,
+    roundHighlights: null,
     sessionStats: {},
+    sessionSummary: null,
+    skipPhaseUsedIn: null,
   };
 
   room.usedPromptIds.add(prompt.id);
@@ -144,6 +192,8 @@ export function initRound(room, prompt) {
   game.votes = new Map();
   game.reveal = null;
   game.roundScores = null;
+  game.roundHighlights = null;
+  game.skipPhaseUsedIn = null;
 
   room.usedPromptIds.add(prompt.id);
 }
@@ -185,6 +235,7 @@ export async function advancePhaseIfExpired(room, now, fetchPrompt) {
       if (game.round >= room.settings.roundCount) {
         game.status = 'finished';
         game.phaseEndsAt = null;
+        game.sessionSummary = buildSessionSummary(room);
         return 'game_finished';
       }
       game.status = 'between_rounds';
@@ -199,6 +250,7 @@ export async function advancePhaseIfExpired(room, now, fetchPrompt) {
           game.status = 'finished';
           game.phaseEndsAt = null;
           game.promptFetchRetries = 0;
+          game.sessionSummary = buildSessionSummary(room);
           return 'game_finished';
         }
         game.promptFetchRetries = 0;
@@ -210,6 +262,7 @@ export async function advancePhaseIfExpired(room, now, fetchPrompt) {
         if (retries >= FIBBAGE_PROMPT_FETCH_MAX_RETRIES) {
           game.status = 'finished';
           game.phaseEndsAt = null;
+          game.sessionSummary = buildSessionSummary(room);
           return 'game_finished';
         }
         game.phaseEndsAt = now + FIBBAGE_PROMPT_FETCH_RETRY_MS;
@@ -451,6 +504,337 @@ function advanceReveal(room, now) {
   }
 }
 
+function playerUsername(room, userId) {
+  return room.players.find((p) => p.userId === userId)?.username ?? 'Someone';
+}
+
+/**
+ * Build round highlight callouts for the scoring phase.
+ * @param {object} room
+ * @returns {Array<{ id: string, title: string, body: string, userIds: string[], accent: string }>}
+ */
+function buildRoundHighlights(room) {
+  const game = room.game;
+  const scores = game.roundScores ?? {};
+  const truthVoterIds = [];
+  const lieVoteCounts = new Map();
+
+  for (const [voterId, answerId] of game.votes) {
+    const answer = game.answers.find((a) => a.answerId === answerId);
+    if (!answer) continue;
+    if (answer.isTruth) {
+      truthVoterIds.push(voterId);
+    } else if (answer.authorUserId) {
+      const key = answer.authorUserId;
+      const existing = lieVoteCounts.get(key) ?? { authorUserId: key, voters: [] };
+      existing.voters.push(voterId);
+      lieVoteCounts.set(key, existing);
+    }
+  }
+
+  const totalVoters = game.votes.size;
+  /** @type {Array<{ id: string, title: string, body: string, userIds: string[], accent: string }>} */
+  const highlights = [];
+  const userIdCounts = new Map();
+
+  function canAddUserIds(userIds) {
+    for (const uid of userIds) {
+      if ((userIdCounts.get(uid) ?? 0) >= 2) return false;
+    }
+    return true;
+  }
+
+  function addHighlight(highlight) {
+    if (highlights.length >= 3) return false;
+    if (!canAddUserIds(highlight.userIds)) return false;
+    highlights.push(highlight);
+    for (const uid of highlight.userIds) {
+      userIdCounts.set(uid, (userIdCounts.get(uid) ?? 0) + 1);
+    }
+    return true;
+  }
+
+  // 1. master_fool — lie author with most voters fooled (≥2, or ≥1 if only option)
+  let bestFool = null;
+  for (const entry of lieVoteCounts.values()) {
+    if (
+      !bestFool ||
+      entry.voters.length > bestFool.voters.length ||
+      (entry.voters.length === bestFool.voters.length &&
+        entry.authorUserId < bestFool.authorUserId)
+    ) {
+      bestFool = entry;
+    }
+  }
+  if (bestFool && bestFool.voters.length >= 2) {
+    const count = bestFool.voters.length;
+    const name = playerUsername(room, bestFool.authorUserId);
+    addHighlight({
+      id: 'master_fool',
+      title: 'Master Manipulator',
+      body: `${name} fooled ${count} player${count === 1 ? '' : 's'}!`,
+      userIds: [bestFool.authorUserId],
+      accent: 'gold',
+    });
+  }
+
+  // 2. unanimous_lie — one lie got all non-author votes
+  if (highlights.length < 3) {
+    for (const entry of lieVoteCounts.values()) {
+      const authorVotes = game.votes.get(entry.authorUserId);
+      const nonAuthorVoteCount = totalVoters - (authorVotes ? 1 : 0);
+      if (nonAuthorVoteCount > 0 && entry.voters.length === nonAuthorVoteCount) {
+        const name = playerUsername(room, entry.authorUserId);
+        addHighlight({
+          id: 'unanimous_lie',
+          title: 'Too Convincing',
+          body: `Everyone fell for ${name}'s lie`,
+          userIds: [entry.authorUserId],
+          accent: 'lie',
+        });
+        break;
+      }
+    }
+  }
+
+  // 3. solo_detective OR truth_drought (mutually exclusive)
+  if (highlights.length < 3) {
+    if (truthVoterIds.length === 0) {
+      addHighlight({
+        id: 'truth_drought',
+        title: 'Nobody Knew',
+        body: 'Nobody voted for the truth — total chaos',
+        userIds: [],
+        accent: 'muted',
+      });
+    } else if (truthVoterIds.length === 1) {
+      const uid = truthVoterIds[0];
+      const name = playerUsername(room, uid);
+      addHighlight({
+        id: 'solo_detective',
+        title: 'Lone Wolf',
+        body: `${name} was the only one who found the truth`,
+        userIds: [uid],
+        accent: 'truth',
+      });
+    }
+  }
+
+  // 4. Fill with biggest_swing, then truth_squad
+  if (highlights.length < 3) {
+    let bestSwing = null;
+    let bestPoints = -1;
+    for (const [userId, roundScore] of Object.entries(scores)) {
+      const pts = roundScore.totalRoundPoints ?? 0;
+      if (pts > bestPoints || (pts === bestPoints && userId < (bestSwing ?? ''))) {
+        bestPoints = pts;
+        bestSwing = userId;
+      }
+    }
+    if (bestSwing && bestPoints > 0) {
+      const name = playerUsername(room, bestSwing);
+      addHighlight({
+        id: 'biggest_swing',
+        title: 'Round MVP',
+        body: `${name} earned ${bestPoints} this round`,
+        userIds: [bestSwing],
+        accent: 'accent',
+      });
+    }
+  }
+
+  if (highlights.length < 3 && truthVoterIds.length >= 3) {
+    addHighlight({
+      id: 'truth_squad',
+      title: 'Truth Crew',
+      body: `${truthVoterIds.length} players found the truth`,
+      userIds: truthVoterIds.slice(0, 3),
+      accent: 'truth',
+    });
+  }
+
+  // master_fool with count=1 if nothing else matched and someone fooled 1
+  if (highlights.length === 0 && bestFool && bestFool.voters.length >= 1) {
+    const count = bestFool.voters.length;
+    const name = playerUsername(room, bestFool.authorUserId);
+    addHighlight({
+      id: 'master_fool',
+      title: 'Master Manipulator',
+      body: `${name} fooled ${count} player${count === 1 ? '' : 's'}!`,
+      userIds: [bestFool.authorUserId],
+      accent: 'gold',
+    });
+  }
+
+  if (highlights.length === 0) {
+    let bestSwing = null;
+    let bestPoints = -1;
+    for (const [userId, roundScore] of Object.entries(scores)) {
+      const pts = roundScore.totalRoundPoints ?? 0;
+      if (pts > bestPoints) {
+        bestPoints = pts;
+        bestSwing = userId;
+      }
+    }
+    if (bestSwing && bestPoints > 0) {
+      const name = playerUsername(room, bestSwing);
+      highlights.push({
+        id: 'biggest_swing',
+        title: 'Round MVP',
+        body: `${name} earned ${bestPoints} this round`,
+        userIds: [bestSwing],
+        accent: 'accent',
+      });
+    } else {
+      highlights.push({
+        id: 'round_complete',
+        title: 'Round Complete',
+        body: 'Round complete — scores updated',
+        userIds: [],
+        accent: 'muted',
+      });
+    }
+  }
+
+  return highlights.slice(0, 3);
+}
+
+/**
+ * Build end-of-game session summary stats.
+ * @param {object} room
+ */
+function buildSessionSummary(room) {
+  const game = room.game;
+  const stats = game.sessionStats ?? {};
+  const playerIds = room.players.map((p) => p.userId);
+
+  function maxStat(field) {
+    let max = -1;
+    for (const uid of playerIds) {
+      const val = stats[uid]?.[field] ?? 0;
+      if (val > max) max = val;
+    }
+    return max;
+  }
+
+  function winnersOf(field) {
+    const max = maxStat(field);
+    if (max <= 0) return [];
+    return playerIds.filter((uid) => (stats[uid]?.[field] ?? 0) === max);
+  }
+
+  const sortedByScore = [...room.players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const firstScore = sortedByScore[0]?.score ?? 0;
+  const secondScore = sortedByScore[1]?.score ?? firstScore;
+  const margin = firstScore - secondScore;
+
+  /** @type {Array<{ id: string, label: string, userId: string | null, value: number, displayValue: string }>} */
+  const summaryStats = [];
+
+  const liarWinners = winnersOf('foolsEarned');
+  if (liarWinners.length && maxStat('foolsEarned') > 0) {
+    const val = maxStat('foolsEarned');
+    summaryStats.push({
+      id: 'biggest_liar',
+      label: 'Master Manipulator',
+      userId: liarWinners[0],
+      value: val,
+      displayValue: `fooled ${val} player${val === 1 ? '' : 's'}`,
+    });
+  }
+
+  const detectiveWinners = winnersOf('truthsFound');
+  if (detectiveWinners.length && maxStat('truthsFound') > 0) {
+    const val = maxStat('truthsFound');
+    summaryStats.push({
+      id: 'best_detective',
+      label: 'Truth Hunter',
+      userId: detectiveWinners[0],
+      value: val,
+      displayValue: `${val} truth${val === 1 ? '' : 's'} found`,
+    });
+  }
+
+  const soloWinners = winnersOf('soloTruths');
+  if (soloWinners.length && maxStat('soloTruths') > 0) {
+    summaryStats.push({
+      id: 'solo_artist',
+      label: 'Lone Wolf',
+      userId: soloWinners[0],
+      value: maxStat('soloTruths'),
+      displayValue: `${maxStat('soloTruths')} solo truth${maxStat('soloTruths') === 1 ? '' : 's'}`,
+    });
+  }
+
+  const gullibleWinners = winnersOf('timesFooled');
+  if (gullibleWinners.length && maxStat('timesFooled') > 0) {
+    const val = maxStat('timesFooled');
+    summaryStats.push({
+      id: 'most_gullible',
+      label: 'Easiest Mark',
+      userId: gullibleWinners[0],
+      value: val,
+      displayValue: `fooled ${val} time${val === 1 ? '' : 's'}`,
+    });
+  }
+
+  const writerWinners = winnersOf('liesSubmitted');
+  if (writerWinners.length && maxStat('liesSubmitted') > 0) {
+    const val = maxStat('liesSubmitted');
+    summaryStats.push({
+      id: 'prolific_writer',
+      label: 'Prolific Liar',
+      userId: writerWinners[0],
+      value: val,
+      displayValue: `${val} lie${val === 1 ? '' : 's'} submitted`,
+    });
+  }
+
+  let bestRoundUser = null;
+  let bestRoundPts = -1;
+  let bestRoundNum = 0;
+  for (const uid of playerIds) {
+    const s = stats[uid];
+    if (s && s.bestRoundPoints > bestRoundPts) {
+      bestRoundPts = s.bestRoundPoints;
+      bestRoundUser = uid;
+      bestRoundNum = s.bestRoundNumber;
+    }
+  }
+  if (bestRoundUser && bestRoundPts > 0) {
+    summaryStats.push({
+      id: 'highest_round',
+      label: 'Best Round',
+      userId: bestRoundUser,
+      value: bestRoundPts,
+      displayValue: `+${bestRoundPts} in round ${bestRoundNum}`,
+    });
+  }
+
+  if (margin === 0 && sortedByScore.length > 1) {
+    summaryStats.push({
+      id: 'closest_game',
+      label: 'Nail-Biter',
+      userId: null,
+      value: 0,
+      displayValue: 'Tied game!',
+    });
+  } else if (sortedByScore.length >= 2) {
+    summaryStats.push({
+      id: 'closest_game',
+      label: 'Nail-Biter',
+      userId: null,
+      value: margin,
+      displayValue: `Won by ${margin} point${margin === 1 ? '' : 's'}`,
+    });
+  }
+
+  return {
+    stats: summaryStats.slice(0, 6),
+    margin,
+  };
+}
+
 /**
  * Compute round scores for all players.
  */
@@ -477,12 +861,15 @@ function computeRoundScores(room) {
 
     if (answer.isTruth) {
       truthVoterIds.push(voterId);
-    } else if (answer.authorUserId && scores[answer.authorUserId]) {
-      const foolPoints = FIBBAGE_POINTS_FOOL * multiplier;
-      scores[answer.authorUserId].fooled.push({ voterUserId: voterId, points: foolPoints });
-      scores[answer.authorUserId].totalRoundPoints += foolPoints;
-      const authorPlayer = room.players.find((p) => p.userId === answer.authorUserId);
-      if (authorPlayer) authorPlayer.score += foolPoints;
+    } else {
+      ensureSessionStat(game, voterId).timesFooled += 1;
+      if (answer.authorUserId && scores[answer.authorUserId]) {
+        const foolPoints = FIBBAGE_POINTS_FOOL * multiplier;
+        scores[answer.authorUserId].fooled.push({ voterUserId: voterId, points: foolPoints });
+        scores[answer.authorUserId].totalRoundPoints += foolPoints;
+        const authorPlayer = room.players.find((p) => p.userId === answer.authorUserId);
+        if (authorPlayer) authorPlayer.score += foolPoints;
+      }
     }
   }
 
@@ -511,7 +898,14 @@ function computeRoundScores(room) {
       stat.truthsFound += 1;
       if (roundScore.truthPick.solo) stat.soloTruths += 1;
     }
+    const pts = roundScore.totalRoundPoints ?? 0;
+    if (pts > stat.bestRoundPoints) {
+      stat.bestRoundPoints = pts;
+      stat.bestRoundNumber = game.round;
+    }
   }
+
+  game.roundHighlights = buildRoundHighlights(room);
 }
 
 /**
@@ -560,6 +954,7 @@ export function snapshotFor(room, viewerUserId) {
     voteCount: game.votes.size,
     reveal: null,
     roundScores: null,
+    roundHighlights: null,
     answers: null,
   };
 
@@ -612,6 +1007,7 @@ export function snapshotFor(room, viewerUserId) {
     case 'scoring':
     case 'between_rounds': {
       safeGame.roundScores = game.roundScores;
+      safeGame.roundHighlights = game.roundHighlights ?? [];
       safeGame.answers = game.answers.map((a) => ({
         answerId: a.answerId,
         text: a.text,
@@ -625,6 +1021,12 @@ export function snapshotFor(room, viewerUserId) {
 
     case 'finished': {
       safeGame.roundScores = game.roundScores;
+      safeGame.roundHighlights = game.roundHighlights ?? [];
+      safeGame.sessionSummary = game.sessionSummary ?? null;
+      const viewerStat = game.sessionStats?.[viewerUserId];
+      if (viewerStat) {
+        safeGame.viewerSessionStat = { ...viewerStat };
+      }
       safeGame.answers = game.answers.map((a) => ({
         answerId: a.answerId,
         text: a.text,
@@ -700,6 +1102,77 @@ function getVotersForAnswer(game, answerId) {
 }
 
 /**
+ * Host force-skip during writing or voting phase.
+ * @param {object} room
+ * @param {string} hostUserId
+ * @param {number} now
+ * @returns {string}
+ */
+export function skipCurrentPhase(room, hostUserId, now) {
+  const game = room.game;
+  if (!game) throw new FibbageError('No game in progress', 'NO_GAME');
+  if (room.hostUserId !== hostUserId) {
+    throw new FibbageError('Only host can skip phase', 'NOT_HOST');
+  }
+  if (game.status !== 'writing' && game.status !== 'voting') {
+    throw new FibbageError('Cannot skip this phase', 'INVALID_PHASE');
+  }
+  if (game.skipPhaseUsedIn === game.status) {
+    throw new FibbageError('Already skipped this phase', 'SKIP_ALREADY_USED');
+  }
+
+  game.skipPhaseUsedIn = game.status;
+
+  if (game.status === 'writing') {
+    return enterVotingOrSkip(room, now);
+  }
+  return enterRevealing(room, now);
+}
+
+function countPhaseProgress(room) {
+  const game = room.game;
+  if (!game) return { done: 0, total: 0 };
+
+  const activeIds = activePlayersInRoom(room).map((p) => p.userId);
+  const total = activeIds.length;
+  if (total === 0) return { done: 0, total: 0 };
+
+  if (game.status === 'writing') {
+    const done = activeIds.filter((id) => game.submissions.has(id)).length;
+    return { done, total };
+  }
+  if (game.status === 'voting') {
+    const done = activeIds.filter((id) => game.votes.has(id)).length;
+    return { done, total };
+  }
+  return { done: 0, total: 0 };
+}
+
+function computeSkipPhaseReady(room) {
+  const game = room.game;
+  if (!game || (game.status !== 'writing' && game.status !== 'voting')) return false;
+  if (game.skipPhaseUsedIn === game.status) return false;
+
+  const { done, total } = countPhaseProgress(room);
+  if (total === 0) return false;
+  if (done >= Math.ceil(total / 2)) return true;
+
+  if (done > 0 && done < total && game.phaseEndsAt) {
+    const elapsed = Date.now() - (game.phaseEndsAt - phaseDurationMs(room));
+    return elapsed >= 15000;
+  }
+  return false;
+}
+
+function phaseDurationMs(room) {
+  const game = room.game;
+  if (!game) return 0;
+  if (game.status === 'writing') return room.settings.writingSeconds * 1000;
+  if (game.status === 'voting') return room.settings.votingSeconds * 1000;
+  return 0;
+}
+
+/**
  * Build viewer-specific permissions object.
  */
 function buildPermissions(room, viewerUserId) {
@@ -714,11 +1187,17 @@ function buildPermissions(room, viewerUserId) {
       canVote: false,
       ownSubmissionLocked: false,
       ownAnswerId: null,
+      canSkipPhase: false,
+      skipPhaseReady: false,
     };
   }
 
   const hasSubmitted = game.submissions.has(viewerUserId);
   const hasVoted = game.votes.has(viewerUserId);
+  const canSkipPhase =
+    isHost && (game.status === 'writing' || game.status === 'voting');
+  const skipPhaseReady = canSkipPhase && computeSkipPhaseReady(room);
+  const progress = countPhaseProgress(room);
 
   return {
     canStartGame: isHost && game.status === 'finished',
@@ -726,6 +1205,9 @@ function buildPermissions(room, viewerUserId) {
     canVote: game.status === 'voting' && Boolean(player) && !hasVoted,
     ownSubmissionLocked: hasSubmitted,
     ownAnswerId: null,
+    canSkipPhase,
+    skipPhaseReady,
+    phaseProgress: progress,
   };
 }
 

@@ -110,13 +110,27 @@ export function installFibbageHandlers({ socket, registry, logger }) {
 
   register(socket, logger, 'submit_lie', fibbageSubmitLieSchema, async (data) => {
     const { room, transitionReason } = registry.submitRoomLie(socket, data.text);
-    registry.emitRoom(room.code, transitionReason ?? 'lie_submitted');
+    let reason = transitionReason ?? 'lie_submitted';
+    if (transitionReason === 'voting_started' || transitionReason === 'revealing_started') {
+      reason = 'writing_complete';
+    }
+    registry.emitRoom(room.code, reason);
     return { room: registry.snapshotForSocket(socket) };
   });
 
   register(socket, logger, 'cast_vote', fibbageCastVoteSchema, async (data) => {
     const { room, transitionReason } = registry.castRoomVote(socket, data.answerId);
-    registry.emitRoom(room.code, transitionReason ?? 'vote_cast');
+    let reason = transitionReason ?? 'vote_cast';
+    if (transitionReason === 'revealing_started') {
+      reason = 'voting_complete';
+    }
+    registry.emitRoom(room.code, reason);
+    return { room: registry.snapshotForSocket(socket) };
+  });
+
+  register(socket, logger, 'skip_phase', null, async () => {
+    const { room } = registry.skipPhase(socket);
+    registry.emitRoom(room.code, 'phase_skipped');
     return { room: registry.snapshotForSocket(socket) };
   });
 

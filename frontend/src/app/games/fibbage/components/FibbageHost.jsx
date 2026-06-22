@@ -26,6 +26,7 @@ export function FibbageHost({ status }) {
   const round = game?.round;
   const roundCount = room?.settings?.roundCount ?? 5;
   const multiplier = game?.roundMultiplier ?? 1;
+  const isBlitz = room?.settings?.presetId === "blitz";
   const motionProps = hostLabel(reduce);
 
   return (
@@ -38,8 +39,13 @@ export function FibbageHost({ status }) {
         </AnimatePresence>
         <div className="flex flex-wrap items-center gap-3 text-xs normal-case tracking-normal">
           {typeof round === "number" ? (
-            <span>
+            <span className="flex items-center gap-2">
               Round {round}/{roundCount}
+              {isBlitz ? (
+                <span className="rounded-full bg-[var(--fibbage-cta)]/20 px-2 py-0.5 font-bold text-[var(--fibbage-cta)]">
+                  ⚡ Blitz
+                </span>
+              ) : null}
             </span>
           ) : null}
           {category ? <span className="capitalize">{category}</span> : null}

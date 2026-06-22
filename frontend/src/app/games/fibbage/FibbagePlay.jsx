@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFibbage } from "../../../lib/fibbage/FibbageSocketContext.jsx";
 import { FibbageFeedbackProvider, useFibbageFeedback } from "../../../lib/fibbage/FibbageFeedbackContext.jsx";
@@ -29,10 +30,26 @@ export function FibbagePlay() {
 
 function FibbagePlayInner() {
   const router = useRouter();
-  const { room, leaveRoom } = useFibbage();
-  const { message: feedbackMessage } = useFibbageFeedback();
+  const { room, leaveRoom, roomUpdateReason } = useFibbage();
+  const { message: feedbackMessage, flash } = useFibbageFeedback();
   const game = room?.game;
   const status = game?.status;
+  const lastReasonRef = useRef(/** @type {string | null} */ (null));
+
+  useEffect(() => {
+    if (!roomUpdateReason || roomUpdateReason === lastReasonRef.current) return;
+    lastReasonRef.current = roomUpdateReason;
+    if (roomUpdateReason === "writing_complete") {
+      flash("Everyone's in!");
+    } else if (roomUpdateReason === "voting_complete") {
+      flash("All votes are in!");
+    }
+  }, [roomUpdateReason, flash]);
+
+  const topHighlight =
+    status === "scoring" && Array.isArray(game?.roundHighlights) && game.roundHighlights.length > 0
+      ? game.roundHighlights[0]
+      : null;
 
   const {
     confirmOpen: leaveConfirmOpen,
@@ -47,7 +64,7 @@ function FibbagePlayInner() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <FibbagePhaseAnnouncer status={status} />
+      <FibbagePhaseAnnouncer status={status} topHighlight={topHighlight} />
       <FibbagePlayHeader onLeave={requestLeave} />
       <FibbageHost status={status} />
       <main className="flex-1 px-4 py-4">

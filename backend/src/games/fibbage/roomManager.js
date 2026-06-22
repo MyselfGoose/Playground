@@ -11,6 +11,7 @@ import {
   FIBBAGE_DATASET_VERSION,
   FIBBAGE_MIN_PLAYERS,
   FIBBAGE_MAX_PLAYERS,
+  FIBBAGE_PRESETS,
 } from './constants.js';
 import {
   normalizeSettings,
@@ -19,6 +20,7 @@ import {
   advanceRevealIfExpired,
   finalizeWritingIfReady,
   finalizeVotingIfReady,
+  skipCurrentPhase,
   submitLie,
   castVote,
   snapshotFor,
@@ -385,11 +387,37 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
     }
     const current = room.settings;
     const merged = { ...current };
+    if (settings.presetId !== undefined) {
+      const preset = FIBBAGE_PRESETS[settings.presetId];
+      if (preset) {
+        merged.presetId = preset.id;
+        merged.roundCount = preset.roundCount;
+        merged.writingSeconds = preset.writingSeconds;
+        merged.votingSeconds = preset.votingSeconds;
+      } else if (settings.presetId === 'custom') {
+        merged.presetId = 'custom';
+      }
+    }
     if (settings.roundCount !== undefined) merged.roundCount = settings.roundCount;
     if (settings.writingSeconds !== undefined) merged.writingSeconds = settings.writingSeconds;
     if (settings.votingSeconds !== undefined) merged.votingSeconds = settings.votingSeconds;
     if (settings.categoryMode !== undefined) merged.categoryMode = settings.categoryMode;
     if (settings.categoryIds !== undefined) merged.categoryIds = settings.categoryIds;
+    if (
+      settings.roundCount !== undefined ||
+      settings.writingSeconds !== undefined ||
+      settings.votingSeconds !== undefined
+    ) {
+      if (settings.presetId === undefined && merged.presetId !== 'custom') {
+        const matchesPreset = Object.values(FIBBAGE_PRESETS).some(
+          (p) =>
+            p.roundCount === merged.roundCount &&
+            p.writingSeconds === merged.writingSeconds &&
+            p.votingSeconds === merged.votingSeconds,
+        );
+        if (!matchesPreset) merged.presetId = 'custom';
+      }
+    }
     room.settings = normalizeSettings(merged);
     bumpStateVersion(room);
     return room;
@@ -446,6 +474,15 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
     castVote(room, socket.data.userId, answerId);
     const now = Date.now();
     const transitionReason = finalizeVotingIfReady(room, now);
+    bumpStateVersion(room);
+    return { room, transitionReason };
+  }
+
+  function skipPhase(socket) {
+    const room = getRoomForSocket(socket);
+    if (!room) throw Object.assign(new Error('Not in room'), { code: 'NOT_IN_ROOM' });
+    const now = Date.now();
+    const transitionReason = skipCurrentPhase(room, socket.data.userId, now);
     bumpStateVersion(room);
     return { room, transitionReason };
   }
@@ -627,6 +664,7 @@ export function createFibbageRoomManager({ fibbageNs, logger }) {
     startRoomGame,
     submitRoomLie,
     castRoomVote,
+    skipPhase,
     snapshotForSocket,
     snapshotFor: (room, userId) => snapshotFor(room, userId),
     getRoomForSocket,
