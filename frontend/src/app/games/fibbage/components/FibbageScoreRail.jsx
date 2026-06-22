@@ -66,7 +66,6 @@ function ScoreRailItem({ player, isLeader, index, reduce }) {
       initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.22 }}
-      layout={!reduce}
     >
       <Avatar
         username={player.username}

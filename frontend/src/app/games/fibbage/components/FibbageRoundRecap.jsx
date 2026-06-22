@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { recapCard } from "../../../../lib/fibbage/motion.js";
 import { Avatar } from "../../../../components/Avatar.jsx";
 
 const ACCENT_CLASSES = {
@@ -12,8 +13,8 @@ const ACCENT_CLASSES = {
   muted: "border-[var(--fibbage-text-muted)]/30",
 };
 
-const CARD_MS = 800;
-const TOTAL_MS = 2500;
+const RECAP_CARD_DWELL_MS = 1400;
+const RECAP_LAST_CARD_PAUSE_MS = 400;
 
 /**
  * @param {{
@@ -25,40 +26,53 @@ const TOTAL_MS = 2500;
 export function FibbageRoundRecap({ highlights, players, onComplete }) {
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
-  const [done, setDone] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+  const highlightsKeyRef = useRef("");
+
+  onCompleteRef.current = onComplete;
 
   const playerMap = new Map(players.map((p) => [p.userId, p]));
 
-  const advance = useCallback(() => {
-    setIndex((prev) => {
-      if (prev >= highlights.length - 1) {
-        setDone(true);
-        onComplete?.();
-        return prev;
-      }
-      return prev + 1;
-    });
-  }, [highlights.length, onComplete]);
+  const finish = useCallback(() => {
+    onCompleteRef.current?.();
+  }, []);
+
+  const highlightsKey = highlights.map((h) => h.id).join(",");
 
   useEffect(() => {
-    if (!highlights.length || done) return undefined;
+    if (highlightsKey !== highlightsKeyRef.current) {
+      highlightsKeyRef.current = highlightsKey;
+      setIndex(0);
+    }
+  }, [highlightsKey]);
+
+  useEffect(() => {
+    if (!highlights.length) return undefined;
+
     if (reduce) {
-      const frame = requestAnimationFrame(() => {
-        setDone(true);
-        onComplete?.();
-      });
+      const frame = requestAnimationFrame(() => finish());
       return () => cancelAnimationFrame(frame);
     }
-    const perCard = Math.min(CARD_MS, Math.floor(TOTAL_MS / Math.max(highlights.length, 1)));
-    const timer = window.setTimeout(advance, perCard);
+
+    const isLast = index >= highlights.length - 1;
+    const dwell = isLast ? RECAP_CARD_DWELL_MS + RECAP_LAST_CARD_PAUSE_MS : RECAP_CARD_DWELL_MS;
+
+    const timer = window.setTimeout(() => {
+      if (isLast) {
+        finish();
+        return;
+      }
+      setIndex((prev) => prev + 1);
+    }, dwell);
+
     return () => window.clearTimeout(timer);
-  }, [index, highlights.length, done, reduce, advance, onComplete]);
+  }, [index, highlights.length, reduce, finish]);
 
   if (!highlights.length) return null;
 
   if (reduce) {
     return (
-      <div className="space-y-3" aria-live="polite" aria-label="Round highlights">
+      <div className="min-h-[10rem] space-y-3" aria-live="polite" aria-label="Round highlights">
         {highlights.map((h) => (
           <RecapCard key={h.id} highlight={h} playerMap={playerMap} />
         ))}
@@ -73,10 +87,7 @@ export function FibbageRoundRecap({ highlights, players, onComplete }) {
       <AnimatePresence mode="wait">
         <motion.div
           key={`${current.id}-${index}`}
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, y: -12 }}
-          transition={{ duration: index === 0 ? 0.22 : 0.18 }}
+          {...recapCard(reduce, index === 0)}
         >
           <RecapCard highlight={current} playerMap={playerMap} />
         </motion.div>

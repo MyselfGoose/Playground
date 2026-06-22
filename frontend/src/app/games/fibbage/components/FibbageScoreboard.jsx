@@ -11,7 +11,6 @@ import { FibbageRoundRecap } from "./FibbageRoundRecap.jsx";
 
 const SCORING_SECONDS = 6;
 const BETWEEN_ROUNDS_SECONDS = 3;
-const RECAP_MS = 2500;
 const SHELL_MS = 300;
 
 /**
@@ -91,11 +90,7 @@ export function FibbageScoreboard() {
       return () => window.clearTimeout(shellTimer);
     }
     const shellTimer = window.setTimeout(() => setShowRecap(true), SHELL_MS);
-    const rowsTimer = window.setTimeout(() => setShowRows(true), SHELL_MS + RECAP_MS);
-    return () => {
-      window.clearTimeout(shellTimer);
-      window.clearTimeout(rowsTimer);
-    };
+    return () => window.clearTimeout(shellTimer);
   }, [roundKey, isScoring, isBetweenRounds, highlights.length]);
 
   const handleRecapComplete = useCallback(() => {
@@ -153,29 +148,24 @@ export function FibbageScoreboard() {
 
           {showRows ? (
             <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
-                {sortedPlayers.map((player, index) => {
-                  const roundScore = roundScores[player.userId]?.totalRoundPoints ?? 0;
-                  const isLeader = index === 0 && (player.score ?? 0) > 0;
-                  const stagger = cardStagger(index, reduce);
+              {sortedPlayers.map((player, index) => {
+                const roundScore = roundScores[player.userId]?.totalRoundPoints ?? 0;
+                const isLeader = index === 0 && (player.score ?? 0) > 0;
+                const stagger = cardStagger(index, reduce);
 
-                  return (
-                    <motion.div
-                      key={player.userId}
-                      layout={!reduce}
-                      className={`flex items-center gap-3 rounded-xl px-4 py-3 ${
-                        isLeader
-                          ? "border border-[var(--fibbage-gold)]/30 bg-[var(--fibbage-canvas-light)]"
-                          : "bg-[var(--fibbage-canvas-light)]"
-                      }`}
-                      {...stagger}
-                    >
-                      <motion.span
-                        className="w-6 text-center text-sm font-bold text-[var(--fibbage-text-muted)]"
-                        layout={!reduce ? "position" : undefined}
-                      >
-                        {index + 1}
-                      </motion.span>
+                return (
+                  <motion.div
+                    key={player.userId}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 ${
+                      isLeader
+                        ? "border border-[var(--fibbage-gold)]/30 bg-[var(--fibbage-canvas-light)]"
+                        : "bg-[var(--fibbage-canvas-light)]"
+                    }`}
+                    {...stagger}
+                  >
+                    <span className="w-6 text-center text-sm font-bold text-[var(--fibbage-text-muted)]">
+                      {index + 1}
+                    </span>
                       <Avatar
                         username={player.username}
                         avatarUrl={player.avatarUrl}
@@ -206,7 +196,6 @@ export function FibbageScoreboard() {
                     </motion.div>
                   );
                 })}
-              </AnimatePresence>
             </div>
           ) : null}
         </>

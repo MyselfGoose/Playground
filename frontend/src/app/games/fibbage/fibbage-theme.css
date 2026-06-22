@@ -129,7 +129,6 @@
 .fibbage-card--truth {
   border-color: var(--fibbage-truth) !important;
   box-shadow: var(--fibbage-card-shadow-truth);
-  animation: fibbage-truth-glow 1.5s ease-in-out infinite alternate;
 }
 
 .fibbage-card--spotlight {
@@ -138,8 +137,7 @@
 }
 
 .fibbage-card--dimmed {
-  opacity: 0.45;
-  transform: scale(0.98);
+  opacity: 0.4;
 }
 
 @keyframes fibbage-truth-glow {

@@ -81,10 +81,10 @@ export function scorePop(reduce = false) {
     };
   }
   return {
-    initial: { opacity: 0, scale: 0.5, y: 4 },
-    animate: { opacity: 1, scale: 1, y: 0 },
-    exit: { opacity: 0, scale: 1.1, y: -4 },
-    transition: { type: "spring", stiffness: 400, damping: 22 },
+    initial: { opacity: 0, y: 4 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -4 },
+    transition: { duration: MOTION_NORMAL_SEC, ease: FIBBAGE_EASE },
   };
 }
 
@@ -161,13 +161,9 @@ export function revealCard(reduce = false, spotlight = false) {
     };
   }
   return {
-    initial: { opacity: 0, scale: 0.96 },
-    animate: {
-      opacity: spotlight ? 1 : 0.45,
-      scale: spotlight ? 1 : 0.97,
-      y: spotlight ? 0 : 0,
-    },
-    transition: { duration: 0.35, ease: FIBBAGE_EASE },
+    initial: { opacity: 0 },
+    animate: { opacity: spotlight ? 1 : 0.45 },
+    transition: { duration: 0.28, ease: FIBBAGE_EASE },
   };
 }
 
@@ -178,14 +174,78 @@ export function truthReveal(reduce = false) {
   if (reduce) {
     return {
       initial: false,
-      animate: { opacity: 1, scale: 1 },
+      animate: { opacity: 1 },
       transition: { duration: MOTION_FAST_SEC },
     };
   }
   return {
-    initial: { opacity: 0.6, scale: 0.95 },
-    animate: { opacity: 1, scale: 1.02 },
-    transition: { type: "spring", stiffness: 280, damping: 20 },
+    initial: { opacity: 0.5 },
+    animate: { opacity: 1 },
+    transition: { duration: 0.32, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Inner content expand (author / voters) — opacity + height, no spring.
+ * @param {boolean} reduce
+ */
+export function contentExpand(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, height: "auto" },
+      exit: { opacity: 0, height: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, height: 0 },
+    animate: { opacity: 1, height: "auto" },
+    exit: { opacity: 0, height: 0 },
+    transition: { duration: 0.28, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Opacity-only crossfade for recap carousel.
+ * @param {boolean} reduce
+ * @param {boolean} [isFirst]
+ */
+export function recapCard(reduce = false, isFirst = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: isFirst ? false : { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.28, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Generic opacity crossfade.
+ * @param {boolean} reduce
+ */
+export function crossfade(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.28, ease: FIBBAGE_EASE },
   };
 }
 
@@ -199,5 +259,8 @@ export const fibbageMotion = {
   hostLabel,
   revealCard,
   truthReveal,
+  contentExpand,
+  recapCard,
+  crossfade,
   feedbackOverlay: feedbackMotion.overlay,
 };
