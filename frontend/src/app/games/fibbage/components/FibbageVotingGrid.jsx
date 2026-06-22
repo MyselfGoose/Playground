@@ -15,10 +15,10 @@ export function FibbageVotingGrid() {
   const votingSeconds = room?.settings?.votingSeconds ?? 45;
   const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, votingSeconds);
   const answers = game?.answers ?? [];
-  const canVote = Boolean(game?.permissions?.canVote);
+  const canVote = Boolean(room?.permissions?.canVote);
   const hasVoted = Boolean(game?.viewerVote);
   const votedUserIds = game?.votedUserIds ?? [];
-  const ownAnswerId = game?.permissions?.ownAnswerId ?? null;
+  const ownAnswerId = room?.permissions?.ownAnswerId ?? null;
 
   const waitingFor = useMemo(() => {
     const activePlayers = room?.players?.filter((p) => p.connected !== false) ?? [];

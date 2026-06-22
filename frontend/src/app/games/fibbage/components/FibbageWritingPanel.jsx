@@ -15,8 +15,8 @@ export function FibbageWritingPanel() {
 
   const writingSeconds = room?.settings?.writingSeconds ?? 90;
   const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, writingSeconds);
-  const canSubmit = Boolean(game?.permissions?.canSubmitLie);
-  const submitted = Boolean(game?.permissions?.ownSubmissionLocked);
+  const canSubmit = Boolean(room?.permissions?.canSubmitLie);
+  const submitted = Boolean(room?.permissions?.ownSubmissionLocked);
   const submittedUserIds = game?.submittedUserIds ?? [];
 
   const waitingFor = useMemo(() => {
