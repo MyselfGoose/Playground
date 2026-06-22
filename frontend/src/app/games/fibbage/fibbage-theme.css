@@ -16,12 +16,72 @@
   --fibbage-timer-danger: #ef4444;
   --fibbage-host-bg: rgba(6, 182, 212, 0.1);
   --fibbage-host-border: rgba(6, 182, 212, 0.3);
+
+  /* Motion */
+  --fibbage-motion-fast: 120ms;
+  --fibbage-motion-normal: 220ms;
+  --fibbage-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Spacing */
+  --fibbage-space-1: 0.25rem;
+  --fibbage-space-2: 0.5rem;
+  --fibbage-space-3: 0.75rem;
+  --fibbage-space-4: 1rem;
+  --fibbage-space-5: 1.25rem;
+  --fibbage-space-6: 1.5rem;
+  --fibbage-space-8: 2rem;
+
+  /* Elevation */
+  --fibbage-card-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.35);
+  --fibbage-card-shadow-selected: 0 0 20px rgba(251, 191, 36, 0.25);
+  --fibbage-card-shadow-truth: 0 0 28px rgba(16, 185, 129, 0.35);
 }
 
 .fibbage-theme {
   background: linear-gradient(135deg, var(--fibbage-canvas) 0%, #0c1929 50%, #0f2027 100%);
+  background-size: 200% 200%;
+  animation: fibbage-ambient-shift 24s ease-in-out infinite alternate;
   color: var(--fibbage-text);
   min-height: 100dvh;
+}
+
+@keyframes fibbage-ambient-shift {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+/* Typography */
+.fibbage-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fibbage-accent);
+}
+
+.fibbage-display {
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1.35;
+  color: var(--fibbage-text);
+}
+
+@media (min-width: 640px) {
+  .fibbage-display {
+    font-size: 1.875rem;
+  }
+}
+
+.fibbage-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--fibbage-text-muted);
+}
+
+.fibbage-micro {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fibbage-text-muted);
 }
 
 .fibbage-host-strip {
@@ -33,7 +93,7 @@
   text-transform: uppercase;
   font-size: 0.875rem;
   line-height: 1.5;
-  padding: 0.75rem 1rem;
+  padding: var(--fibbage-space-3) var(--fibbage-space-4);
   border-radius: 0.75rem;
   color: var(--fibbage-accent-glow);
 }
@@ -42,18 +102,23 @@
   background: var(--fibbage-card-bg);
   border: 1px solid var(--fibbage-card-border);
   border-radius: 1rem;
-  padding: 1.25rem;
+  padding: var(--fibbage-space-5);
   backdrop-filter: blur(8px);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: var(--fibbage-card-shadow);
+  transition:
+    border-color var(--fibbage-motion-normal) var(--fibbage-ease-out),
+    box-shadow var(--fibbage-motion-normal) var(--fibbage-ease-out),
+    transform var(--fibbage-motion-fast) var(--fibbage-ease-out),
+    opacity var(--fibbage-motion-normal) var(--fibbage-ease-out);
 }
 
-.fibbage-card:hover {
+.fibbage-card:hover:not(:disabled):not(.fibbage-card--disabled) {
   border-color: var(--fibbage-accent);
 }
 
 .fibbage-card--selected {
   border-color: var(--fibbage-gold) !important;
-  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+  box-shadow: var(--fibbage-card-shadow-selected);
 }
 
 .fibbage-card--disabled {
@@ -63,18 +128,40 @@
 
 .fibbage-card--truth {
   border-color: var(--fibbage-truth) !important;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.3);
+  box-shadow: var(--fibbage-card-shadow-truth);
+  animation: fibbage-truth-glow 1.5s ease-in-out infinite alternate;
+}
+
+.fibbage-card--spotlight {
+  border-color: var(--fibbage-accent) !important;
+  box-shadow: 0 0 24px rgba(6, 182, 212, 0.3);
+}
+
+.fibbage-card--dimmed {
+  opacity: 0.45;
+  transform: scale(0.98);
+}
+
+@keyframes fibbage-truth-glow {
+  from {
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+  }
+  to {
+    box-shadow: 0 0 32px rgba(16, 185, 129, 0.45);
+  }
 }
 
 .fibbage-btn {
   background: var(--fibbage-cta);
   color: white;
   font-weight: 700;
-  padding: 0.75rem 1.5rem;
+  padding: var(--fibbage-space-3) var(--fibbage-space-6);
   border-radius: 0.75rem;
   border: none;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  transition:
+    background var(--fibbage-motion-normal) var(--fibbage-ease-out),
+    transform var(--fibbage-motion-fast) var(--fibbage-ease-out);
   font-size: 1rem;
 }
 
@@ -113,6 +200,7 @@
   border-radius: 2px;
   background: var(--fibbage-accent);
   transition: width 0.5s linear;
+  will-change: width;
 }
 
 .fibbage-timer-bar--danger {
@@ -128,6 +216,128 @@
 .fibbage-prompt-blank {
   display: inline;
   border-bottom: 3px solid var(--fibbage-accent);
-  padding: 0 0.5rem;
+  padding: 0 var(--fibbage-space-2);
   min-width: 6rem;
+  animation: fibbage-blank-reveal 0.6s var(--fibbage-ease-out) forwards;
+}
+
+@keyframes fibbage-blank-reveal {
+  from {
+    border-color: transparent;
+    opacity: 0.3;
+  }
+  to {
+    border-color: var(--fibbage-accent);
+    opacity: 1;
+  }
+}
+
+.fibbage-input {
+  width: 100%;
+  resize: none;
+  border-radius: 0.75rem;
+  border: 1px solid var(--fibbage-card-border);
+  background: var(--fibbage-canvas);
+  padding: var(--fibbage-space-3) var(--fibbage-space-4);
+  color: var(--fibbage-text);
+  outline: none;
+  transition:
+    border-color var(--fibbage-motion-normal) var(--fibbage-ease-out),
+    box-shadow var(--fibbage-motion-normal) var(--fibbage-ease-out);
+}
+
+.fibbage-input:focus {
+  border-color: var(--fibbage-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+}
+
+.fibbage-lobby-panel {
+  border-radius: 1rem;
+  background: var(--fibbage-canvas-light);
+  border: 1px solid var(--fibbage-card-border);
+}
+
+.fibbage-lobby-status {
+  border-radius: 1rem;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--fibbage-card-border);
+}
+
+.fibbage-lobby .text-foreground {
+  color: var(--fibbage-text);
+}
+
+.fibbage-lobby .text-foreground\/55,
+.fibbage-lobby .text-muted {
+  color: var(--fibbage-text-muted);
+}
+
+.fibbage-lobby .bg-muted-bright\/25 {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--fibbage-card-border);
+}
+
+.fibbage-skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.5) 0%,
+    rgba(51, 65, 85, 0.5) 50%,
+    rgba(30, 41, 59, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: fibbage-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes fibbage-skeleton-pulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.fibbage-score-flash {
+  animation: fibbage-score-flash 0.6s var(--fibbage-ease-out);
+}
+
+@keyframes fibbage-score-flash {
+  0% { color: var(--fibbage-gold-glow); transform: scale(1.15); }
+  100% { color: var(--fibbage-gold); transform: scale(1); }
+}
+
+@keyframes fibbage-winner-pulse {
+  0% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.3); }
+  100% { box-shadow: 0 0 32px rgba(251, 191, 36, 0.55); }
+}
+
+.fibbage-winner-glow {
+  animation: fibbage-winner-pulse 1.8s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fibbage-theme {
+    animation: none;
+    background-size: auto;
+  }
+
+  .fibbage-card,
+  .fibbage-btn,
+  .fibbage-timer-bar,
+  .fibbage-input {
+    transition-duration: 0.01ms !important;
+  }
+
+  .fibbage-timer-bar--danger,
+  .fibbage-card--truth,
+  .fibbage-prompt-blank,
+  .fibbage-skeleton,
+  .fibbage-score-flash {
+    animation: none !important;
+  }
+
+  .fibbage-winner-glow {
+    animation: none !important;
+  }
+
+  .fibbage-card--dimmed {
+    transform: none;
+  }
 }

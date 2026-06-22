@@ -1,7 +1,10 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useFibbage } from "../../../lib/fibbage/FibbageSocketContext.jsx";
+import { FibbageFeedbackProvider, useFibbageFeedback } from "../../../lib/fibbage/FibbageFeedbackContext.jsx";
+import { phaseEnter } from "../../../lib/fibbage/motion.js";
 import { useLeaveLobby } from "../../../lib/party/useLeaveLobby.js";
 import { LeaveLobbyDialog } from "../../../components/party/LeaveLobbyDialog.jsx";
 import { FibbageHost } from "./components/FibbageHost.jsx";
@@ -13,11 +16,21 @@ import { FibbageRevealStage } from "./components/FibbageRevealStage.jsx";
 import { FibbageScoreboard } from "./components/FibbageScoreboard.jsx";
 import { FibbagePhaseAnnouncer } from "./components/FibbagePhaseAnnouncer.jsx";
 import { FibbagePlayHeader } from "./components/FibbagePlayHeader.jsx";
+import { FibbageFeedbackOverlay } from "./components/FibbageFeedbackOverlay.jsx";
 import { FIBBAGE_PATHS } from "./fibbage-shared.js";
 
 export function FibbagePlay() {
+  return (
+    <FibbageFeedbackProvider>
+      <FibbagePlayInner />
+    </FibbageFeedbackProvider>
+  );
+}
+
+function FibbagePlayInner() {
   const router = useRouter();
   const { room, leaveRoom } = useFibbage();
+  const { message: feedbackMessage } = useFibbageFeedback();
   const game = room?.game;
   const status = game?.status;
 
@@ -41,6 +54,7 @@ export function FibbagePlay() {
         <PhaseContent status={status} />
       </main>
       <FibbageScoreRail players={room?.players ?? []} />
+      <FibbageFeedbackOverlay message={feedbackMessage} show={Boolean(feedbackMessage)} />
 
       <LeaveLobbyDialog
         open={leaveConfirmOpen}
@@ -56,7 +70,47 @@ export function FibbagePlay() {
   );
 }
 
+/**
+ * @param {{ status?: string }} props
+ */
 function PhaseContent({ status }) {
+  const reduce = useReducedMotion();
+  const motionProps = phaseEnter(reduce);
+  const phaseKey = resolvePhaseKey(status);
+
+  return (
+    <AnimatePresence mode="wait">
+      {phaseKey ? (
+        <motion.div key={phaseKey} className="w-full" {...motionProps}>
+          {renderPhase(status)}
+        </motion.div>
+      ) : (
+        <motion.div
+          key="loading"
+          className="flex min-h-[40dvh] items-center justify-center"
+          {...motionProps}
+        >
+          <FibbagePhaseLoading />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/**
+ * @param {string | undefined} status
+ */
+function resolvePhaseKey(status) {
+  if (!status) return null;
+  if (status === "starting" || status === "prompt_reveal") return "prompt";
+  if (status === "scoring" || status === "between_rounds") return "score";
+  return status;
+}
+
+/**
+ * @param {string | undefined} status
+ */
+function renderPhase(status) {
   switch (status) {
     case "starting":
     case "prompt_reveal":
@@ -71,10 +125,16 @@ function PhaseContent({ status }) {
     case "between_rounds":
       return <FibbageScoreboard />;
     default:
-      return (
-        <div className="flex min-h-[40dvh] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--fibbage-accent)] border-t-transparent" />
-        </div>
-      );
+      return <FibbagePhaseLoading />;
   }
+}
+
+function FibbagePhaseLoading() {
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4" aria-busy="true" aria-label="Loading game phase">
+      <div className="fibbage-skeleton h-8 w-32 mx-auto" />
+      <div className="fibbage-skeleton h-40 w-full rounded-2xl" />
+      <div className="fibbage-skeleton h-3 w-full max-w-xs mx-auto" />
+    </div>
+  );
 }

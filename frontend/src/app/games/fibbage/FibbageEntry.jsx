@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useFibbage } from "../../../lib/fibbage/FibbageSocketContext.jsx";
+import { sectionEnter } from "../../../lib/fibbage/motion.js";
+import { FibbageButton } from "./components/FibbageButton.jsx";
 
 export function FibbageEntry() {
+  const reduce = useReducedMotion();
   const { createRoom, joinRoom, connected, socketError } = useFibbage();
   const [joinCode, setJoinCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -52,60 +55,56 @@ export function FibbageEntry() {
   );
 
   const busy = creating || joining;
+  const displayError = error || socketError;
+  const pageMotion = sectionEnter(reduce, 0);
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center px-4 py-12">
-      <motion.div
-        className="w-full max-w-md space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
+      <motion.div className="w-full max-w-md space-y-8" {...pageMotion}>
         <header className="text-center">
           <h1 className="text-4xl font-black tracking-tight text-[var(--fibbage-accent-glow)]">
             Fibbage
           </h1>
-          <p className="mt-2 text-sm text-[var(--fibbage-text-muted)]">
+          <p className="mt-2 fibbage-body">
             Write lies. Fool your friends. Find the truth.
           </p>
         </header>
 
-        {(error || socketError) && (
-          <motion.p
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-semibold text-red-400"
-          >
-            {error || socketError}
-          </motion.p>
-        )}
+        <AnimatePresence>
+          {displayError ? (
+            <motion.p
+              initial={reduce ? false : { opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? undefined : { opacity: 0, y: -4 }}
+              className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-center text-sm font-semibold text-error"
+            >
+              {displayError}
+            </motion.p>
+          ) : null}
+        </AnimatePresence>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <motion.div
             className="fibbage-card flex flex-col items-center gap-4 p-6"
-            whileHover={{ scale: 1.02 }}
+            whileHover={reduce ? undefined : { scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
             <h2 className="text-lg font-bold text-[var(--fibbage-text)]">New Game</h2>
-            <p className="text-center text-xs text-[var(--fibbage-text-muted)]">
+            <p className="text-center fibbage-micro">
               Create a room and invite your friends
             </p>
-            <button
-              className="fibbage-btn w-full"
-              onClick={handleCreate}
-              disabled={busy || !connected}
-            >
+            <FibbageButton className="w-full" disabled={busy || !connected} pending={creating} onClick={handleCreate}>
               {creating ? "Creating…" : "Create Room"}
-            </button>
+            </FibbageButton>
           </motion.div>
 
           <motion.div
             className="fibbage-card flex flex-col items-center gap-4 p-6"
-            whileHover={{ scale: 1.02 }}
+            whileHover={reduce ? undefined : { scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
             <h2 className="text-lg font-bold text-[var(--fibbage-text)]">Join Game</h2>
-            <p className="text-center text-xs text-[var(--fibbage-text-muted)]">
+            <p className="text-center fibbage-micro">
               Enter a room code to join
             </p>
             <input
@@ -115,24 +114,29 @@ export function FibbageEntry() {
               onKeyDown={handleKeyDown}
               placeholder="ABCD"
               maxLength={4}
-              className="w-full rounded-lg border border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas-light)] px-4 py-2.5 text-center text-lg font-bold uppercase tracking-widest text-[var(--fibbage-text)] placeholder:text-[var(--fibbage-text-muted)]/50 focus:border-[var(--fibbage-accent)] focus:outline-none"
+              className="fibbage-input text-center text-lg font-bold uppercase tracking-widest placeholder:text-[var(--fibbage-text-muted)]/50"
               aria-label="Room code"
             />
-            <button
-              className="fibbage-btn w-full"
-              onClick={handleJoin}
+            <FibbageButton
+              className="w-full"
               disabled={busy || !connected || !joinCode.trim()}
+              pending={joining}
+              onClick={handleJoin}
             >
               {joining ? "Joining…" : "Join Room"}
-            </button>
+            </FibbageButton>
           </motion.div>
         </div>
 
-        {!connected && (
-          <p className="text-center text-xs text-[var(--fibbage-text-muted)]">
+        {!connected ? (
+          <motion.p
+            className="text-center fibbage-micro"
+            initial={reduce ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
             Connecting to server…
-          </p>
-        )}
+          </motion.p>
+        ) : null}
       </motion.div>
     </div>
   );

@@ -254,6 +254,18 @@ html.light {
   --color-taboo-gradient-a-to: #4a8fd4;
   --color-taboo-gradient-b-from: #c44a3d;
   --color-taboo-gradient-b-to: #ff7d70;
+
+  /* Fibbage game palette */
+  --color-fibbage-canvas: #0f172a;
+  --color-fibbage-canvas-light: #1e293b;
+  --color-fibbage-text: #f1f5f9;
+  --color-fibbage-text-muted: #94a3b8;
+  --color-fibbage-accent: #06b6d4;
+  --color-fibbage-accent-glow: #22d3ee;
+  --color-fibbage-cta: #f97316;
+  --color-fibbage-gold: #fbbf24;
+  --color-fibbage-truth: #10b981;
+  --color-fibbage-lie: #ef4444;
   
   --font-sans: var(--font-nunito);
   --radius-sm: var(--radius-sm);

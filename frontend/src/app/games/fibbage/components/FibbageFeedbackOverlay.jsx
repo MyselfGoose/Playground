@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { play } from "../../../../lib/sound/soundManager.js";
+import { feedbackFlash } from "../../../../lib/fibbage/motion.js";
 
 /**
  * Flash overlay that fades out.
  * @param {{ message?: string | null, show?: boolean }} props
  */
 export function FibbageFeedbackOverlay({ message = null, show = false }) {
+  const reduce = useReducedMotion();
   const visible = show || Boolean(message);
   const lastPlayedRef = useRef(/** @type {string | null} */ (null));
+  const motionProps = feedbackFlash(reduce);
 
   useEffect(() => {
     if (!visible || !message) return;
@@ -29,12 +32,9 @@ export function FibbageFeedbackOverlay({ message = null, show = false }) {
         <motion.div
           key={message}
           className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.2 }}
-          transition={{ duration: 0.3 }}
+          {...motionProps}
         >
-          <p className="rounded-2xl bg-[var(--fibbage-canvas)] bg-opacity-90 px-8 py-4 text-xl font-black uppercase tracking-wider text-[var(--fibbage-gold)]">
+          <p className="rounded-2xl border border-[var(--fibbage-gold)]/30 bg-[var(--fibbage-canvas)]/95 px-8 py-4 text-xl font-black uppercase tracking-wider text-[var(--fibbage-gold)] shadow-[var(--fibbage-card-shadow-selected)]">
             {message}
           </p>
         </motion.div>

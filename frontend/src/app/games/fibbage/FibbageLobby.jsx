@@ -8,6 +8,7 @@ import { mapPartyPlayer } from "../../../lib/party/mapPartyPlayer.js";
 import { PartyLobby } from "../../../components/party/PartyLobby.jsx";
 import { LobbyInviteFriends } from "../../../components/party/LobbyInviteFriends.jsx";
 import { FIBBAGE_PATHS } from "./fibbage-shared.js";
+import { FibbageButton } from "./components/FibbageButton.jsx";
 
 const MIN_PLAYERS = 3;
 const DEFAULT_WRITING_SECONDS = 90;
@@ -117,7 +118,7 @@ export function FibbageLobby() {
   );
 
   return (
-    <div className="min-h-[100dvh]">
+    <div className="fibbage-lobby min-h-[100dvh]">
       <PartyLobby
         gameSlug="fibbage"
         code={room?.code}
@@ -151,6 +152,30 @@ export function FibbageLobby() {
         leaveConfirmTitle="Leave Fibbage?"
         leaveConfirmDescription="You'll lose your spot in this lobby."
         error={displayError}
+        className="text-[var(--fibbage-text)]"
+        primaryAction={
+          <div className="flex flex-col gap-3">
+            <FibbageButton
+              variant={ready ? "secondary" : "primary"}
+              className="w-full rounded-full py-3.5"
+              disabled={!connected}
+              pending={readyPending}
+              onClick={handleReadyToggle}
+            >
+              {readyPending ? "Updating…" : ready ? "Unready" : "Ready up"}
+            </FibbageButton>
+            {isHost ? (
+              <FibbageButton
+                className="w-full rounded-full py-3.5"
+                disabled={!canStart}
+                pending={startPending}
+                onClick={handleStart}
+              >
+                {startPending ? "Starting…" : "Start game"}
+              </FibbageButton>
+            ) : null}
+          </div>
+        }
       />
     </div>
   );

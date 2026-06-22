@@ -1,13 +1,19 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useMemo, useState } from "react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
+import { useFibbageFeedback } from "../../../../lib/fibbage/FibbageFeedbackContext.jsx";
 import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
-import { Avatar } from "../../../../components/Avatar.jsx";
+import { sectionEnter } from "../../../../lib/fibbage/motion.js";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
+import { FibbageButton } from "./FibbageButton.jsx";
+import { FibbagePlayerStatus } from "./FibbagePlayerStatus.jsx";
 
 export function FibbageWritingPanel() {
+  const reduce = useReducedMotion();
   const { room, submitLie } = useFibbage();
+  const { flash } = useFibbageFeedback();
   const game = room?.game;
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
@@ -19,10 +25,15 @@ export function FibbageWritingPanel() {
   const submitted = Boolean(room?.permissions?.ownSubmissionLocked);
   const submittedUserIds = game?.submittedUserIds ?? [];
 
-  const waitingFor = useMemo(() => {
-    const activePlayers = room?.players?.filter((p) => p.connected !== false) ?? [];
-    return activePlayers.filter((p) => !submittedUserIds.includes(p.userId));
-  }, [room?.players, submittedUserIds]);
+  const activePlayers = useMemo(
+    () => room?.players?.filter((p) => p.connected !== false) ?? [],
+    [room?.players],
+  );
+
+  const waitingFor = useMemo(
+    () => activePlayers.filter((p) => !submittedUserIds.includes(p.userId)),
+    [activePlayers, submittedUserIds],
+  );
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || pending || !text.trim()) return;
@@ -34,77 +45,99 @@ export function FibbageWritingPanel() {
         setError(result.error?.message ?? "Could not submit lie.");
       } else {
         setText("");
+        flash("Lie submitted!");
       }
     } catch {
       setError("Could not submit lie.");
     } finally {
       setPending(false);
     }
-  }, [canSubmit, pending, submitLie, text]);
+  }, [canSubmit, pending, submitLie, text, flash]);
+
+  const panelMotion = sectionEnter(reduce);
+  const swapMotion = reduce
+    ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 0 } }
+    : {
+        initial: { opacity: 0, y: 12 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -8 },
+        transition: { duration: 0.22 },
+      };
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div className="fibbage-card text-center">
-        <p className="text-sm text-[var(--fibbage-text-muted)]">Fill in the blank with a convincing lie</p>
+      <motion.div className="fibbage-card text-center" {...panelMotion}>
+        <p className="fibbage-body">Fill in the blank with a convincing lie</p>
         <p className="mt-3 text-xl font-bold leading-relaxed text-[var(--fibbage-text)]">
           {game?.prompt?.text}
         </p>
-      </div>
+      </motion.div>
 
-      {submitted ? (
-        <div className="fibbage-card text-center">
-          <p className="font-bold text-[var(--fibbage-accent)]">Lie submitted!</p>
-          <p className="mt-2 text-sm text-[var(--fibbage-text-muted)]">
-            Waiting for {waitingFor.length} player{waitingFor.length === 1 ? "" : "s"}…
-          </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {waitingFor.map((player) => (
-              <div key={player.userId} className="flex items-center gap-2 rounded-lg bg-[var(--fibbage-canvas)] px-3 py-1.5">
-                <Avatar
-                  username={player.username}
-                  avatarUrl={player.avatarUrl}
-                  avatarEmoji={player.avatarEmoji}
-                  size="sm"
-                />
-                <span className="text-xs font-semibold">{player.username}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="fibbage-card space-y-4">
-          <label className="block text-sm font-semibold text-[var(--fibbage-text)]" htmlFor="fibbage-lie">
-            Your lie
-          </label>
-          <textarea
-            id="fibbage-lie"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            maxLength={120}
-            rows={3}
-            disabled={!canSubmit || pending}
-            placeholder="Make it believable…"
-            className="w-full resize-none rounded-xl border border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas)] px-4 py-3 text-[var(--fibbage-text)] outline-none focus:border-[var(--fibbage-accent)]"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-[var(--fibbage-text-muted)]">{text.length}/120</span>
-            <button
-              type="button"
-              className="fibbage-btn"
-              disabled={!canSubmit || pending || text.trim().length < 3}
-              onClick={() => void handleSubmit()}
-            >
-              {pending ? "Submitting…" : "Submit lie"}
-            </button>
-          </div>
-          {error ? <p className="text-sm font-semibold text-[var(--fibbage-lie)]">{error}</p> : null}
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {submitted ? (
+          <motion.div key="waiting" className="fibbage-card text-center" {...swapMotion}>
+            <p className="font-bold text-[var(--fibbage-accent)]">Lie submitted!</p>
+            <p className="mt-2 fibbage-body">
+              Waiting for {waitingFor.length} player{waitingFor.length === 1 ? "" : "s"}…
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <AnimatePresence>
+                {waitingFor.map((player) => (
+                  <FibbagePlayerStatus
+                    key={player.userId}
+                    player={player}
+                    isSubmitted={false}
+                    isVoted={false}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="form" className="fibbage-card space-y-4" {...swapMotion}>
+            <label className="block text-sm font-semibold text-[var(--fibbage-text)]" htmlFor="fibbage-lie">
+              Your lie
+            </label>
+            <textarea
+              id="fibbage-lie"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              maxLength={120}
+              rows={3}
+              disabled={!canSubmit || pending}
+              placeholder="Make it believable…"
+              className="fibbage-input"
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="fibbage-micro">{text.length}/120</span>
+              <FibbageButton
+                disabled={!canSubmit || text.trim().length < 3}
+                pending={pending}
+                onClick={() => void handleSubmit()}
+              >
+                {pending ? "Submitting…" : "Submit lie"}
+              </FibbageButton>
+            </div>
+            <AnimatePresence>
+              {error ? (
+                <motion.p
+                  className="text-sm font-semibold text-[var(--fibbage-lie)]"
+                  initial={reduce ? false : { opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {error}
+                </motion.p>
+              ) : null}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={writingSeconds} />
+      <FibbageTimerBar secondsRemaining={secondsRemaining} totalSeconds={writingSeconds} className="mx-auto" />
 
-      <p className="text-center text-xs text-[var(--fibbage-text-muted)]">
-        {submittedUserIds.length} of {room?.players?.filter((p) => p.connected !== false).length ?? 0} submitted
+      <p className="text-center fibbage-micro" aria-live="polite">
+        {submittedUserIds.length} of {activePlayers.length} submitted
       </p>
     </div>
   );

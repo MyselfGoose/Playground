@@ -1,6 +1,8 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
+import { hostLabel } from "../../../../lib/fibbage/motion.js";
 
 const STATUS_LABELS = {
   starting: "Round starting",
@@ -16,18 +18,24 @@ const STATUS_LABELS = {
  * @param {{ status?: string }} props
  */
 export function FibbageHost({ status }) {
+  const reduce = useReducedMotion();
   const { room } = useFibbage();
   const game = room?.game;
-  const label = status ? STATUS_LABELS[status] ?? "Fibbage" : "Fibbage";
+  const label = status ? (STATUS_LABELS[status] ?? "Fibbage") : "Fibbage";
   const category = game?.prompt?.category;
   const round = game?.round;
   const roundCount = room?.settings?.roundCount ?? 5;
   const multiplier = game?.roundMultiplier ?? 1;
+  const motionProps = hostLabel(reduce);
 
   return (
     <header className="px-4 pt-4">
       <div className="fibbage-host-strip flex flex-wrap items-center justify-between gap-2">
-        <span>{label}</span>
+        <AnimatePresence mode="wait">
+          <motion.span key={status ?? "idle"} {...motionProps}>
+            {label}
+          </motion.span>
+        </AnimatePresence>
         <div className="flex flex-wrap items-center gap-3 text-xs normal-case tracking-normal">
           {typeof round === "number" ? (
             <span>
