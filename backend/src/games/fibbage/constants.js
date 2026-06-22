@@ -56,8 +56,8 @@ export const FIBBAGE_PROMPT_FETCH_MAX_RETRIES = 3;
 
 /** Reveal sub-phase durations */
 export const FIBBAGE_REVEAL_VOTES_SUMMARY_MS = 4000;
-export const FIBBAGE_REVEAL_PER_LIE_MS = 3000;
-export const FIBBAGE_REVEAL_TRUTH_MS = 4000;
+export const FIBBAGE_REVEAL_PER_LIE_MS = 8000;
+export const FIBBAGE_REVEAL_TRUTH_MS = 5000;
 export const FIBBAGE_REVEAL_COMPLETE_MS = 2000;
 
 /** Scoring */

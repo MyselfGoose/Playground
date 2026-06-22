@@ -186,6 +186,27 @@ export function truthReveal(reduce = false) {
 }
 
 /**
+ * Staggered reveal beat (author, voters, points) — slide up + fade.
+ * @param {boolean} reduce
+ */
+export function revealBeat(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: -4 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -6 },
+    transition: { duration: 0.34, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
  * Inner content expand (author / voters) — opacity + height, no spring.
  * @param {boolean} reduce
  */
@@ -259,6 +280,7 @@ export const fibbageMotion = {
   hostLabel,
   revealCard,
   truthReveal,
+  revealBeat,
   contentExpand,
   recapCard,
   crossfade,
