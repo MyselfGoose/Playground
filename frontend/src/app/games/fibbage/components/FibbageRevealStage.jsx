@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
 import {
-  contentExpand,
   revealBeat,
   revealCard,
   scorePop,
@@ -22,52 +21,61 @@ const STEP_HEADINGS = {
   complete: "Round complete",
 };
 
-/** Backend phase durations in seconds — keep in sync with constants.js */
-const REVEAL_STEP_SECONDS = {
+/** Fallback when server step duration is unknown */
+const REVEAL_STEP_SECONDS_FALLBACK = {
   votes_summary: 4,
-  per_lie: 8,
-  truth: 5,
+  per_lie: 4,
+  truth: 3,
   complete: 2,
 };
 
-/** Client-side beats within each per-lie step (ms from lie step start) */
-const LIE_REVEAL_BEATS_MS = {
-  author: 600,
-  voters: 2200,
-  points: 4000,
-};
-
-/** Client-side beats within the truth step */
-const TRUTH_REVEAL_BEATS_MS = {
-  voters: 600,
-  points: 2200,
-};
+const LIE_SUB_STEP_ORDER = { highlight: 0, author: 1, voters: 2, points: 3 };
+const TRUTH_SUB_STEP_ORDER = { highlight: 0, voters: 1, points: 2 };
 
 /**
- * Lie index matches backend: order of non-truth answers in game.answers (not vote-sorted).
+ * @param {Record<string, number>} order
+ * @param {string | null | undefined} current
+ * @param {string} target
+ */
+function subStepAtLeast(order, current, target) {
+  const currentRank = current ? (order[current] ?? -1) : -1;
+  const targetRank = order[target] ?? 0;
+  return currentRank >= targetRank;
+}
+
+/**
+ * @param {string | { userId?: string }} entry
+ */
+function voterId(entry) {
+  return typeof entry === "string" ? entry : entry?.userId ?? "";
+}
+
+/**
+ * @param {{ authorUserId?: string | null, voters?: Array<string | { userId?: string }> }} answer
+ * @param {Array<{ userId: string, username: string, avatarUrl?: string | null, avatarEmoji?: string | null }>} players
+ * @param {Record<string, { fooled?: Array<{ voterUserId: string }> }>} roundScores
+ */
+function resolveVoters(answer, players, roundScores) {
+  const playerById = new Map(players.map((p) => [p.userId, p]));
+  const ids = new Set((answer.voters ?? []).map(voterId).filter(Boolean));
+
+  if (ids.size === 0 && answer.authorUserId && roundScores[answer.authorUserId]?.fooled) {
+    for (const entry of roundScores[answer.authorUserId].fooled ?? []) {
+      if (entry.voterUserId) ids.add(entry.voterUserId);
+    }
+  }
+
+  return [...ids]
+    .map((id) => playerById.get(id) ?? { userId: id, username: "Player", avatarUrl: null, avatarEmoji: null })
+    .filter((p) => p.userId);
+}
+
+/**
  * @param {string} answerId
  * @param {Array<{ answerId: string }>} liesInRevealOrder
  */
 function getLieIndex(answerId, liesInRevealOrder) {
   return liesInRevealOrder.findIndex((a) => a.answerId === answerId);
-}
-
-/**
- * @param {string} step
- * @param {number} lieIndex
- * @param {Array<{ answerId: string, isTruth?: boolean }>} liesInRevealOrder
- * @param {string} answerId
- * @param {boolean} isTruth
- */
-function isAnswerSpotlighted(step, lieIndex, liesInRevealOrder, answerId, isTruth) {
-  if (isTruth) {
-    return step === "truth" || step === "complete";
-  }
-  if (step === "votes_summary") return true;
-  if (step === "per_lie") {
-    return getLieIndex(answerId, liesInRevealOrder) === lieIndex;
-  }
-  return false;
 }
 
 /**
@@ -87,32 +95,36 @@ function getLieFoolPoints(authorUserId, voters, roundScores) {
  * @param {{
  *   answer: { answerId: string, text: string, isTruth?: boolean, authorUserId?: string | null, voteCount?: number, voters?: string[] },
  *   step: string,
+ *   subStep: string | null,
  *   lieIndex: number,
  *   liesInRevealOrder: Array<{ answerId: string, isTruth?: boolean }>,
- *   lieRevealStage: 'highlight' | 'author' | 'voters' | 'points',
- *   truthRevealStage: 'highlight' | 'voters' | 'points',
  *   players: Array<{ userId: string, username: string, avatarUrl?: string | null, avatarEmoji?: string | null }>,
  *   roundScores: Record<string, { totalRoundPoints?: number, fooled?: Array<{ voterUserId: string, points: number }>, truthPick?: { points: number } }>,
  *   reduce: boolean,
+ *   variant?: 'full' | 'chip',
  * }} props
  */
 function RevealAnswerCard({
   answer,
   step,
+  subStep,
   lieIndex,
   liesInRevealOrder,
-  lieRevealStage,
-  truthRevealStage,
   players,
   roundScores,
   reduce,
+  variant = "full",
 }) {
   const author = answer.authorUserId
-    ? players.find((p) => p.userId === answer.authorUserId)
+    ? players.find((p) => p.userId === answer.authorUserId) ?? {
+        userId: answer.authorUserId,
+        username: "Player",
+        avatarUrl: null,
+        avatarEmoji: null,
+      }
     : null;
-  const voters = (answer.voters ?? [])
-    .map((id) => players.find((p) => p.userId === id))
-    .filter(Boolean);
+  const voters = resolveVoters(answer, players, roundScores);
+  const voterCount = Math.max(answer.voteCount ?? 0, voters.length);
   const isTruth = Boolean(answer.isTruth);
   const lieIdx = isTruth ? -1 : getLieIndex(answer.answerId, liesInRevealOrder);
   const isCurrentLie = step === "per_lie" && lieIdx === lieIndex;
@@ -123,71 +135,99 @@ function RevealAnswerCard({
   const isTruthStep = isTruth && (step === "truth" || step === "complete");
   const isCurrentTruth = step === "truth" && isTruth;
 
-  const spotlight = isAnswerSpotlighted(
-    step,
-    lieIndex,
-    liesInRevealOrder,
-    answer.answerId,
-    isTruth,
-  );
-  const dimmed =
-    (step === "per_lie" && !spotlight && !isTruth && !lieFullyRevealed) ||
-    (step === "truth" && !isTruth);
+  const effectiveLieSubStep =
+    reduce && isCurrentLie ? "points" : step === "complete" ? "points" : subStep;
+  const effectiveTruthSubStep =
+    reduce && isCurrentTruth ? "points" : step === "complete" ? "points" : subStep;
 
   const lieFoolPoints =
-    author && voters.length > 0
-      ? getLieFoolPoints(author.userId, voters, roundScores)
-      : 0;
+    author && voters.length > 0 ? getLieFoolPoints(author.userId, voters, roundScores) : 0;
 
   const showAuthor =
     Boolean(author) &&
     (lieFullyRevealed ||
-      (isCurrentLie &&
-        (lieRevealStage === "author" ||
-          lieRevealStage === "voters" ||
-          lieRevealStage === "points")));
+      (isCurrentLie && subStepAtLeast(LIE_SUB_STEP_ORDER, effectiveLieSubStep, "author")) ||
+      isTruthStep);
 
   const showVoters =
     voters.length > 0 &&
     (lieFullyRevealed ||
-      isTruthStep ||
-      (isCurrentLie &&
-        (lieRevealStage === "voters" || lieRevealStage === "points")) ||
-      (isCurrentTruth &&
-        (truthRevealStage === "voters" || truthRevealStage === "points")));
+      (step === "complete" && isTruth) ||
+      (isCurrentLie && subStepAtLeast(LIE_SUB_STEP_ORDER, effectiveLieSubStep, "voters")) ||
+      (isCurrentTruth && subStepAtLeast(TRUTH_SUB_STEP_ORDER, effectiveTruthSubStep, "voters")) ||
+      (isTruthStep && step === "complete"));
+
+  const showNoFooled =
+    !isTruth &&
+    showAuthor &&
+    voterCount === 0 &&
+    (lieFullyRevealed ||
+      (isCurrentLie && subStepAtLeast(LIE_SUB_STEP_ORDER, effectiveLieSubStep, "voters")));
 
   const showLiePoints =
-    isCurrentLie &&
-    lieRevealStage === "points" &&
     lieFoolPoints > 0 &&
-    showAuthor;
+    showAuthor &&
+    (lieFullyRevealed ||
+      (isCurrentLie && subStepAtLeast(LIE_SUB_STEP_ORDER, effectiveLieSubStep, "points")));
 
-  const showPastLiePoints = lieFullyRevealed && lieFoolPoints > 0 && showAuthor;
+  const showNoTruthFinders =
+    isTruth &&
+    (isCurrentTruth || step === "complete") &&
+    voterCount === 0 &&
+    (step === "complete" ||
+      subStepAtLeast(TRUTH_SUB_STEP_ORDER, effectiveTruthSubStep, "voters"));
 
   const showTruthPoints =
     isTruth &&
-    (step === "complete" || (isCurrentTruth && truthRevealStage === "points")) &&
-    voters.some((v) => (roundScores[v.userId]?.truthPick?.points ?? 0) > 0);
+    voters.some((v) => (roundScores[v.userId]?.truthPick?.points ?? 0) > 0) &&
+    (step === "complete" ||
+      (isCurrentTruth && subStepAtLeast(TRUTH_SUB_STEP_ORDER, effectiveTruthSubStep, "points")));
+
+  const spotlight =
+    isCurrentLie ||
+    isTruthStep ||
+    step === "votes_summary" ||
+    step === "complete";
+
+  const showVoteCount =
+    variant === "full" &&
+    typeof answer.voteCount === "number" &&
+    (step === "votes_summary" || isCurrentLie || isTruthStep || lieFullyRevealed);
+
+  if (variant === "chip") {
+    return (
+      <div className="fibbage-reveal-chip flex items-center gap-2 rounded-xl bg-[var(--fibbage-canvas-light)] px-3 py-2">
+        <span className="max-w-[12rem] truncate text-sm font-semibold text-[var(--fibbage-text-muted)]">
+          {answer.text}
+        </span>
+        {author ? (
+          <span className="text-xs font-bold text-[var(--fibbage-accent)]">{author.username}</span>
+        ) : null}
+        {typeof answer.voteCount === "number" && answer.voteCount > 0 ? (
+          <span className="ml-auto text-xs font-bold text-[var(--fibbage-gold)]">
+            {answer.voteCount} vote{answer.voteCount === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
 
   const cardClasses = [
     "fibbage-card overflow-hidden",
     isTruthStep ? "fibbage-card--truth" : "",
     spotlight && !isTruth ? "fibbage-card--spotlight" : "",
-    dimmed ? "fibbage-card--dimmed" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   const cardMotion = isTruthStep ? truthReveal(reduce) : revealCard(reduce, spotlight);
   const beatMotion = revealBeat(reduce);
-  const expandMotion = contentExpand(reduce);
   const pointsMotion = scorePop(reduce);
-  const showVoteCount = typeof answer.voteCount === "number";
 
   return (
     <motion.div className={cardClasses} {...cardMotion}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="flex-1 font-semibold text-[var(--fibbage-text)]">{answer.text}</p>
+        <p className="flex-1 text-lg font-semibold text-[var(--fibbage-text)]">{answer.text}</p>
         {showVoteCount ? (
           <span className="rounded-full bg-[var(--fibbage-canvas)] px-3 py-1 text-xs font-bold text-[var(--fibbage-gold)]">
             {answer.voteCount} vote{answer.voteCount === 1 ? "" : "s"}
@@ -201,11 +241,7 @@ function RevealAnswerCard({
 
       <AnimatePresence initial={false}>
         {showAuthor ? (
-          <motion.div
-            key="author"
-            className="mt-3 flex items-center gap-2"
-            {...beatMotion}
-          >
+          <motion.div key="author" className="mt-4 flex items-center gap-2" {...beatMotion}>
             <Avatar
               username={author.username}
               avatarUrl={author.avatarUrl}
@@ -221,7 +257,7 @@ function RevealAnswerCard({
 
       <AnimatePresence initial={false}>
         {showVoters ? (
-          <motion.div key="voters" className="mt-3" {...beatMotion}>
+          <motion.div key="voters" className="mt-4" {...beatMotion}>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-[var(--fibbage-text-muted)]">
                 {isTruth ? "Found the truth:" : "Fooled:"}
@@ -242,18 +278,26 @@ function RevealAnswerCard({
               ))}
             </div>
           </motion.div>
-        ) : !author && !isTruth && lieFullyRevealed && voters.length === 0 ? (
-          <motion.p key="no-votes" className="mt-2 text-xs text-[var(--fibbage-text-muted)]" {...expandMotion}>
-            No votes
+        ) : showNoFooled ? (
+          <motion.p key="no-fools" className="mt-4 text-sm text-[var(--fibbage-text-muted)]" {...beatMotion}>
+            Nobody was fooled
+          </motion.p>
+        ) : showNoTruthFinders ? (
+          <motion.p
+            key="no-truth-finders"
+            className="mt-4 text-sm text-[var(--fibbage-text-muted)]"
+            {...beatMotion}
+          >
+            Nobody found the truth
           </motion.p>
         ) : null}
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
-        {showLiePoints || showPastLiePoints ? (
+        {showLiePoints ? (
           <motion.div
             key="lie-points"
-            className="mt-3 flex items-center gap-2 rounded-lg bg-[var(--fibbage-canvas)] px-3 py-2"
+            className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--fibbage-canvas)] px-3 py-2"
             {...pointsMotion}
           >
             <span className="text-xs font-semibold text-[var(--fibbage-text-muted)]">Points earned</span>
@@ -262,7 +306,7 @@ function RevealAnswerCard({
         ) : null}
 
         {showTruthPoints ? (
-          <motion.div key="truth-points" className="mt-3 flex flex-col gap-2" {...pointsMotion}>
+          <motion.div key="truth-points" className="mt-4 flex flex-col gap-2" {...pointsMotion}>
             {voters.map((voter) => {
               const pts = roundScores[voter.userId]?.truthPick?.points ?? 0;
               if (pts <= 0) return null;
@@ -283,32 +327,27 @@ function RevealAnswerCard({
   );
 }
 
-/**
- * @param {boolean} reduce
- * @returns {'highlight' | 'author' | 'voters' | 'points'}
- */
-function finalLieStage(reduce) {
-  return reduce ? "points" : "highlight";
-}
-
-/**
- * @param {boolean} reduce
- * @returns {'highlight' | 'voters' | 'points'}
- */
-function finalTruthStage(reduce) {
-  return reduce ? "points" : "highlight";
-}
-
 export function FibbageRevealStage() {
   const reduce = useReducedMotion();
   const { room } = useFibbage();
   const game = room?.game;
   const players = room?.players ?? [];
   const step = game?.reveal?.step ?? "votes_summary";
+  const subStep = game?.reveal?.subStep ?? null;
   const lieIndex = game?.reveal?.lieIndex ?? 0;
   const revealEndsAt = game?.reveal?.phaseEndsAt ?? game?.phaseEndsAt;
-  const stepSeconds = REVEAL_STEP_SECONDS[step] ?? 4;
-  const secondsRemaining = usePhaseCountdown(revealEndsAt, stepSeconds);
+  const stepSecondsFallback = REVEAL_STEP_SECONDS_FALLBACK[step] ?? 4;
+  const secondsRemaining = usePhaseCountdown(revealEndsAt, stepSecondsFallback);
+
+  const [stepTotalSeconds, setStepTotalSeconds] = useState(stepSecondsFallback);
+  useEffect(() => {
+    if (typeof revealEndsAt !== "number") {
+      setStepTotalSeconds(stepSecondsFallback);
+      return;
+    }
+    const total = Math.max(1, Math.ceil((revealEndsAt - Date.now()) / 1000));
+    setStepTotalSeconds(total);
+  }, [step, subStep, lieIndex, revealEndsAt, stepSecondsFallback]);
 
   const answersInRevealOrder = useMemo(() => game?.answers ?? [], [game?.answers]);
 
@@ -317,64 +356,42 @@ export function FibbageRevealStage() {
     [answersInRevealOrder],
   );
 
-  const displayAnswers = useMemo(() => {
-    if (step === "votes_summary") {
-      return [...answersInRevealOrder].sort((a, b) => (b.voteCount ?? 0) - (a.voteCount ?? 0));
-    }
-    return answersInRevealOrder;
-  }, [answersInRevealOrder, step]);
+  const truthAnswer = useMemo(
+    () => answersInRevealOrder.find((a) => a.isTruth) ?? null,
+    [answersInRevealOrder],
+  );
+
+  const votesSummaryAnswers = useMemo(
+    () => [...answersInRevealOrder].sort((a, b) => (b.voteCount ?? 0) - (a.voteCount ?? 0)),
+    [answersInRevealOrder],
+  );
+
+  const currentLie = liesInRevealOrder[lieIndex] ?? null;
+  const pastLies = useMemo(
+    () => (step === "per_lie" ? liesInRevealOrder.slice(0, lieIndex) : []),
+    [step, liesInRevealOrder, lieIndex],
+  );
 
   const roundScores = game?.roundScores ?? {};
   const heading = STEP_HEADINGS[step] ?? "Results";
   const headerMotion = sectionEnter(reduce);
 
-  const [lieRevealStage, setLieRevealStage] = useState(() => finalLieStage(reduce));
-  const [truthRevealStage, setTruthRevealStage] = useState(() => finalTruthStage(reduce));
-
-  useEffect(() => {
-    if (step !== "per_lie") return;
-
-    if (reduce) {
-      setLieRevealStage("points");
-      return;
-    }
-
-    setLieRevealStage("highlight");
-    const authorTimer = setTimeout(() => setLieRevealStage("author"), LIE_REVEAL_BEATS_MS.author);
-    const votersTimer = setTimeout(() => setLieRevealStage("voters"), LIE_REVEAL_BEATS_MS.voters);
-    const pointsTimer = setTimeout(() => setLieRevealStage("points"), LIE_REVEAL_BEATS_MS.points);
-
-    return () => {
-      clearTimeout(authorTimer);
-      clearTimeout(votersTimer);
-      clearTimeout(pointsTimer);
-    };
-  }, [step, lieIndex, reduce]);
-
-  useEffect(() => {
-    if (step !== "truth") return;
-
-    if (reduce) {
-      setTruthRevealStage("points");
-      return;
-    }
-
-    setTruthRevealStage("highlight");
-    const votersTimer = setTimeout(() => setTruthRevealStage("voters"), TRUTH_REVEAL_BEATS_MS.voters);
-    const pointsTimer = setTimeout(() => setTruthRevealStage("points"), TRUTH_REVEAL_BEATS_MS.points);
-
-    return () => {
-      clearTimeout(votersTimer);
-      clearTimeout(pointsTimer);
-    };
-  }, [step, reduce]);
+  const cardProps = {
+    step,
+    subStep,
+    lieIndex,
+    liesInRevealOrder,
+    players,
+    roundScores,
+    reduce,
+  };
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <motion.div className="text-center" {...headerMotion}>
         <AnimatePresence mode="wait">
           <motion.p
-            key={step}
+            key={`${step}-${subStep ?? ""}`}
             className="fibbage-eyebrow"
             initial={reduce ? false : { opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -387,22 +404,47 @@ export function FibbageRevealStage() {
         <h2 className="mt-2 text-xl font-black text-[var(--fibbage-text)]">{game?.prompt?.text}</h2>
       </motion.div>
 
-      <div className="grid gap-3">
-        {displayAnswers.map((answer) => (
-          <RevealAnswerCard
-            key={answer.answerId}
-            answer={answer}
-            step={step}
-            lieIndex={lieIndex}
-            liesInRevealOrder={liesInRevealOrder}
-            lieRevealStage={lieRevealStage}
-            truthRevealStage={truthRevealStage}
-            players={players}
-            roundScores={roundScores}
-            reduce={reduce}
-          />
-        ))}
-      </div>
+      {step === "votes_summary" ? (
+        <div className="grid gap-3">
+          {votesSummaryAnswers.map((answer) => (
+            <RevealAnswerCard key={answer.answerId} answer={answer} {...cardProps} />
+          ))}
+        </div>
+      ) : null}
+
+      {step === "per_lie" && currentLie ? (
+        <div className="flex flex-col gap-4">
+          {pastLies.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {pastLies.map((answer) => (
+                <RevealAnswerCard
+                  key={answer.answerId}
+                  answer={answer}
+                  {...cardProps}
+                  variant="chip"
+                />
+              ))}
+            </div>
+          ) : null}
+
+          <RevealAnswerCard key={currentLie.answerId} answer={currentLie} {...cardProps} />
+
+          <p className="text-center fibbage-micro">
+            Lie {lieIndex + 1} of {liesInRevealOrder.length}
+          </p>
+        </div>
+      ) : null}
+
+      {(step === "truth" || step === "complete") && truthAnswer ? (
+        <div className="grid gap-3">
+          {step === "complete"
+            ? liesInRevealOrder.map((answer) => (
+                <RevealAnswerCard key={answer.answerId} answer={answer} {...cardProps} variant="chip" />
+              ))
+            : null}
+          <RevealAnswerCard key={truthAnswer.answerId} answer={truthAnswer} {...cardProps} />
+        </div>
+      ) : null}
 
       {step === "votes_summary" ? (
         <motion.p
@@ -415,15 +457,9 @@ export function FibbageRevealStage() {
         </motion.p>
       ) : null}
 
-      {step === "per_lie" && liesInRevealOrder.length > 0 ? (
-        <p className="text-center fibbage-micro">
-          Lie {lieIndex + 1} of {liesInRevealOrder.length}
-        </p>
-      ) : null}
-
       <FibbageTimerBar
         secondsRemaining={secondsRemaining}
-        totalSeconds={stepSeconds}
+        totalSeconds={stepTotalSeconds}
         className="mx-auto"
       />
     </div>

@@ -11,6 +11,7 @@ import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 import { FibbageButton } from "./FibbageButton.jsx";
 import { FibbagePlayerStatus } from "./FibbagePlayerStatus.jsx";
 import { FibbagePhaseSkipButton } from "./FibbagePhaseSkipButton.jsx";
+import { FIBBAGE_LIE_MAX_LENGTH } from "../fibbage-shared.js";
 
 export function FibbageWritingPanel() {
   const reduce = useReducedMotion();
@@ -110,16 +111,16 @@ export function FibbageWritingPanel() {
               id="fibbage-lie"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              maxLength={120}
+              maxLength={FIBBAGE_LIE_MAX_LENGTH}
               rows={3}
               disabled={!canSubmit || pending}
               placeholder="Make it believable…"
               className="fibbage-input"
             />
             <div className="flex items-center justify-between gap-3">
-              <span className="fibbage-micro">{text.length}/120</span>
+              <span className="fibbage-micro">{text.length}/{FIBBAGE_LIE_MAX_LENGTH}</span>
               <FibbageButton
-                disabled={!canSubmit || text.trim().length < 3}
+                disabled={!canSubmit || !text.trim()}
                 pending={pending}
                 onClick={() => void handleSubmit()}
               >

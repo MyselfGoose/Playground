@@ -8,14 +8,20 @@ import {
   FIBBAGE_DEFAULT_VOTING_SECONDS,
   FIBBAGE_STARTING_MS,
   FIBBAGE_PROMPT_REVEAL_MS,
-  FIBBAGE_SCORING_MS,
   FIBBAGE_BETWEEN_ROUNDS_MS,
   FIBBAGE_PROMPT_FETCH_RETRY_MS,
   FIBBAGE_PROMPT_FETCH_MAX_RETRIES,
   FIBBAGE_REVEAL_VOTES_SUMMARY_MS,
-  FIBBAGE_REVEAL_PER_LIE_MS,
   FIBBAGE_REVEAL_TRUTH_MS,
   FIBBAGE_REVEAL_COMPLETE_MS,
+  FIBBAGE_REVEAL_HIGHLIGHT_MS,
+  FIBBAGE_REVEAL_AUTHOR_MS,
+  FIBBAGE_REVEAL_VOTERS_MS,
+  FIBBAGE_REVEAL_VOTERS_EMPTY_MS,
+  FIBBAGE_REVEAL_POINTS_MS,
+  FIBBAGE_REVEAL_TRUTH_HIGHLIGHT_MS,
+  FIBBAGE_SCORING_MS_MIN,
+  FIBBAGE_SCORING_MS_DEFAULT,
   FIBBAGE_POINTS_FOOL,
   FIBBAGE_POINTS_TRUTH,
   FIBBAGE_POINTS_SOLO_TRUTH,
@@ -294,7 +300,7 @@ export function submitLie(room, userId, text) {
 
   const trimmed = String(text).trim();
   if (trimmed.length < FIBBAGE_LIE_MIN_LENGTH) {
-    throw new FibbageError(`Lie must be at least ${FIBBAGE_LIE_MIN_LENGTH} characters`, 'LIE_TOO_SHORT');
+    throw new FibbageError('Lie cannot be empty', 'LIE_TOO_SHORT');
   }
   if (trimmed.length > FIBBAGE_LIE_MAX_LENGTH) {
     throw new FibbageError(`Lie must be at most ${FIBBAGE_LIE_MAX_LENGTH} characters`, 'LIE_TOO_LONG');
@@ -401,6 +407,7 @@ function enterRevealing(room, now) {
   game.status = 'revealing';
   game.reveal = {
     step: 'votes_summary',
+    subStep: null,
     lieIndex: 0,
     phaseEndsAt: now + FIBBAGE_REVEAL_VOTES_SUMMARY_MS,
   };
@@ -463,45 +470,241 @@ function advanceReveal(room, now) {
   if (!reveal || now < reveal.phaseEndsAt) return null;
 
   switch (reveal.step) {
-    case 'votes_summary': {
-      const lies = game.answers.filter((a) => !a.isTruth);
-      if (lies.length === 0) {
-        reveal.step = 'truth';
-        reveal.phaseEndsAt = now + FIBBAGE_REVEAL_TRUTH_MS;
-      } else {
-        reveal.step = 'per_lie';
-        reveal.lieIndex = 0;
-        reveal.phaseEndsAt = now + FIBBAGE_REVEAL_PER_LIE_MS;
-      }
-      return 'reveal_step';
-    }
+    case 'votes_summary':
+      return startPerLieOrTruth(room, now);
 
     case 'per_lie': {
+      const nextSubStep = getNextLieSubStep(game, reveal);
+      if (nextSubStep) {
+        reveal.subStep = nextSubStep;
+        reveal.phaseEndsAt = now + getRevealSubStepMs(game, reveal);
+        return 'reveal_step';
+      }
+
       const lies = game.answers.filter((a) => !a.isTruth);
       if (reveal.lieIndex < lies.length - 1) {
         reveal.lieIndex += 1;
-        reveal.phaseEndsAt = now + FIBBAGE_REVEAL_PER_LIE_MS;
+        reveal.subStep = 'highlight';
+        reveal.phaseEndsAt = now + getRevealSubStepMs(game, reveal);
         return 'reveal_step';
       }
-      reveal.step = 'truth';
-      reveal.phaseEndsAt = now + FIBBAGE_REVEAL_TRUTH_MS;
+
+      return startTruthReveal(room, now);
+    }
+
+    case 'truth': {
+      const nextSubStep = getNextTruthSubStep(game, reveal);
+      if (nextSubStep) {
+        reveal.subStep = nextSubStep;
+        reveal.phaseEndsAt = now + getRevealSubStepMs(game, reveal);
+        return 'reveal_step';
+      }
+
+      reveal.step = 'complete';
+      reveal.subStep = null;
+      reveal.phaseEndsAt = now + FIBBAGE_REVEAL_COMPLETE_MS;
       return 'reveal_step';
     }
 
-    case 'truth':
-      reveal.step = 'complete';
-      reveal.phaseEndsAt = now + FIBBAGE_REVEAL_COMPLETE_MS;
-      return 'reveal_step';
-
     case 'complete':
       game.status = 'scoring';
-      game.phaseEndsAt = now + FIBBAGE_SCORING_MS;
+      game.phaseEndsAt = now + getScoringPhaseMs(game);
       game.reveal = null;
       return 'scoring_started';
 
     default:
       return null;
   }
+}
+
+/**
+ * @param {object} room
+ * @param {number} now
+ */
+function startPerLieOrTruth(room, now) {
+  const game = room.game;
+  const reveal = game.reveal;
+  const lies = game.answers.filter((a) => !a.isTruth);
+
+  if (lies.length === 0) {
+    return startTruthReveal(room, now);
+  }
+
+  reveal.step = 'per_lie';
+  reveal.lieIndex = 0;
+  reveal.subStep = 'highlight';
+  reveal.phaseEndsAt = now + getRevealSubStepMs(game, reveal);
+  return 'reveal_step';
+}
+
+/**
+ * @param {object} room
+ * @param {number} now
+ */
+function startTruthReveal(room, now) {
+  const game = room.game;
+  const reveal = game.reveal;
+
+  reveal.step = 'truth';
+  reveal.subStep = 'highlight';
+  reveal.phaseEndsAt = now + getRevealSubStepMs(game, reveal);
+  return 'reveal_step';
+}
+
+/** @typedef {'highlight' | 'author' | 'voters' | 'points'} LieRevealSubStep */
+/** @typedef {'highlight' | 'voters' | 'points'} TruthRevealSubStep */
+
+/**
+ * @param {object} game
+ * @param {number} lieIndex
+ * @returns {LieRevealSubStep[]}
+ */
+function getLieSubStepsForLie(game, lieIndex) {
+  const lies = game.answers.filter((a) => !a.isTruth);
+  const lie = lies[lieIndex];
+  const steps = /** @type {LieRevealSubStep[]} */ (['highlight', 'author', 'voters']);
+
+  if (!lie) return steps;
+
+  const voterCount = getVotersForAnswer(game, lie.answerId).length;
+  const foolPoints = getLieFoolPointsForAuthor(game, lie.authorUserId, lie.answerId);
+
+  if (voterCount === 0) {
+    // voters step shows "Nobody was fooled" briefly
+  }
+  if (foolPoints > 0) {
+    steps.push('points');
+  }
+
+  return steps;
+}
+
+/**
+ * @param {object} game
+ * @returns {TruthRevealSubStep[]}
+ */
+function getTruthSubSteps(game) {
+  const truth = game.answers.find((a) => a.isTruth);
+  const steps = /** @type {TruthRevealSubStep[]} */ (['highlight', 'voters']);
+
+  if (!truth) return steps;
+
+  const hasTruthPoints = getVotersForAnswer(game, truth.answerId).some((voterId) => {
+    const pts = game.roundScores?.[voterId]?.truthPick?.points ?? 0;
+    return pts > 0;
+  });
+
+  if (hasTruthPoints) {
+    steps.push('points');
+  }
+
+  return steps;
+}
+
+/**
+ * @param {object} game
+ * @param {{ subStep: string | null, lieIndex: number }} reveal
+ * @returns {LieRevealSubStep | null}
+ */
+function getNextLieSubStep(game, reveal) {
+  const steps = getLieSubStepsForLie(game, reveal.lieIndex);
+  const idx = steps.indexOf(/** @type {LieRevealSubStep} */ (reveal.subStep));
+  if (idx < 0 || idx >= steps.length - 1) return null;
+  return steps[idx + 1];
+}
+
+/**
+ * @param {object} game
+ * @param {{ subStep: string | null }} reveal
+ * @returns {TruthRevealSubStep | null}
+ */
+function getNextTruthSubStep(game, reveal) {
+  const steps = getTruthSubSteps(game);
+  const idx = steps.indexOf(/** @type {TruthRevealSubStep} */ (reveal.subStep));
+  if (idx < 0 || idx >= steps.length - 1) return null;
+  return steps[idx + 1];
+}
+
+/**
+ * @param {object} game
+ * @param {string | null} authorUserId
+ * @param {string} answerId
+ */
+function getLieFoolPointsForAuthor(game, authorUserId, answerId) {
+  if (!authorUserId || !game.roundScores?.[authorUserId]) return 0;
+  const voterIds = new Set(getVotersForAnswer(game, answerId));
+  return (game.roundScores[authorUserId].fooled ?? [])
+    .filter((f) => voterIds.has(f.voterUserId))
+    .reduce((sum, f) => sum + f.points, 0);
+}
+
+/**
+ * @param {object} game
+ * @param {{ step: string, subStep: string | null, lieIndex: number }} reveal
+ */
+function getRevealSubStepMs(game, reveal) {
+  if (reveal.step === 'votes_summary') return FIBBAGE_REVEAL_VOTES_SUMMARY_MS;
+
+  if (reveal.step === 'per_lie') {
+    const lies = game.answers.filter((a) => !a.isTruth);
+    const lie = lies[reveal.lieIndex];
+
+    switch (reveal.subStep) {
+      case 'highlight':
+        return FIBBAGE_REVEAL_HIGHLIGHT_MS;
+      case 'author':
+        return FIBBAGE_REVEAL_AUTHOR_MS;
+      case 'voters': {
+        if (!lie) return FIBBAGE_REVEAL_VOTERS_EMPTY_MS;
+        const voterCount = getVotersForAnswer(game, lie.answerId).length;
+        return voterCount > 0 ? FIBBAGE_REVEAL_VOTERS_MS : FIBBAGE_REVEAL_VOTERS_EMPTY_MS;
+      }
+      case 'points':
+        return FIBBAGE_REVEAL_POINTS_MS;
+      default:
+        return FIBBAGE_REVEAL_HIGHLIGHT_MS;
+    }
+  }
+
+  if (reveal.step === 'truth') {
+    const truth = game.answers.find((a) => a.isTruth);
+
+    switch (reveal.subStep) {
+      case 'highlight':
+        return FIBBAGE_REVEAL_TRUTH_HIGHLIGHT_MS;
+      case 'voters': {
+        if (!truth) return FIBBAGE_REVEAL_VOTERS_EMPTY_MS;
+        const voterCount = getVotersForAnswer(game, truth.answerId).length;
+        return voterCount > 0 ? FIBBAGE_REVEAL_VOTERS_MS : FIBBAGE_REVEAL_VOTERS_EMPTY_MS;
+      }
+      case 'points':
+        return FIBBAGE_REVEAL_POINTS_MS;
+      default:
+        return FIBBAGE_REVEAL_TRUTH_HIGHLIGHT_MS;
+    }
+  }
+
+  if (reveal.step === 'complete') return FIBBAGE_REVEAL_COMPLETE_MS;
+
+  return FIBBAGE_REVEAL_TRUTH_MS;
+}
+
+/**
+ * Adaptive scoring phase duration based on highlight count and round activity.
+ * @param {object} game
+ */
+function getScoringPhaseMs(game) {
+  const highlights = game.roundHighlights ?? [];
+  const playersWithPoints = Object.values(game.roundScores ?? {}).filter(
+    (s) => (s.totalRoundPoints ?? 0) > 0,
+  ).length;
+
+  if (highlights.length === 0) {
+    return playersWithPoints > 0 ? FIBBAGE_SCORING_MS_MIN : FIBBAGE_SCORING_MS_MIN;
+  }
+  if (highlights.length === 1) return 4000;
+  if (highlights.length === 2) return 5000;
+  return FIBBAGE_SCORING_MS_DEFAULT;
 }
 
 function playerUsername(room, userId) {
@@ -996,7 +1199,12 @@ export function snapshotFor(room, viewerUserId) {
     case 'revealing': {
       const reveal = game.reveal;
       safeGame.reveal = reveal
-        ? { step: reveal.step, lieIndex: reveal.lieIndex, phaseEndsAt: reveal.phaseEndsAt }
+        ? {
+            step: reveal.step,
+            subStep: reveal.subStep ?? null,
+            lieIndex: reveal.lieIndex,
+            phaseEndsAt: reveal.phaseEndsAt,
+          }
         : null;
       safeGame.roundScores = game.roundScores;
       safeGame.answers = buildRevealAnswers(game, reveal);
@@ -1090,9 +1298,6 @@ function buildRevealAnswers(game, reveal) {
   });
 }
 
-/**
- * Get the list of user IDs who voted for a specific answer.
- */
 function getVotersForAnswer(game, answerId) {
   const voters = [];
   for (const [userId, votedId] of game.votes) {

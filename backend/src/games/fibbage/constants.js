@@ -43,7 +43,7 @@ export const FIBBAGE_PRESETS = {
   },
 };
 
-export const FIBBAGE_LIE_MIN_LENGTH = 3;
+export const FIBBAGE_LIE_MIN_LENGTH = 1;
 export const FIBBAGE_LIE_MAX_LENGTH = 120;
 
 /** Phase durations in milliseconds */
@@ -56,9 +56,20 @@ export const FIBBAGE_PROMPT_FETCH_MAX_RETRIES = 3;
 
 /** Reveal sub-phase durations */
 export const FIBBAGE_REVEAL_VOTES_SUMMARY_MS = 4000;
-export const FIBBAGE_REVEAL_PER_LIE_MS = 8000;
 export const FIBBAGE_REVEAL_TRUTH_MS = 5000;
 export const FIBBAGE_REVEAL_COMPLETE_MS = 2000;
+
+/** Reveal sub-step dwell times (server-driven; keep client in sync for fallbacks only) */
+export const FIBBAGE_REVEAL_HIGHLIGHT_MS = 700;
+export const FIBBAGE_REVEAL_AUTHOR_MS = 1800;
+export const FIBBAGE_REVEAL_VOTERS_MS = 2000;
+export const FIBBAGE_REVEAL_VOTERS_EMPTY_MS = 800;
+export const FIBBAGE_REVEAL_POINTS_MS = 2000;
+export const FIBBAGE_REVEAL_TRUTH_HIGHLIGHT_MS = 600;
+
+/** Scoring phase — adaptive bounds */
+export const FIBBAGE_SCORING_MS_MIN = 3000;
+export const FIBBAGE_SCORING_MS_DEFAULT = 6000;
 
 /** Scoring */
 export const FIBBAGE_POINTS_FOOL = 750;

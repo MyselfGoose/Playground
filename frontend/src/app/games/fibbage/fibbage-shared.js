@@ -1,3 +1,7 @@
+/** Keep in sync with backend/src/games/fibbage/constants.js */
+export const FIBBAGE_LIE_MIN_LENGTH = 1;
+export const FIBBAGE_LIE_MAX_LENGTH = 120;
+
 export const FIBBAGE_PATHS = {
   entry: "/games/fibbage",
   lobby: "/games/fibbage/lobby",

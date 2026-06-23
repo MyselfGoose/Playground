@@ -38,6 +38,20 @@ function createRoom(players) {
   };
 }
 
+/**
+ * Advance reveal until status is no longer revealing or max steps reached.
+ * @param {ReturnType<typeof createRoom>} room
+ * @param {number} [maxSteps]
+ */
+function advanceRevealToScoring(room, maxSteps = 120) {
+  let steps = 0;
+  while (room.game?.status === 'revealing' && steps++ < maxSteps) {
+    const endsAt = room.game.reveal?.phaseEndsAt;
+    if (typeof endsAt !== 'number') break;
+    advanceRevealIfExpired(room, endsAt);
+  }
+}
+
 const prompt = { id: 'p1', text: 'Test ______.', answer: 'truth', category: 'weird' };
 
 test('normalizeSettings clamps values to allowed ranges', () => {
@@ -62,6 +76,22 @@ test('initGame requires at least three connected players', () => {
     () => initGame(room, prompt),
     (e) => e.code === 'NOT_ENOUGH_PLAYERS',
   );
+});
+
+test('submitLie accepts single-character lies and rejects empty input', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+
+  submitLie(room, 'p1', 'A');
+  submitLie(room, 'p2', 'B');
+
+  assert.throws(() => submitLie(room, 'p3', ''), (e) => e.code === 'LIE_TOO_SHORT');
+  assert.throws(() => submitLie(room, 'p3', '   '), (e) => e.code === 'LIE_TOO_SHORT');
 });
 
 test('submitLie rejects duplicates and truth matches', () => {
@@ -280,33 +310,97 @@ test('advanceRevealIfExpired progresses through reveal sub-steps to scoring', ()
 
   assert.equal(room.game.status, 'revealing');
   assert.equal(room.game.reveal.step, 'votes_summary');
+  assert.equal(room.game.reveal.subStep, null);
 
   let now = room.game.reveal.phaseEndsAt;
   assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
   assert.equal(room.game.reveal.step, 'per_lie');
+  assert.equal(room.game.reveal.subStep, 'highlight');
+  assert.equal(room.game.reveal.lieIndex, 0);
 
-  now = room.game.reveal.phaseEndsAt;
-  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
-  assert.equal(room.game.reveal.step, 'per_lie');
-  assert.equal(room.game.reveal.lieIndex, 1);
+  advanceRevealToScoring(room);
 
-  now = room.game.reveal.phaseEndsAt;
-  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
-  assert.equal(room.game.reveal.step, 'per_lie');
-  assert.equal(room.game.reveal.lieIndex, 2);
-
-  now = room.game.reveal.phaseEndsAt;
-  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
-  assert.equal(room.game.reveal.step, 'truth');
-
-  now = room.game.reveal.phaseEndsAt;
-  assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
-  assert.equal(room.game.reveal.step, 'complete');
-
-  now = room.game.reveal.phaseEndsAt;
-  assert.equal(advanceRevealIfExpired(room, now), 'scoring_started');
   assert.equal(room.game.status, 'scoring');
   assert.equal(room.game.reveal, null);
+  assert.ok(room.game.phaseEndsAt > Date.now());
+});
+
+test('revealing snapshot exposes voters for revealed lies during per_lie', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'writing';
+  submitLie(room, 'p1', 'Lie one');
+  submitLie(room, 'p2', 'Lie two');
+  submitLie(room, 'p3', 'Lie three');
+  finalizeWritingIfReady(room, Date.now());
+
+  const p1Answer = room.game.answers.find((a) => a.authorUserId === 'p1');
+  const p2Answer = room.game.answers.find((a) => a.authorUserId === 'p2');
+  const truthAnswer = room.game.answers.find((a) => a.isTruth);
+  castVote(room, 'p1', p2Answer.answerId);
+  castVote(room, 'p2', truthAnswer.answerId);
+  castVote(room, 'p3', p1Answer.answerId);
+  finalizeVotingIfReady(room, Date.now());
+
+  let now = room.game.reveal.phaseEndsAt;
+  advanceRevealIfExpired(room, now);
+
+  const lies = room.game.answers.filter((a) => !a.isTruth);
+  const lieIdx = lies.findIndex((lie) => lie.answerId === p1Answer.answerId);
+
+  while (
+    room.game.reveal.step !== 'per_lie' ||
+    room.game.reveal.lieIndex !== lieIdx ||
+    room.game.reveal.subStep !== 'voters'
+  ) {
+    now = room.game.reveal.phaseEndsAt;
+    const advanced = advanceRevealIfExpired(room, now);
+    assert.ok(advanced, 'expected reveal to advance');
+  }
+
+  const snap = snapshotFor(room, 'p1');
+  const snapLie = snap.game.answers.find((a) => a.answerId === p1Answer.answerId);
+  assert.equal(snapLie.voteCount, 1);
+  assert.deepEqual(snapLie.voters, ['p3']);
+  assert.equal(snapLie.authorUserId, 'p1');
+});
+
+test('reveal sub-steps skip points when nobody was fooled', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'voting';
+  room.game.answers = [
+    { answerId: 'lie1', text: 'Lie one', authorUserId: 'p1', isTruth: false },
+    { answerId: 'lie2', text: 'Lie two', authorUserId: 'p2', isTruth: false },
+    { answerId: 'truth1', text: 'truth', authorUserId: null, isTruth: true },
+  ];
+  castVote(room, 'p1', 'truth1');
+  castVote(room, 'p2', 'truth1');
+  castVote(room, 'p3', 'truth1');
+  finalizeVotingIfReady(room, Date.now());
+
+  let now = room.game.reveal.phaseEndsAt;
+  advanceRevealIfExpired(room, now);
+
+  const subStepsSeen = [];
+  while (room.game.reveal?.step === 'per_lie' && room.game.reveal.lieIndex === 0) {
+    subStepsSeen.push(room.game.reveal.subStep);
+    now = room.game.reveal.phaseEndsAt;
+    advanceRevealIfExpired(room, now);
+  }
+
+  assert.ok(subStepsSeen.includes('highlight'));
+  assert.ok(subStepsSeen.includes('author'));
+  assert.ok(subStepsSeen.includes('voters'));
+  assert.equal(subStepsSeen.includes('points'), false);
 });
 
 test('revealing snapshot exposes vote counts without voters at votes_summary', () => {

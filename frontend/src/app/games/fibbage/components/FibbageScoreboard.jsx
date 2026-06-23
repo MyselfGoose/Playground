@@ -9,9 +9,9 @@ import { Avatar } from "../../../../components/Avatar.jsx";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 import { FibbageRoundRecap } from "./FibbageRoundRecap.jsx";
 
-const SCORING_SECONDS = 6;
 const BETWEEN_ROUNDS_SECONDS = 3;
-const SHELL_MS = 300;
+const SCORING_SECONDS_FALLBACK = 6;
+const SCORING_SECONDS_MIN = 3;
 
 /**
  * @param {{ value: number, reduce: boolean, className?: string }} props
@@ -59,6 +59,22 @@ function AnimatedScore({ value, reduce, className = "" }) {
   );
 }
 
+/**
+ * Derive scoring timer total from server phaseEndsAt when available.
+ * @param {number | null | undefined} phaseEndsAt
+ * @param {number} highlightCount
+ */
+function scoringTotalSeconds(phaseEndsAt, highlightCount) {
+  if (typeof phaseEndsAt === "number") {
+    const remaining = Math.ceil((phaseEndsAt - Date.now()) / 1000);
+    if (remaining > 0) return remaining;
+  }
+  if (highlightCount === 0) return SCORING_SECONDS_MIN;
+  if (highlightCount === 1) return 4;
+  if (highlightCount === 2) return 5;
+  return SCORING_SECONDS_FALLBACK;
+}
+
 export function FibbageScoreboard() {
   const reduce = useReducedMotion();
   const { room } = useFibbage();
@@ -67,35 +83,24 @@ export function FibbageScoreboard() {
   const highlights = game?.roundHighlights ?? [];
   const isBetweenRounds = game?.status === "between_rounds";
   const isScoring = game?.status === "scoring";
-  const timerSeconds = isBetweenRounds ? BETWEEN_ROUNDS_SECONDS : SCORING_SECONDS;
+  const timerSeconds = isBetweenRounds
+    ? BETWEEN_ROUNDS_SECONDS
+    : scoringTotalSeconds(game?.phaseEndsAt, highlights.length);
   const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, timerSeconds);
   const waitingForNextPrompt = isBetweenRounds && secondsRemaining === 0;
   const headerMotion = sectionEnter(reduce);
   const roundKey = `${game?.round ?? 0}-${game?.gameSessionId ?? ""}`;
-
-  const [showRecap, setShowRecap] = useState(false);
   const [showRows, setShowRows] = useState(false);
 
   useEffect(() => {
-    setShowRecap(false);
-    setShowRows(false);
-    if (!isScoring) {
-      if (isBetweenRounds) {
-        setShowRows(true);
-      }
-      return undefined;
+    if (isScoring || isBetweenRounds) {
+      setShowRows(true);
+    } else {
+      setShowRows(false);
     }
-    if (highlights.length === 0) {
-      const shellTimer = window.setTimeout(() => setShowRows(true), SHELL_MS);
-      return () => window.clearTimeout(shellTimer);
-    }
-    const shellTimer = window.setTimeout(() => setShowRecap(true), SHELL_MS);
-    return () => window.clearTimeout(shellTimer);
-  }, [roundKey, isScoring, isBetweenRounds, highlights.length]);
+  }, [roundKey, isScoring, isBetweenRounds]);
 
-  const handleRecapComplete = useCallback(() => {
-    setShowRows(true);
-  }, []);
+  const handleRecapComplete = useCallback(() => {}, []);
 
   const sortedPlayers = useMemo(
     () => [...(room?.players ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
@@ -105,6 +110,8 @@ export function FibbageScoreboard() {
   const topHighlight = highlights[0];
   const showRoundWinner =
     isBetweenRounds && topHighlight?.id === "biggest_swing" && topHighlight.body;
+
+  const showInlineRecap = isScoring && highlights.length > 0;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -138,11 +145,12 @@ export function FibbageScoreboard() {
         </motion.div>
       ) : (
         <>
-          {isScoring && showRecap && highlights.length > 0 ? (
+          {showInlineRecap ? (
             <FibbageRoundRecap
               highlights={highlights}
               players={room?.players ?? []}
               onComplete={handleRecapComplete}
+              stacked={highlights.length <= 2}
             />
           ) : null}
 
@@ -166,36 +174,36 @@ export function FibbageScoreboard() {
                     <span className="w-6 text-center text-sm font-bold text-[var(--fibbage-text-muted)]">
                       {index + 1}
                     </span>
-                      <Avatar
-                        username={player.username}
-                        avatarUrl={player.avatarUrl}
-                        avatarEmoji={player.avatarEmoji}
-                        size="sm"
-                      />
-                      <span className="flex-1 text-sm font-semibold text-[var(--fibbage-text)]">
-                        {player.username}
-                      </span>
-                      <AnimatePresence>
-                        {!isBetweenRounds && roundScore > 0 ? (
-                          <motion.span
-                            key={`delta-${roundScore}`}
-                            className="text-sm font-bold text-[var(--fibbage-gold)]"
-                            {...scorePop(reduce)}
-                          >
-                            +{roundScore}
-                          </motion.span>
-                        ) : null}
-                      </AnimatePresence>
-                      <AnimatedScore
-                        value={player.score ?? 0}
-                        reduce={reduce}
-                        className={`text-sm font-bold ${
-                          isLeader ? "fibbage-score-pop text-base" : "text-[var(--fibbage-text-muted)]"
-                        }`}
-                      />
-                    </motion.div>
-                  );
-                })}
+                    <Avatar
+                      username={player.username}
+                      avatarUrl={player.avatarUrl}
+                      avatarEmoji={player.avatarEmoji}
+                      size="sm"
+                    />
+                    <span className="flex-1 text-sm font-semibold text-[var(--fibbage-text)]">
+                      {player.username}
+                    </span>
+                    <AnimatePresence>
+                      {!isBetweenRounds && roundScore > 0 ? (
+                        <motion.span
+                          key={`delta-${roundScore}`}
+                          className="text-sm font-bold text-[var(--fibbage-gold)]"
+                          {...scorePop(reduce)}
+                        >
+                          +{roundScore}
+                        </motion.span>
+                      ) : null}
+                    </AnimatePresence>
+                    <AnimatedScore
+                      value={player.score ?? 0}
+                      reduce={reduce}
+                      className={`text-sm font-bold ${
+                        isLeader ? "fibbage-score-pop text-base" : "text-[var(--fibbage-text-muted)]"
+                      }`}
+                    />
+                  </motion.div>
+                );
+              })}
             </div>
           ) : null}
         </>
