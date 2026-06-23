@@ -84,10 +84,6 @@
   color: var(--fibbage-text-muted);
 }
 
-.fibbage-reveal-chip {
-  border: 1px solid rgba(148, 163, 184, 0.15);
-}
-
 .fibbage-recap-stack .fibbage-card {
   text-align: left;
 }
@@ -142,10 +138,20 @@
 .fibbage-card--spotlight {
   border-color: var(--fibbage-accent) !important;
   box-shadow: 0 0 24px rgba(6, 182, 212, 0.3);
+  opacity: 1;
 }
 
 .fibbage-card--dimmed {
-  opacity: 0.4;
+  opacity: 0.38;
+  filter: saturate(0.75);
+}
+
+.fibbage-reveal-card {
+  transition:
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes fibbage-truth-glow {

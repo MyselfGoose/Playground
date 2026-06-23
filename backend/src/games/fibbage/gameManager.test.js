@@ -314,9 +314,9 @@ test('advanceRevealIfExpired progresses through reveal sub-steps to scoring', ()
 
   let now = room.game.reveal.phaseEndsAt;
   assert.equal(advanceRevealIfExpired(room, now), 'reveal_step');
-  assert.equal(room.game.reveal.step, 'per_lie');
+  assert.equal(room.game.reveal.step, 'per_answer');
   assert.equal(room.game.reveal.subStep, 'highlight');
-  assert.equal(room.game.reveal.lieIndex, 0);
+  assert.equal(room.game.reveal.answerIndex, 0);
 
   advanceRevealToScoring(room);
 
@@ -325,7 +325,7 @@ test('advanceRevealIfExpired progresses through reveal sub-steps to scoring', ()
   assert.ok(room.game.phaseEndsAt > Date.now());
 });
 
-test('revealing snapshot exposes voters for revealed lies during per_lie', () => {
+test('revealing snapshot exposes voters for revealed answer during per_answer', () => {
   const room = createRoom([
     connectedPlayer('p1', 'Alice'),
     connectedPlayer('p2', 'Bob'),
@@ -349,12 +349,11 @@ test('revealing snapshot exposes voters for revealed lies during per_lie', () =>
   let now = room.game.reveal.phaseEndsAt;
   advanceRevealIfExpired(room, now);
 
-  const lies = room.game.answers.filter((a) => !a.isTruth);
-  const lieIdx = lies.findIndex((lie) => lie.answerId === p1Answer.answerId);
+  const targetIdx = room.game.answers.findIndex((a) => a.answerId === p1Answer.answerId);
 
   while (
-    room.game.reveal.step !== 'per_lie' ||
-    room.game.reveal.lieIndex !== lieIdx ||
+    room.game.reveal.step !== 'per_answer' ||
+    room.game.reveal.answerIndex !== targetIdx ||
     room.game.reveal.subStep !== 'voters'
   ) {
     now = room.game.reveal.phaseEndsAt;
@@ -391,7 +390,7 @@ test('reveal sub-steps skip points when nobody was fooled', () => {
   advanceRevealIfExpired(room, now);
 
   const subStepsSeen = [];
-  while (room.game.reveal?.step === 'per_lie' && room.game.reveal.lieIndex === 0) {
+  while (room.game.reveal?.step === 'per_answer' && room.game.reveal.answerIndex === 0) {
     subStepsSeen.push(room.game.reveal.subStep);
     now = room.game.reveal.phaseEndsAt;
     advanceRevealIfExpired(room, now);
@@ -401,6 +400,35 @@ test('reveal sub-steps skip points when nobody was fooled', () => {
   assert.ok(subStepsSeen.includes('author'));
   assert.ok(subStepsSeen.includes('voters'));
   assert.equal(subStepsSeen.includes('points'), false);
+});
+
+test('truth is revealed in answers order not deferred to the end', () => {
+  const room = createRoom([
+    connectedPlayer('p1', 'Alice'),
+    connectedPlayer('p2', 'Bob'),
+    connectedPlayer('p3', 'Charlie'),
+  ]);
+  initGame(room, prompt);
+  room.game.status = 'voting';
+  room.game.answers = [
+    { answerId: 'truth1', text: 'truth', authorUserId: null, isTruth: true },
+    { answerId: 'lie1', text: 'Lie one', authorUserId: 'p1', isTruth: false },
+    { answerId: 'lie2', text: 'Lie two', authorUserId: 'p2', isTruth: false },
+  ];
+  castVote(room, 'p1', 'lie2');
+  castVote(room, 'p2', 'truth1');
+  castVote(room, 'p3', 'lie1');
+  finalizeVotingIfReady(room, Date.now());
+
+  let now = room.game.reveal.phaseEndsAt;
+  advanceRevealIfExpired(room, now);
+
+  assert.equal(room.game.reveal.step, 'per_answer');
+  assert.equal(room.game.reveal.answerIndex, 0);
+
+  const snap = snapshotFor(room, 'p1');
+  const truthSnap = snap.game.answers.find((a) => a.answerId === 'truth1');
+  assert.equal(truthSnap.isTruth, true);
 });
 
 test('revealing snapshot exposes vote counts without voters at votes_summary', () => {

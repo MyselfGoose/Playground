@@ -150,20 +150,20 @@ export function hostLabel(reduce = false) {
 
 /**
  * @param {boolean} reduce
- * @param {boolean} [spotlight]
+ * @param {boolean} [_spotlight] Kept for API compatibility; spotlight uses CSS classes.
  */
-export function revealCard(reduce = false, spotlight = false) {
+export function revealCard(reduce = false, _spotlight = false) {
   if (reduce) {
     return {
       initial: false,
-      animate: { opacity: spotlight ? 1 : 0.55 },
+      animate: { opacity: 1 },
       transition: { duration: MOTION_FAST_SEC },
     };
   }
   return {
-    initial: { opacity: 0 },
-    animate: { opacity: spotlight ? 1 : 0.45 },
-    transition: { duration: 0.28, ease: FIBBAGE_EASE },
+    initial: false,
+    animate: { opacity: 1 },
+    transition: { duration: 0.2, ease: FIBBAGE_EASE },
   };
 }
 
@@ -179,9 +179,9 @@ export function truthReveal(reduce = false) {
     };
   }
   return {
-    initial: { opacity: 0.5 },
+    initial: false,
     animate: { opacity: 1 },
-    transition: { duration: 0.32, ease: FIBBAGE_EASE },
+    transition: { duration: 0.28, ease: FIBBAGE_EASE },
   };
 }
 
@@ -194,15 +194,13 @@ export function revealBeat(reduce = false) {
     return {
       initial: false,
       animate: { opacity: 1, y: 0 },
-      exit: { opacity: 0, y: -4 },
       transition: { duration: MOTION_FAST_SEC },
     };
   }
   return {
-    initial: { opacity: 0, y: 14 },
+    initial: { opacity: 0, y: 6 },
     animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -6 },
-    transition: { duration: 0.34, ease: FIBBAGE_EASE },
+    transition: { duration: 0.26, ease: FIBBAGE_EASE },
   };
 }
 

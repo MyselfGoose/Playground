@@ -55,17 +55,14 @@ export const FIBBAGE_PROMPT_FETCH_RETRY_MS = 2000;
 export const FIBBAGE_PROMPT_FETCH_MAX_RETRIES = 3;
 
 /** Reveal sub-phase durations */
-export const FIBBAGE_REVEAL_VOTES_SUMMARY_MS = 4000;
-export const FIBBAGE_REVEAL_TRUTH_MS = 5000;
-export const FIBBAGE_REVEAL_COMPLETE_MS = 2000;
+export const FIBBAGE_REVEAL_VOTES_SUMMARY_MS = 2000;
 
-/** Reveal sub-step dwell times (server-driven; keep client in sync for fallbacks only) */
-export const FIBBAGE_REVEAL_HIGHLIGHT_MS = 700;
-export const FIBBAGE_REVEAL_AUTHOR_MS = 1800;
-export const FIBBAGE_REVEAL_VOTERS_MS = 2000;
-export const FIBBAGE_REVEAL_VOTERS_EMPTY_MS = 800;
-export const FIBBAGE_REVEAL_POINTS_MS = 2000;
-export const FIBBAGE_REVEAL_TRUTH_HIGHLIGHT_MS = 600;
+/** Reveal sub-step dwell times — short; zero-dwell steps chain immediately on the server */
+export const FIBBAGE_REVEAL_HIGHLIGHT_MS = 400;
+export const FIBBAGE_REVEAL_AUTHOR_MS = 700;
+export const FIBBAGE_REVEAL_VOTERS_MS = 1100;
+export const FIBBAGE_REVEAL_VOTERS_EMPTY_MS = 280;
+export const FIBBAGE_REVEAL_POINTS_MS = 900;
 
 /** Scoring phase — adaptive bounds */
 export const FIBBAGE_SCORING_MS_MIN = 3000;
