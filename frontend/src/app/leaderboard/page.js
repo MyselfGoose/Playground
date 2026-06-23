@@ -225,9 +225,9 @@ export default function LeaderboardPage() {
   const boardMeta = BOARDS.find((b) => b.key === activeBoard) ?? BOARDS[0];
 
   return (
-    <div className="w-full min-h-screen flex flex-col">
+    <div className="w-full min-h-dvh flex flex-col">
       {/* Fixed Header with Board Selector */}
-      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-muted-bright/30 py-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
+      <div className="sticky top-[var(--app-chrome-height)] z-40 bg-background/95 backdrop-blur-md border-b border-muted-bright/30 py-6">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Board tabs - horizontal scroll */}
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 mb-6">
@@ -365,7 +365,7 @@ export default function LeaderboardPage() {
                         </div>
 
                         {/* Mini stats row */}
-                        <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                           {stats.slice(0, 4).map((s) => (
                             <div key={s.label} className="text-center">
                               <p className="text-muted font-bold">{s.label}</p>
@@ -451,28 +451,52 @@ export default function LeaderboardPage() {
 function TopThreePodium({ entries, board, cahSort }) {
   const top3 = entries.slice(0, 3);
 
-  // Position: 2nd, 1st, 3rd (visual arrangement for podium effect)
   const podiumOrder = [
-    { index: 1, position: "left", height: "h-32" },
-    { index: 0, position: "center", height: "h-48" },
-    { index: 2, position: "right", height: "h-24" },
+    { index: 1, position: "left", height: "h-24 sm:h-32" },
+    { index: 0, position: "center", height: "h-32 sm:h-48" },
+    { index: 2, position: "right", height: "h-20 sm:h-24" },
   ];
 
   return (
-    <div className="relative mx-auto max-w-2xl mb-16">
-      <div className="text-center mb-8">
+    <div className="relative mx-auto mb-16 max-w-4xl">
+      <div className="mb-8 text-center">
         <h2 className="text-2xl font-black text-foreground">Elite Leaders</h2>
-        <p className="text-sm text-foreground/60 mt-1">The champions above all</p>
+        <p className="mt-1 text-sm text-foreground/60">The champions above all</p>
       </div>
 
-      <div className="relative flex items-end justify-center gap-4 h-56 perspective">
-        {podiumOrder.map(({ index, position, height }) => {
+      {/* Stacked layout for very narrow screens */}
+      <div className="flex flex-col gap-4 sm:hidden">
+        {top3.map((entry, index) => {
+          const metric = primaryMetric(board, entry, { cahSort });
+          const medals = ["🥇", "🥈", "🥉"];
+          return (
+            <Link
+              key={entry.userId}
+              href={`/profile/${entry.userId}`}
+              className="flex items-center gap-4 rounded-[var(--radius-xl)] bg-gradient-to-r from-background via-muted-bright/20 to-transparent p-4 ring-2 ring-muted-bright/40"
+            >
+              <span className="text-2xl">{medals[index]}</span>
+              <Avatar username={entry.username} src={entry.avatarUrl} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-extrabold text-foreground">{entry.username}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted">{metric.label}</p>
+              </div>
+              <p className="text-xl font-black text-primary">{metric.value}</p>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Podium layout for sm+ */}
+      <div className="relative hidden h-48 items-end justify-center gap-2 sm:flex sm:gap-4 sm:h-56">
+        {podiumOrder.map(({ index, height }) => {
           const entry = top3[index];
           if (!entry) return null;
 
           const medals = ["🥇", "🥈", "🥉"];
           const metric = primaryMetric(board, entry, { cahSort });
           const isFirst = index === 0;
+          const position = index === 0 ? "center" : index === 1 ? "left" : "right";
 
           return (
             <motion.div
@@ -486,9 +510,10 @@ function TopThreePodium({ entries, board, cahSort }) {
                 delay: index * 0.15,
               }}
               whileHover={{ y: -8 }}
-              className={`relative flex-1 max-w-xs ${position === "center" ? "order-2" : position === "left" ? "order-1" : "order-3"}`}
+              className={`relative max-w-[10rem] flex-1 sm:max-w-xs ${
+                position === "center" ? "order-2" : position === "left" ? "order-1" : "order-3"
+              }`}
             >
-              {/* Podium base */}
               <div
                 className={`${height} rounded-t-[var(--radius-xl)] transition-all duration-300 ${
                   isFirst
@@ -497,33 +522,32 @@ function TopThreePodium({ entries, board, cahSort }) {
                 }`}
               />
 
-              {/* Card floating above podium */}
               <Link
                 href={`/profile/${entry.userId}`}
-                className="absolute -top-24 left-1/2 -translate-x-1/2 w-full max-w-xs"
+                className="absolute -top-20 left-1/2 w-full max-w-[9rem] -translate-x-1/2 sm:-top-24 sm:max-w-xs"
               >
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className={`rounded-[var(--radius-2xl)] p-4 ring-2 ${
+                  className={`rounded-[var(--radius-2xl)] p-3 ring-2 sm:p-4 ${
                     isFirst
                       ? "bg-gradient-to-br from-primary/30 to-accent-pink/20 ring-primary/60 shadow-[var(--shadow-play)]"
                       : "bg-background ring-muted-bright/60 shadow-[var(--shadow-md)]"
                   } text-center`}
                 >
-                  <div className="text-3xl mb-2">{medals[index]}</div>
+                  <div className="mb-1 text-2xl sm:mb-2 sm:text-3xl">{medals[index]}</div>
                   <Avatar
                     username={entry.username}
                     src={entry.avatarUrl}
                     size="md"
-                    className="mx-auto mb-2"
+                    className="mx-auto mb-1 sm:mb-2"
                   />
-                  <p className="font-extrabold text-foreground text-sm truncate">
+                  <p className="truncate text-xs font-extrabold text-foreground sm:text-sm">
                     {entry.username}
                   </p>
-                  <p className={`text-2xl font-black mt-2 ${isFirst ? "text-primary" : "text-foreground"}`}>
+                  <p className={`mt-1 text-xl font-black sm:mt-2 sm:text-2xl ${isFirst ? "text-primary" : "text-foreground"}`}>
                     {metric.value}
                   </p>
-                  <p className="text-xs text-foreground/60 uppercase tracking-wide font-bold mt-1">
+                  <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground/60 sm:mt-1 sm:text-xs">
                     {metric.label}
                   </p>
                 </motion.div>

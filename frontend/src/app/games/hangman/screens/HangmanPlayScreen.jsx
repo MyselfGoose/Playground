@@ -98,7 +98,7 @@ export function HangmanPlayScreen() {
   return (
     <HangmanShell>
       <GameFeedbackOverlay variant={feedbackVariant} reduceMotion={reduceMotion} />
-      <motion.div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 pb-12 lg:grid-cols-[1fr_240px]">
+      <motion.div className="adaptive-content-anchored mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 pb-12 md:grid-cols-[1fr_240px] play-landscape-compact">
         <div className="space-y-5">
           {room?.code ? (
             <div className="flex justify-center lg:justify-start">

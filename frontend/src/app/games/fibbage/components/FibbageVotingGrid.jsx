@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useAdaptiveLayout, shouldConfirmTouchAction } from "../../../../lib/adaptive/useAdaptiveLayout.js";
 import { Check } from "lucide-react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { useFibbageFeedback } from "../../../../lib/fibbage/FibbageFeedbackContext.jsx";
@@ -22,15 +23,8 @@ export function FibbageVotingGrid() {
   const [pendingId, setPendingId] = useState(null);
   const [error, setError] = useState(null);
   const [confirmAnswerId, setConfirmAnswerId] = useState(/** @type {string | null} */ (null));
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    setIsMobile(mq.matches);
-    const handler = (e) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  const layout = useAdaptiveLayout();
+  const needsVoteConfirm = shouldConfirmTouchAction(layout);
 
   const votingSeconds = room?.settings?.votingSeconds ?? 45;
   const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, votingSeconds);
@@ -79,13 +73,13 @@ export function FibbageVotingGrid() {
   const handleVoteClick = useCallback(
     (answerId) => {
       if (!canVote || pendingId || answerId === ownAnswerId || hasVoted) return;
-      if (isMobile) {
+      if (needsVoteConfirm) {
         setConfirmAnswerId(answerId);
       } else {
         void castVoteFor(answerId);
       }
     },
-    [canVote, pendingId, ownAnswerId, hasVoted, isMobile, castVoteFor],
+    [canVote, pendingId, ownAnswerId, hasVoted, needsVoteConfirm, castVoteFor],
   );
 
   const headerMotion = sectionEnter(reduce);
@@ -113,7 +107,7 @@ export function FibbageVotingGrid() {
         </motion.p>
       </motion.div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={`grid gap-3 ${layout.isLandscape && !layout.isTabletOrAbove ? "grid-cols-2" : "sm:grid-cols-2"}`}>
         {answers.map((answer, index) => {
           const isOwn = answer.answerId === ownAnswerId;
           const isSelected = game?.viewerVote === answer.answerId;
@@ -220,6 +214,7 @@ export function FibbageVotingGrid() {
         title="Lock in your vote?"
         description="You can't change your vote after confirming."
         size="sm"
+        variant="sheet"
         showCloseButton={false}
         panelClassName="fibbage-card border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas-light)]"
       >

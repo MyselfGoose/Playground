@@ -51,7 +51,7 @@ export function WhiteCard({
       tabIndex={tabIndex}
       aria-label={ariaLabel}
       aria-pressed={selected}
-      className={`min-h-[190px] rounded-[22px] border p-4 text-left shadow-[0_18px_35px_rgba(0,0,0,0.15)] transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+      className={`min-h-[140px] sm:min-h-[190px] rounded-[22px] border p-4 text-left shadow-[0_18px_35px_rgba(0,0,0,0.15)] transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         selected
           ? "border-primary bg-primary/10 ring-2 ring-primary/35"
           : "border-black/10 bg-white text-black hover:border-black/30"

@@ -63,16 +63,18 @@ function FibbagePlayInner() {
   });
 
   return (
-    <div className="flex min-h-[100dvh] flex-col">
+    <div className="flex min-h-dvh flex-col">
       <FibbagePhaseAnnouncer status={status} topHighlight={topHighlight} />
       <FibbagePlayHeader onLeave={requestLeave} />
       <FibbageHost status={status} />
-      <main className="flex-1 px-4 py-4">
-        <LayoutGroup id="fibbage-play">
-          <PhaseContent status={status} />
-        </LayoutGroup>
-      </main>
-      <FibbageScoreRail players={room?.players ?? []} />
+      <div className="adaptive-content-anchored flex flex-1 flex-col md:flex-row md:items-stretch">
+        <main className="flex-1 px-4 py-4 pb-24 md:pb-4">
+          <LayoutGroup id="fibbage-play">
+            <PhaseContent status={status} />
+          </LayoutGroup>
+        </main>
+        <FibbageScoreRail players={room?.players ?? []} />
+      </div>
       <FibbageFeedbackOverlay
         message={feedback?.message ?? feedbackMessage}
         type={feedback?.type ?? "default"}

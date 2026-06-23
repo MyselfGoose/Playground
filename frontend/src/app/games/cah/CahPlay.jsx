@@ -66,7 +66,7 @@ export function CahPlay({
   const router = useRouter();
 
   return (
-    <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6">
+    <div className="relative adaptive-content-anchored mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6">
       <GameFeedbackOverlay variant={revealFeedback} reduceMotion={reduceMotion} />
       {socketError || error ? (
         <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error">
@@ -87,7 +87,7 @@ export function CahPlay({
         </div>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.55fr]">
+      <div className="grid gap-5 md:grid-cols-[1.1fr_0.55fr]">
         <section className="space-y-4">
           <BlackCardStage text={game?.blackCard?.text} pick={game?.blackCard?.pick} />
           <div className="rounded-[22px] border border-foreground/10 bg-background/90 p-4 shadow-[var(--shadow-card)]">

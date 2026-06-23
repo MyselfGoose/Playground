@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useAdaptiveLayout } from "../../lib/adaptive/useAdaptiveLayout.js";
+import { isCompactDeviceClass } from "../../lib/adaptive/useAdaptiveLayout.js";
 import { Button } from "../Button.jsx";
 import { PageHeader } from "../PageHeader.jsx";
 import { LeaveLobbyDialog } from "./LeaveLobbyDialog.jsx";
@@ -12,6 +14,12 @@ import { ReadyButton } from "./ReadyButton.jsx";
 /**
  * @typedef {'host' | 'all-ready' | 'countdown'} StartPolicy
  */
+
+const widthClasses = {
+  narrow: "max-w-lg",
+  medium: "max-w-2xl",
+  wide: "max-w-4xl",
+};
 
 /**
  * @param {{
@@ -79,6 +87,7 @@ export function PartyLobby({
 }) {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const { lobbyWidthProfile, isLandscape, deviceClass } = useAdaptiveLayout();
   const needMore = connectedCount < minPlayers;
   const resolvedStatus =
     statusLine ??
@@ -87,6 +96,10 @@ export function PartyLobby({
       : `${readyCount} of ${connectedCount} ready`);
 
   const showHostStart = startPolicy === "host" && typeof onStart === "function";
+  const widthClass = widthClasses[lobbyWidthProfile] ?? widthClasses.narrow;
+  const useSplitLayout = lobbyWidthProfile !== "narrow";
+  const playerLayout =
+    isLandscape && !isCompactDeviceClass(deviceClass) ? "horizontal" : "vertical";
 
   async function handleConfirmLeave() {
     if (!onLeave || leaving) return;
@@ -99,9 +112,36 @@ export function PartyLobby({
     }
   }
 
+  const actionsBlock = (
+    <>
+      {primaryAction ?? (
+        <>
+          <ReadyButton
+            ready={ready}
+            onToggle={onReadyToggle}
+            disabled={readyDisabled}
+            pending={readyPending}
+          />
+          {showHostStart ? (
+            <Button
+              variant="primary"
+              size="touch"
+              className="w-full rounded-full py-3.5 text-base font-black"
+              disabled={!canStart || startPending}
+              onClick={onStart}
+            >
+              {startPending ? "Starting…" : "Start game"}
+            </Button>
+          ) : null}
+        </>
+      )}
+      {footer ? <motion.div>{footer}</motion.div> : null}
+    </>
+  );
+
   return (
     <motion.div
-      className={`mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8 pb-12 ${className}`}
+      className={`mx-auto flex w-full flex-col gap-6 px-4 py-8 pb-12 ${widthClass} ${className}`}
     >
       <header className="flex flex-wrap items-start justify-between gap-4">
         <motion.div className="min-w-0 flex-1">
@@ -112,6 +152,7 @@ export function PartyLobby({
               title={header.title}
               description={header.description}
               align={header.align ?? "left"}
+              size="sm"
               className="!max-w-none text-left"
             />
           ) : (
@@ -120,7 +161,7 @@ export function PartyLobby({
           {code ? <PartyCode code={code} gameSlug={gameSlug} size="lg" className="mt-3 w-full" /> : null}
         </motion.div>
         {onLeave ? (
-          <Button variant="ghost" onClick={() => setLeaveConfirmOpen(true)} disabled={leaving}>
+          <Button variant="ghost" size="touch" onClick={() => setLeaveConfirmOpen(true)} disabled={leaving}>
             Leave
           </Button>
         ) : null}
@@ -137,32 +178,23 @@ export function PartyLobby({
         <p className="mt-1 text-xs font-semibold text-foreground/55">{startRules}</p>
       </motion.div>
 
-      <PlayerList players={players} localUserId={localUserId} />
-
-      {settings ? <motion.div className="space-y-3">{settings}</motion.div> : null}
-
-      {primaryAction ?? (
+      {useSplitLayout ? (
+        <div className="grid gap-6 md:grid-cols-[1fr_minmax(16rem,20rem)] md:items-start">
+          <div className="space-y-6">
+            <PlayerList players={players} localUserId={localUserId} layout={playerLayout} />
+            {settings ? <motion.div className="space-y-3">{settings}</motion.div> : null}
+          </div>
+          <div className="space-y-4 md:sticky md:top-[calc(var(--app-chrome-height)+var(--space-4))]">
+            {actionsBlock}
+          </div>
+        </div>
+      ) : (
         <>
-          <ReadyButton
-            ready={ready}
-            onToggle={onReadyToggle}
-            disabled={readyDisabled}
-            pending={readyPending}
-          />
-          {showHostStart ? (
-            <Button
-              variant="primary"
-              className="w-full rounded-full py-3.5 text-base font-black"
-              disabled={!canStart || startPending}
-              onClick={onStart}
-            >
-              {startPending ? "Starting…" : "Start game"}
-            </Button>
-          ) : null}
+          <PlayerList players={players} localUserId={localUserId} layout={playerLayout} />
+          {settings ? <motion.div className="space-y-3">{settings}</motion.div> : null}
+          {actionsBlock}
         </>
       )}
-
-      {footer ? <motion.div>{footer}</motion.div> : null}
 
       <LeaveLobbyDialog
         open={leaveConfirmOpen}

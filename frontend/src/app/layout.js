@@ -1,6 +1,6 @@
 import { Nunito } from "next/font/google";
-import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript.js";
 import "./globals.css";
+import { ThemeInitScript } from "../components/ThemeInitScript.jsx";
 import { UserProvider } from "../lib/context/UserContext.jsx";
 import { GameSessionProvider } from "../lib/session/GameSessionContext.jsx";
 import { SocialSocketProvider } from "../lib/social/SocialSocketContext.jsx";
@@ -23,12 +23,13 @@ export const metadata = {
   title: "Playground — Multi-game fun",
   description:
     "Playground — five multiplayer games in the browser: typing race, NPAT, Taboo, Cards Against Humanity, and Hangman.",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    viewportFit: "cover",
-    colorScheme: "light dark",
-  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }) {
@@ -40,9 +41,9 @@ export default function RootLayout({ children }) {
     >
       <head>
         <meta name="color-scheme" content="light dark" />
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full font-sans bg-background">
+        <ThemeInitScript />
         <RuntimeConfig />
         <ErrorReporterInit />
         <ThemeProvider>

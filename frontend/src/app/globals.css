@@ -47,6 +47,39 @@
   /* Mobile keyboard (visualViewport hook) */
   --keyboard-offset: 0px;
 
+  /* Adaptive layout — platform chrome & play area */
+  --navbar-height: 4rem;
+  --app-chrome-height: calc(var(--navbar-height) + env(safe-area-inset-top, 0px));
+  --play-area-height: calc(100dvh - var(--app-chrome-height));
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Content width tokens */
+  --content-narrow: 32rem;
+  --content-medium: 48rem;
+  --content-wide: 80rem;
+  --content-max: 96rem;
+
+  /* Fluid typography */
+  --text-display: clamp(2rem, 5vw + 1rem, 4.5rem);
+  --text-title: clamp(1.5rem, 3vw + 0.5rem, 2.5rem);
+  --text-heading: clamp(1.25rem, 2vw + 0.75rem, 2rem);
+  --text-body: clamp(0.875rem, 0.5vw + 0.8rem, 1rem);
+  --text-label: clamp(0.75rem, 0.25vw + 0.7rem, 0.875rem);
+
+  /* Touch targets */
+  --touch-target-min: 2.75rem;
+  --touch-gap: 0.5rem;
+
   /* Motion */
   --motion-fast: 120ms;
   --motion-normal: 220ms;
@@ -268,6 +301,8 @@ html.light {
   --color-fibbage-lie: #f87171;
   
   --font-sans: var(--font-nunito);
+  --spacing-touch-target: var(--touch-target-min);
+  --spacing-touch-gap: var(--touch-gap);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
@@ -415,6 +450,64 @@ select:focus {
   .timer-bar-urgent-pulse,
   .timer-bar-fill-urgent {
     animation: none;
+  }
+}
+
+/* Adaptive layout utility classes */
+.text-display {
+  font-size: var(--text-display);
+}
+
+.text-title {
+  font-size: var(--text-title);
+}
+
+.text-heading {
+  font-size: var(--text-heading);
+}
+
+.text-body-fluid {
+  font-size: var(--text-body);
+}
+
+.min-h-play-area {
+  min-height: var(--play-area-height);
+}
+
+.h-play-area {
+  height: var(--play-area-height);
+}
+
+.touch-target {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+}
+
+.adaptive-container {
+  container-type: inline-size;
+}
+
+/* Ultrawide content anchoring */
+.adaptive-content-anchored {
+  width: 100%;
+  max-width: var(--content-wide);
+  margin-inline: auto;
+}
+
+@media (min-width: 1920px) {
+  .adaptive-content-anchored {
+    max-width: var(--content-max);
+  }
+}
+
+/* Landscape-short play compaction */
+@media (orientation: landscape) and (max-height: 500px) {
+  .play-landscape-compact {
+    --navbar-height: 3.25rem;
+  }
+
+  .play-landscape-compact .landscape-hide {
+    display: none;
   }
 }
 

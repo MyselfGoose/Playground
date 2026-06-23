@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "../../../../components/Avatar.jsx";
+import { useAdaptiveLayout } from "../../../../lib/adaptive/useAdaptiveLayout.js";
 
 /**
  * Animated count-up for score rail.
@@ -53,13 +54,22 @@ function RailScore({ value, reduce, className = "" }) {
  */
 export function FibbageScoreRail({ players }) {
   const reduce = useReducedMotion();
+  const { isTabletOrAbove } = useAdaptiveLayout();
   const sorted = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   const leaderId = sorted[0]?.userId ?? null;
 
   return (
-    <aside className="fibbage-rank-strip">
+    <aside
+      className={`fibbage-rank-strip ${isTabletOrAbove ? "fibbage-rank-strip--side" : ""}`}
+    >
       <p className="mb-2 fibbage-micro uppercase tracking-wide">Leaderboard</p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div
+        className={
+          isTabletOrAbove
+            ? "flex flex-col gap-2 overflow-y-auto max-h-[min(70dvh,24rem)]"
+            : "flex gap-2 overflow-x-auto pb-1"
+        }
+      >
         {sorted.map((player, index) => (
           <ScoreRailItem
             key={player.userId}
@@ -119,7 +129,7 @@ function ScoreRailItem({ player, rank, isLeader, index, reduce }) {
         size="sm"
       />
       <span
-        className="max-w-[5.5rem] truncate text-xs font-semibold text-[var(--fibbage-text)]"
+        className="max-w-[8rem] truncate text-xs font-semibold text-[var(--fibbage-text)] sm:max-w-[10rem]"
         title={player.username}
       >
         {player.username}

@@ -7,7 +7,10 @@ import { useFriends } from "../../lib/friends/FriendsContext.jsx";
 import { useFocusTrap } from "../../lib/a11y/useFocusTrap.js";
 import { FriendsPanel } from "./FriendsPanel.jsx";
 
-export function FriendsNavButton() {
+/**
+ * @param {{ layout?: 'icon' | 'menu-row' }} [props]
+ */
+export function FriendsNavButton({ layout = "icon" }) {
   const { enabled, onlineCount, pendingReceivedCount } = useFriends();
   const [open, setOpen] = useState(false);
   const panelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -30,19 +33,29 @@ export function FriendsNavButton() {
 
   if (!enabled) return null;
 
-  return (
-    <div className="relative">
-      <motion.button
-        ref={buttonRef}
-        type="button"
-        whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-        whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-        onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={`Friends${onlineCount > 0 ? `, ${onlineCount} online` : ""}`}
-      >
+  const triggerClass =
+    layout === "menu-row"
+      ? "relative flex w-full touch-target items-center justify-between gap-3 rounded-xl px-4 py-3 text-base font-bold text-foreground transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright/50"
+      : "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted-bright/50 text-foreground shadow-sm ring-2 ring-muted-bright/30 transition-colors duration-[var(--motion-fast)] hover:bg-muted-bright";
+
+  const triggerContent =
+    layout === "menu-row" ? (
+      <>
+        <span className="flex items-center gap-3">
+          <Users className="h-5 w-5" aria-hidden />
+          Friends
+        </span>
+        <span className="flex items-center gap-2 text-sm font-bold text-muted">
+          {onlineCount > 0 ? `${onlineCount} online` : ""}
+          {pendingReceivedCount > 0 ? (
+            <span className="rounded-full bg-accent-pink px-2 py-0.5 text-xs font-black text-white">
+              {pendingReceivedCount}
+            </span>
+          ) : null}
+        </span>
+      </>
+    ) : (
+      <>
         <Users className="h-5 w-5" aria-hidden />
         {onlineCount > 0 ? (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white shadow-sm">
@@ -55,6 +68,23 @@ export function FriendsNavButton() {
             aria-hidden
           />
         ) : null}
+      </>
+    );
+
+  return (
+    <div className={layout === "menu-row" ? "w-full" : "relative shrink-0"}>
+      <motion.button
+        ref={buttonRef}
+        type="button"
+        whileHover={reduceMotion ? undefined : { scale: layout === "menu-row" ? 1 : 1.05 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+        onClick={() => setOpen((v) => !v)}
+        className={triggerClass}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Friends${onlineCount > 0 ? `, ${onlineCount} online` : ""}`}
+      >
+        {triggerContent}
       </motion.button>
 
       <AnimatePresence>

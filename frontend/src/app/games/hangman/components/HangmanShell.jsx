@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
  */
 export function HangmanShell({ children }) {
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] pb-[env(safe-area-inset-bottom)]">
+    <div className="relative min-h-play-area pb-[env(safe-area-inset-bottom)]">
       <motion.div
         className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-pastel-sky/40 via-background to-background"
         aria-hidden

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import { getGameHref, PLAYABLE_GAME_IDS } from "../lib/games.js";
 import { Button } from "./Button.jsx";
 
 const accentColors = {
@@ -20,30 +21,14 @@ const tilts = [
   "rotate-[1deg]",
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
-};
-
 /** @param {{ game: import('../lib/games.js').Game; index: number }} props */
 export function GameCard({ game, index }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const tilt = tilts[index % tilts.length];
   const colors = accentColors[game.accent] ?? accentColors.lavender;
-  const isNpat = game.id === "name-place-animal-thing";
-  const isTypingRace = game.id === "typing-race";
-  const isTaboo = game.id === "taboo";
-  const isCah = game.id === "cards-against-humanity";
-  const isPlayable = isNpat || isTypingRace || isTaboo || isCah;
+  const isPlayable = PLAYABLE_GAME_IDS.includes(game.id);
+  const href = isPlayable ? getGameHref(game.id) : "#";
 
   return (
     <motion.article
@@ -62,7 +47,6 @@ export function GameCard({ game, index }) {
       }
       className={`group relative flex flex-col gap-5 rounded-[var(--radius-2xl)] bg-gradient-to-br ${colors.bg} p-6 sm:p-8 shadow-[var(--shadow-md)] ring-2 ring-foreground/10 overflow-hidden transition-all ${tilt}`}
     >
-      {/* Background accent blob */}
       <motion.div
         aria-hidden
         className="absolute -bottom-8 -right-8 h-32 w-32 rounded-full opacity-20 blur-xl"
@@ -110,13 +94,9 @@ export function GameCard({ game, index }) {
             <Button
               type="button"
               variant="secondary"
+              size="touch"
               className="w-full bg-background/80 hover:bg-background font-extrabold"
-              onClick={() => {
-                if (isNpat) router.push("/games/npat");
-                else if (isTypingRace) router.push("/games/typing-race");
-                else if (isTaboo) router.push("/games/taboo");
-                else if (isCah) router.push("/games/cah");
-              }}
+              onClick={() => router.push(href)}
             >
               Play Now
             </Button>

@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 const ACTIVE_GAME = new Set(["STARTING", "IN_ROUND", "BETWEEN_ROUNDS"]);
 
 const btnBase =
-  "rounded-xl px-3 py-1.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50";
+  "touch-target rounded-xl px-4 py-2.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 /**
  * @param {{

@@ -77,7 +77,7 @@ export function TypingTestView() {
 
   return (
     <div
-      className={`typing-race-root flex min-h-[calc(100dvh-4rem)] flex-col antialiased pb-[var(--keyboard-offset,0px)] sm:text-[16px] ${soloActive ? "typing-race-root--active" : ""}`}
+      className={`typing-race-root flex min-h-play-area flex-col antialiased pb-[var(--keyboard-offset,0px)] sm:text-[16px] ${soloActive ? "typing-race-root--active" : ""}`}
       data-focus-mode={focusMode ? "true" : "false"}
     >
       <TypingHiddenInput bindInputFocus={capture.bindInputFocus} />

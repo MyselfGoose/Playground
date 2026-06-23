@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import { useFocusTrap } from "../../lib/a11y/useFocusTrap.js";
@@ -17,6 +17,7 @@ import { useFocusTrap } from "../../lib/a11y/useFocusTrap.js";
  *   closeOnBackdrop?: boolean,
  *   showCloseButton?: boolean,
  *   size?: 'sm' | 'md' | 'lg' | 'xl',
+ *   variant?: 'centered' | 'sheet',
  * }} props
  */
 export function Modal({
@@ -30,7 +31,9 @@ export function Modal({
   closeOnBackdrop = true,
   showCloseButton = true,
   size = "md",
+  variant = "centered",
 }) {
+  const reduce = useReducedMotion();
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -53,24 +56,43 @@ export function Modal({
     };
   }, [open]);
 
+  const isSheet = variant === "sheet";
+  const motionInitial = reduce
+    ? false
+    : isSheet
+      ? { opacity: 0, y: 24 }
+      : { opacity: 0, scale: 0.96, y: 8 };
+  const motionAnimate = isSheet ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 };
+  const motionExit = reduce
+    ? undefined
+    : isSheet
+      ? { opacity: 0, y: 24 }
+      : { opacity: 0, scale: 0.96, y: 8 };
+
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm ${className}`}
-          initial={{ opacity: 0 }}
+          className={`fixed inset-0 z-50 flex bg-black/50 backdrop-blur-sm ${
+            isSheet ? "items-end justify-center sm:items-center sm:p-4" : "items-center justify-center p-4"
+          } ${className}`}
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={reduce ? undefined : { opacity: 0 }}
           onClick={closeOnBackdrop ? onClose : undefined}
           role="presentation"
         >
           <motion.div
             ref={panelRef}
-            className={`relative w-full ${sizeClass} overflow-hidden rounded-[var(--radius-2xl)] border border-muted-bright/30 bg-background shadow-[var(--shadow-lg)] outline-none ${panelClassName}`}
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.2 }}
+            className={`relative w-full overflow-hidden bg-background shadow-[var(--shadow-lg)] outline-none ${
+              isSheet
+                ? `max-h-[min(85dvh,32rem)] rounded-t-[var(--radius-2xl)] border-t border-muted-bright/30 sm:max-h-[min(80vh,36rem)] sm:rounded-[var(--radius-2xl)] sm:border ${sizeClass}`
+                : `rounded-[var(--radius-2xl)] border border-muted-bright/30 ${sizeClass}`
+            } ${panelClassName}`}
+            initial={motionInitial}
+            animate={motionAnimate}
+            exit={motionExit}
+            transition={reduce ? { duration: 0 } : { duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"

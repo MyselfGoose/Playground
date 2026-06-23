@@ -40,10 +40,65 @@ function dedupePlayersById(players) {
  *   players: PartyPlayer[],
  *   localUserId?: string | null,
  *   className?: string,
+ *   layout?: 'vertical' | 'horizontal',
  * }} props
  */
-export const PlayerList = memo(function PlayerList({ players, localUserId = null, className = "" }) {
+export const PlayerList = memo(function PlayerList({
+  players,
+  localUserId = null,
+  className = "",
+  layout = "vertical",
+}) {
   const uniquePlayers = useMemo(() => dedupePlayersById(players), [players]);
+
+  if (layout === "horizontal") {
+    return (
+      <ul className={`flex gap-2 overflow-x-auto pb-1 ${className}`}>
+        <AnimatePresence initial={false}>
+          {uniquePlayers.map((p, i) => {
+            const isMe = localUserId != null && p.id === localUserId;
+            const pending = p.presenceStatus === "disconnect_pending";
+            const disconnected = p.presenceStatus === "gone" || (p.connected === false && !pending);
+            return (
+              <motion.li
+                key={p.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: i * 0.03 }}
+                className={`flex min-w-[9rem] shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 ${
+                  pending
+                    ? "border-amber-500/35 bg-amber-500/10"
+                    : disconnected
+                      ? "border-foreground/10 bg-muted-bright/10 opacity-60"
+                      : p.ready
+                        ? "border-accent-mint/40 bg-accent-mint/10"
+                        : "border-foreground/10 bg-background/80"
+                }`}
+              >
+                <Avatar
+                  username={p.name}
+                  src={p.avatarUrl ?? undefined}
+                  emoji={p.avatarEmoji ?? undefined}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {p.name}
+                    {isMe ? <span className="text-foreground/50"> (you)</span> : null}
+                  </p>
+                  <p className="truncate text-[11px] font-semibold text-foreground/55">
+                    {pending ? "Reconnecting…" : disconnected ? "Left" : p.ready ? "Ready" : "Not ready"}
+                  </p>
+                </div>
+              </motion.li>
+            );
+          })}
+        </AnimatePresence>
+      </ul>
+    );
+  }
 
   return (
     <ul className={`space-y-2 ${className}`}>

@@ -56,22 +56,26 @@ export function GameRulesDrawer({ gameId, title, children }) {
     >
       <div
         ref={panelRef}
-        className="w-full max-w-md rounded-[var(--radius-2xl)] border border-muted-bright/50 bg-background p-6 shadow-[var(--shadow-lg)]"
+        className="flex max-h-[min(85dvh,32rem)] w-full max-w-md flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-muted-bright/50 bg-background shadow-[var(--shadow-lg)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`rules-${gameId}-title`}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id={`rules-${gameId}-title`} className="text-xl font-black text-foreground">
+        <h2 id={`rules-${gameId}-title`} className="shrink-0 px-6 pt-6 text-xl font-black text-foreground">
           {title}
         </h2>
-        <div className="mt-4 space-y-2 text-sm font-semibold leading-relaxed text-foreground/80">
-          {children}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-2 text-sm font-semibold leading-relaxed text-foreground/80">
+            {children}
+          </div>
         </div>
-        <Button type="button" variant="primary" className="mt-6 w-full" onClick={dismiss}>
-          Got it
-        </Button>
+        <div className="shrink-0 px-6 pb-6">
+          <Button type="button" variant="primary" size="touch" className="w-full" onClick={dismiss}>
+            Got it
+          </Button>
+        </div>
       </div>
     </div>
   );

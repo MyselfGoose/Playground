@@ -516,6 +516,24 @@
   padding-bottom: max(var(--fibbage-space-3), env(safe-area-inset-bottom));
 }
 
+.fibbage-rank-strip--side {
+  border-top: none;
+  border-left: 1px solid var(--fibbage-card-border);
+  min-width: 14rem;
+  max-width: 16rem;
+  padding-bottom: var(--fibbage-space-3);
+}
+
+@media (max-width: 767px) {
+  .fibbage-rank-strip {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+  }
+}
+
 .fibbage-rank-item {
   display: flex;
   min-width: 5.75rem;

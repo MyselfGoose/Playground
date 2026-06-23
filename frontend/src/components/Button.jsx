@@ -4,7 +4,13 @@ import { forwardRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-bold transition-[filter,background-color,box-shadow] duration-[var(--motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl text-base font-bold transition-[filter,background-color,box-shadow] duration-[var(--motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+const sizes = {
+  default: "px-6 py-3",
+  touch: "min-h-[var(--touch-target-min)] px-6 py-3.5 text-base",
+  sm: "min-h-9 px-4 py-2 text-sm",
+};
 
 const variants = {
   primary:
@@ -20,7 +26,7 @@ const variants = {
 };
 
 export const Button = forwardRef(function Button(
-  { variant = "primary", className = "", type = "button", ...props },
+  { variant = "primary", size = "default", className = "", type = "button", ...props },
   ref,
 ) {
   const reduce = useReducedMotion();
@@ -31,7 +37,7 @@ export const Button = forwardRef(function Button(
     <motion.button
       ref={ref}
       type={type}
-      className={`${base} ${variants[variant]} ${className}`}
+      className={`${base} ${sizes[size] ?? sizes.default} ${variants[variant]} ${className}`}
       whileHover={reduce || !useMotionHover ? undefined : { scale: 1.02 }}
       whileTap={reduce ? undefined : { scale: 0.98 }}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
