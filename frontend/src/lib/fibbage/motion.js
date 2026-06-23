@@ -81,10 +81,29 @@ export function scorePop(reduce = false) {
     };
   }
   return {
-    initial: { opacity: 0, y: 4 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -4 },
-    transition: { duration: MOTION_NORMAL_SEC, ease: FIBBAGE_EASE },
+    initial: { opacity: 0, y: 8, scale: 0.85 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: -6, scale: 0.95 },
+    transition: { duration: 0.35, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Amplified score burst for point reveals.
+ * @param {boolean} reduce
+ */
+export function scoreBurst(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, scale: 1 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, scale: 0.5, y: 12 },
+    animate: { opacity: 1, scale: [0.5, 1.2, 1], y: 0 },
+    transition: { duration: 0.5, ease: FIBBAGE_EASE },
   };
 }
 
@@ -161,9 +180,9 @@ export function revealCard(reduce = false, _spotlight = false) {
     };
   }
   return {
-    initial: false,
-    animate: { opacity: 1 },
-    transition: { duration: 0.2, ease: FIBBAGE_EASE },
+    initial: { opacity: 0, scale: 0.96, y: 8 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    transition: { duration: 0.35, ease: FIBBAGE_EASE },
   };
 }
 
@@ -179,9 +198,9 @@ export function truthReveal(reduce = false) {
     };
   }
   return {
-    initial: false,
-    animate: { opacity: 1 },
-    transition: { duration: 0.28, ease: FIBBAGE_EASE },
+    initial: { opacity: 0, scale: 0.94 },
+    animate: { opacity: 1, scale: [0.94, 1.03, 1] },
+    transition: { duration: 0.45, ease: FIBBAGE_EASE },
   };
 }
 
@@ -198,9 +217,68 @@ export function revealBeat(reduce = false) {
     };
   }
   return {
-    initial: { opacity: 0, y: 6 },
+    initial: { opacity: 0, y: 14 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.26, ease: FIBBAGE_EASE },
+    transition: { duration: 0.32, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Voter chip stagger entrance.
+ * @param {number} index
+ * @param {boolean} reduce
+ */
+export function voterStagger(index = 0, reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, scale: 1 },
+      transition: { delay: index * 0.02 },
+    };
+  }
+  return {
+    initial: { opacity: 0, scale: 0.8, x: -8 },
+    animate: { opacity: 1, scale: 1, x: 0 },
+    transition: { delay: index * 0.08, duration: 0.28, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Rank change arrow pop.
+ * @param {boolean} reduce
+ */
+export function rankPop(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, scale: 0.5, y: 4 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    transition: { duration: 0.35, type: "spring", stiffness: 400, damping: 18 },
+  };
+}
+
+/**
+ * Podium entrance.
+ * @param {number} index
+ * @param {boolean} reduce
+ */
+export function podiumEnter(index = 0, reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, y: 0 },
+      transition: { delay: index * 0.05 },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 40, scale: 0.9 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    transition: { delay: 0.15 + index * 0.12, duration: 0.55, ease: FIBBAGE_EASE },
   };
 }
 
@@ -240,10 +318,10 @@ export function recapCard(reduce = false, isFirst = false) {
     };
   }
   return {
-    initial: isFirst ? false : { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.28, ease: FIBBAGE_EASE },
+    initial: isFirst ? false : { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -8 },
+    transition: { duration: 0.32, ease: FIBBAGE_EASE },
   };
 }
 
@@ -268,19 +346,39 @@ export function crossfade(reduce = false) {
   };
 }
 
+/**
+ * Shared prompt bridge across phases.
+ * @param {string} layoutId
+ * @param {boolean} reduce
+ */
+export function promptBridge(layoutId, reduce = false) {
+  if (reduce) {
+    return { layoutId };
+  }
+  return {
+    layoutId,
+    transition: { duration: 0.35, ease: FIBBAGE_EASE },
+  };
+}
+
 export const fibbageMotion = {
   phaseEnter,
   sectionEnter,
   cardStagger,
   scorePop,
+  scoreBurst,
   feedbackFlash,
   routeTransition,
   hostLabel,
   revealCard,
   truthReveal,
   revealBeat,
+  voterStagger,
+  rankPop,
+  podiumEnter,
   contentExpand,
   recapCard,
   crossfade,
+  promptBridge,
   feedbackOverlay: feedbackMotion.overlay,
 };

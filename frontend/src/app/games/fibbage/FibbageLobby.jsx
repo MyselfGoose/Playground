@@ -244,10 +244,8 @@ function FibbageSettingsPanel({ settings, advancedOpen, onAdvancedToggle, onPres
               key={id}
               type="button"
               onClick={() => onPresetSelect(id)}
-              className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                selected
-                  ? "fibbage-card--selected border-2 border-[var(--fibbage-accent)] bg-[var(--fibbage-canvas)]"
-                  : "bg-[var(--fibbage-canvas)] text-[var(--fibbage-text)] hover:bg-[var(--fibbage-canvas-light)]"
+              className={`fibbage-preset-card ${
+                selected ? "fibbage-preset-card--selected" : ""
               } ${isBlitz && selected ? "text-[var(--fibbage-cta)]" : ""}`}
             >
               {isBlitz ? "⚡ " : ""}

@@ -57,15 +57,25 @@ export function FibbageEntry() {
   const busy = creating || joining;
   const displayError = error || socketError;
   const pageMotion = sectionEnter(reduce, 0);
+  const codeValid = joinCode.trim().length === 4;
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center px-4 py-12">
-      <motion.div className="w-full max-w-md space-y-8" {...pageMotion}>
+      <motion.div className="w-full max-w-lg space-y-8" {...pageMotion}>
         <header className="text-center">
-          <h1 className="text-4xl font-black tracking-tight text-[var(--fibbage-accent-glow)]">
+          <motion.span
+            className="mb-4 inline-block text-5xl"
+            initial={reduce ? false : { opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            aria-hidden
+          >
+            🎭
+          </motion.span>
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl fibbage-title-gradient">
             Fibbage
           </h1>
-          <p className="mt-2 fibbage-body">
+          <p className="mt-3 fibbage-body text-base">
             Write lies. Fool your friends. Find the truth.
           </p>
         </header>
@@ -76,7 +86,7 @@ export function FibbageEntry() {
               initial={reduce ? false : { opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, y: -4 }}
-              className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-center text-sm font-semibold text-error"
+              className="rounded-xl border border-[var(--fibbage-lie)]/30 bg-[var(--fibbage-lie-soft)] px-4 py-3 text-center text-sm font-semibold text-[var(--fibbage-lie)]"
             >
               {displayError}
             </motion.p>
@@ -86,24 +96,24 @@ export function FibbageEntry() {
         <div className="grid gap-6 sm:grid-cols-2">
           <motion.div
             className="fibbage-card flex flex-col items-center gap-4 p-6"
-            whileHover={reduce ? undefined : { scale: 1.02 }}
+            whileHover={reduce ? undefined : { scale: 1.02, y: -2 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
-            <h2 className="text-lg font-bold text-[var(--fibbage-text)]">New Game</h2>
+            <h2 className="fibbage-display text-lg">New Game</h2>
             <p className="text-center fibbage-micro">
               Create a room and invite your friends
             </p>
-            <FibbageButton className="w-full" disabled={busy || !connected} pending={creating} onClick={handleCreate}>
+            <FibbageButton className="w-full rounded-full" disabled={busy || !connected} pending={creating} onClick={handleCreate}>
               {creating ? "Creating…" : "Create Room"}
             </FibbageButton>
           </motion.div>
 
           <motion.div
             className="fibbage-card flex flex-col items-center gap-4 p-6"
-            whileHover={reduce ? undefined : { scale: 1.02 }}
+            whileHover={reduce ? undefined : { scale: 1.02, y: -2 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
-            <h2 className="text-lg font-bold text-[var(--fibbage-text)]">Join Game</h2>
+            <h2 className="fibbage-display text-lg">Join Game</h2>
             <p className="text-center fibbage-micro">
               Enter a room code to join
             </p>
@@ -114,11 +124,13 @@ export function FibbageEntry() {
               onKeyDown={handleKeyDown}
               placeholder="ABCD"
               maxLength={4}
-              className="fibbage-input text-center text-lg font-bold uppercase tracking-widest placeholder:text-[var(--fibbage-text-muted)]/50"
+              className={`fibbage-input text-center text-lg font-bold uppercase tracking-[0.3em] placeholder:text-[var(--fibbage-text-faint)] ${
+                codeValid ? "border-[var(--fibbage-accent)] shadow-[0_0_0_3px_var(--fibbage-accent-soft)]" : ""
+              }`}
               aria-label="Room code"
             />
             <FibbageButton
-              className="w-full"
+              className="w-full rounded-full"
               disabled={busy || !connected || !joinCode.trim()}
               pending={joining}
               onClick={handleJoin}

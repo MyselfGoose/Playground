@@ -1,8 +1,52 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "../../../../components/Avatar.jsx";
+
+/**
+ * Animated count-up for score rail.
+ * @param {{ value: number, reduce: boolean, className?: string }} props
+ */
+function RailScore({ value, reduce, className = "" }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (reduce || prevRef.current === value) {
+      prevRef.current = value;
+      setDisplay(value);
+      return undefined;
+    }
+    const start = prevRef.current;
+    const diff = value - start;
+    if (diff === 0) return undefined;
+
+    const duration = 450;
+    const startTime = performance.now();
+    let frame = 0;
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      setDisplay(Math.round(start + diff * eased));
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        prevRef.current = value;
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, reduce]);
+
+  return (
+    <span className={className} aria-live="polite">
+      {display}
+    </span>
+  );
+}
 
 /**
  * @param {{ players: Array<{ userId: string, username: string, avatarUrl?: string | null, avatarEmoji?: string | null, score?: number }> }} props
@@ -13,13 +57,14 @@ export function FibbageScoreRail({ players }) {
   const leaderId = sorted[0]?.userId ?? null;
 
   return (
-    <aside className="border-t border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas-light)] px-4 py-3">
-      <p className="mb-2 fibbage-micro uppercase tracking-wide">Scores</p>
-      <div className="flex gap-3 overflow-x-auto pb-1">
+    <aside className="fibbage-rank-strip">
+      <p className="mb-2 fibbage-micro uppercase tracking-wide">Leaderboard</p>
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {sorted.map((player, index) => (
           <ScoreRailItem
             key={player.userId}
             player={player}
+            rank={index + 1}
             isLeader={player.userId === leaderId && (player.score ?? 0) > 0}
             index={index}
             reduce={reduce}
@@ -33,12 +78,13 @@ export function FibbageScoreRail({ players }) {
 /**
  * @param {{
  *   player: { userId: string, username: string, avatarUrl?: string | null, avatarEmoji?: string | null, score?: number },
+ *   rank: number,
  *   isLeader: boolean,
  *   index: number,
  *   reduce: boolean,
  * }} props
  */
-function ScoreRailItem({ player, isLeader, index, reduce }) {
+function ScoreRailItem({ player, rank, isLeader, index, reduce }) {
   const score = player.score ?? 0;
   const prevScoreRef = useRef(score);
   const flashRef = useRef(/** @type {HTMLSpanElement | null} */ (null));
@@ -58,22 +104,24 @@ function ScoreRailItem({ player, isLeader, index, reduce }) {
 
   return (
     <motion.div
-      className={`flex min-w-[5.5rem] flex-col items-center gap-1 rounded-lg px-3 py-2 ${
-        isLeader
-          ? "border border-[var(--fibbage-gold)]/40 bg-[var(--fibbage-canvas)]"
-          : "bg-[var(--fibbage-canvas)]"
-      }`}
+      className={`fibbage-rank-item ${isLeader ? "fibbage-rank-item--leader" : ""}`}
       initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.22 }}
     >
+      <span className="fibbage-rank-item__position">
+        {isLeader ? "👑" : `#${rank}`}
+      </span>
       <Avatar
         username={player.username}
         avatarUrl={player.avatarUrl}
         avatarEmoji={player.avatarEmoji}
         size="sm"
       />
-      <span className="max-w-[5rem] truncate text-xs font-semibold text-[var(--fibbage-text)]">
+      <span
+        className="max-w-[5.5rem] truncate text-xs font-semibold text-[var(--fibbage-text)]"
+        title={player.username}
+      >
         {player.username}
       </span>
       <span
@@ -81,7 +129,7 @@ function ScoreRailItem({ player, isLeader, index, reduce }) {
         className="text-sm font-black text-[var(--fibbage-gold)]"
         aria-live="polite"
       >
-        {score}
+        <RailScore value={score} reduce={reduce} />
       </span>
     </motion.div>
   );

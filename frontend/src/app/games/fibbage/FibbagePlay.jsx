@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFibbage } from "../../../lib/fibbage/FibbageSocketContext.jsx";
@@ -31,7 +31,7 @@ export function FibbagePlay() {
 function FibbagePlayInner() {
   const router = useRouter();
   const { room, leaveRoom, roomUpdateReason } = useFibbage();
-  const { message: feedbackMessage, flash } = useFibbageFeedback();
+  const { message: feedbackMessage, feedback, flash } = useFibbageFeedback();
   const game = room?.game;
   const status = game?.status;
   const lastReasonRef = useRef(/** @type {string | null} */ (null));
@@ -40,9 +40,9 @@ function FibbagePlayInner() {
     if (!roomUpdateReason || roomUpdateReason === lastReasonRef.current) return;
     lastReasonRef.current = roomUpdateReason;
     if (roomUpdateReason === "writing_complete") {
-      flash("Everyone's in!");
+      flash("Everyone's in!", "win");
     } else if (roomUpdateReason === "voting_complete") {
-      flash("All votes are in!");
+      flash("All votes are in!", "vote");
     }
   }, [roomUpdateReason, flash]);
 
@@ -68,10 +68,16 @@ function FibbagePlayInner() {
       <FibbagePlayHeader onLeave={requestLeave} />
       <FibbageHost status={status} />
       <main className="flex-1 px-4 py-4">
-        <PhaseContent status={status} />
+        <LayoutGroup id="fibbage-play">
+          <PhaseContent status={status} />
+        </LayoutGroup>
       </main>
       <FibbageScoreRail players={room?.players ?? []} />
-      <FibbageFeedbackOverlay message={feedbackMessage} show={Boolean(feedbackMessage)} />
+      <FibbageFeedbackOverlay
+        message={feedback?.message ?? feedbackMessage}
+        type={feedback?.type ?? "default"}
+        show={Boolean(feedback?.message ?? feedbackMessage)}
+      />
 
       <LeaveLobbyDialog
         open={leaveConfirmOpen}

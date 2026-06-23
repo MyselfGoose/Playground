@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { FibbageButton } from "./FibbageButton.jsx";
+import { Modal } from "../../../../components/ui/Modal.jsx";
 
 /**
  * @param {{ phase: 'writing' | 'voting' }} props
@@ -60,36 +61,29 @@ export function FibbagePhaseSkipButton({ phase }) {
         <span className="text-xs font-semibold text-[var(--fibbage-lie)]">{error}</span>
       ) : null}
 
-      {confirmOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="skip-phase-title"
-        >
-          <div className="fibbage-card max-w-sm space-y-4 p-6">
-            <h3 id="skip-phase-title" className="text-lg font-bold text-[var(--fibbage-text)]">
-              Skip waiting?
-            </h3>
-            <p className="fibbage-body">
-              Skip waiting for remaining players? They won&apos;t {phase === "writing" ? "submit" : "vote"} this round.
-            </p>
-            <div className="flex gap-3">
-              <FibbageButton
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setConfirmOpen(false)}
-                disabled={pending}
-              >
-                Cancel
-              </FibbageButton>
-              <FibbageButton className="flex-1" pending={pending} onClick={() => void handleSkip()}>
-                Skip
-              </FibbageButton>
-            </div>
-          </div>
+      <Modal
+        open={confirmOpen}
+        onClose={() => !pending && setConfirmOpen(false)}
+        title="Skip waiting?"
+        description={`Skip waiting for remaining players? They won't ${phase === "writing" ? "submit" : "vote"} this round.`}
+        size="sm"
+        showCloseButton={false}
+        panelClassName="fibbage-card border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas-light)]"
+      >
+        <div className="flex gap-3">
+          <FibbageButton
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setConfirmOpen(false)}
+            disabled={pending}
+          >
+            Cancel
+          </FibbageButton>
+          <FibbageButton className="flex-1" pending={pending} onClick={() => void handleSkip()}>
+            Skip
+          </FibbageButton>
         </div>
-      ) : null}
+      </Modal>
     </div>
   );
 }

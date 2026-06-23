@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useFibbage } from "../../../../lib/fibbage/FibbageSocketContext.jsx";
 import { useFibbageFeedback } from "../../../../lib/fibbage/FibbageFeedbackContext.jsx";
 import { usePhaseCountdown } from "../../../../lib/fibbage/usePhaseCountdown.js";
-import { sectionEnter } from "../../../../lib/fibbage/motion.js";
+import { cardStagger, sectionEnter } from "../../../../lib/fibbage/motion.js";
 import { waitingForLabel } from "../fibbage-waiting.js";
 import { FibbageTimerBar } from "./FibbageTimerBar.jsx";
 import { FibbageButton } from "./FibbageButton.jsx";
@@ -41,6 +41,8 @@ export function FibbageWritingPanel() {
   const allSubmitted =
     activePlayers.length > 0 && waitingFor.length === 0 && game?.status === "writing";
   const waitLabel = waitingForLabel(waitingFor);
+  const charPct = (text.length / FIBBAGE_LIE_MAX_LENGTH) * 100;
+  const promptText = game?.prompt?.text ?? "";
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || pending || !text.trim()) return;
@@ -52,7 +54,7 @@ export function FibbageWritingPanel() {
         setError(result.error?.message ?? "Could not submit lie.");
       } else {
         setText("");
-        flash("Lie submitted!");
+        flash("Lie submitted!", "fool");
       }
     } catch {
       setError("Could not submit lie.");
@@ -72,18 +74,22 @@ export function FibbageWritingPanel() {
       };
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6 pb-24 sm:pb-6">
       <motion.div className="fibbage-card text-center" {...panelMotion}>
         <p className="fibbage-body">Fill in the blank with a convincing lie</p>
-        <p className="mt-3 text-xl font-bold leading-relaxed text-[var(--fibbage-text)]">
-          {game?.prompt?.text}
-        </p>
+        <motion.p
+          className="mt-3 fibbage-prompt-hero"
+          layoutId="fibbage-prompt"
+          transition={{ duration: reduce ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {promptText}
+        </motion.p>
       </motion.div>
 
       <AnimatePresence mode="wait">
         {submitted ? (
           <motion.div key="waiting" className="fibbage-card text-center" {...swapMotion}>
-            <p className="font-bold text-[var(--fibbage-accent)]">Lie submitted!</p>
+            <p className="font-bold text-[var(--fibbage-accent-glow)]">Lie submitted!</p>
             {waitLabel ? (
               <p className="mt-2 fibbage-body">{waitLabel}</p>
             ) : null}
@@ -115,11 +121,15 @@ export function FibbageWritingPanel() {
               rows={3}
               disabled={!canSubmit || pending}
               placeholder="Make it believable…"
-              className="fibbage-input"
+              className="fibbage-input fibbage-input--creative"
             />
+            <div className="fibbage-char-meter" aria-hidden>
+              <div className="fibbage-char-meter__fill" style={{ width: `${charPct}%` }} />
+            </div>
             <div className="flex items-center justify-between gap-3">
               <span className="fibbage-micro">{text.length}/{FIBBAGE_LIE_MAX_LENGTH}</span>
               <FibbageButton
+                className={text.trim() ? "rounded-full" : ""}
                 disabled={!canSubmit || !text.trim()}
                 pending={pending}
                 onClick={() => void handleSubmit()}
@@ -150,7 +160,7 @@ export function FibbageWritingPanel() {
           totalSeconds={writingSeconds}
           accelerating={allSubmitted}
           urgent={room?.settings?.presetId === "blitz"}
-          className="mx-auto flex-1"
+          className="flex-1 max-w-md"
         />
       </div>
 

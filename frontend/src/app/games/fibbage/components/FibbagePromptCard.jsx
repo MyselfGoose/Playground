@@ -28,6 +28,8 @@ export function FibbagePromptReveal() {
   const totalSeconds = isStarting ? 3 : 4;
   const secondsRemaining = usePhaseCountdown(game?.phaseEndsAt, totalSeconds);
   const sectionMotion = sectionEnter(reduce);
+  const isFinalRound = game?.round === room?.settings?.roundCount;
+  const multiplier = game?.roundMultiplier ?? 1;
 
   const countdownIndex =
     isStarting && !reduce
@@ -47,11 +49,23 @@ export function FibbagePromptReveal() {
         {isStarting ? "Round starting" : "The prompt is"}
       </p>
 
+      {isFinalRound && multiplier > 1 ? (
+        <motion.p
+          className="rounded-full border border-[var(--fibbage-gold)]/40 bg-[var(--fibbage-gold)]/10 px-4 py-1 text-sm font-bold text-[var(--fibbage-gold)]"
+          initial={reduce ? false : { opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: [0.8, 1.1, 1] }}
+          transition={{ duration: 0.5 }}
+        >
+          Final round — {multiplier}× points!
+        </motion.p>
+      ) : null}
+
       {isStarting ? (
         <AnimatePresence mode="wait">
           <motion.p
             key={reduce ? "go" : countdownLabel}
-            className="text-[min(20vw,5rem)] font-black tabular-nums leading-none text-[var(--fibbage-accent-glow)]"
+            className="font-display text-[min(20vw,5rem)] font-black tabular-nums leading-none text-[var(--fibbage-accent-glow)]"
+            style={{ fontFamily: "var(--fibbage-font-display)" }}
             {...(reduce ? gameFeelMotion.countdownStepReduced : gameFeelMotion.countdownStep)}
           >
             {reduce ? "GO" : countdownLabel}
@@ -60,6 +74,7 @@ export function FibbagePromptReveal() {
       ) : (
         <motion.h2
           className="fibbage-display leading-relaxed"
+          layoutId="fibbage-prompt"
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.35 }}
@@ -71,7 +86,7 @@ export function FibbagePromptReveal() {
       <FibbageTimerBar
         secondsRemaining={secondsRemaining}
         totalSeconds={totalSeconds}
-        className="mx-auto"
+        className="w-full max-w-md"
       />
     </motion.div>
   );

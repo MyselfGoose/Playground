@@ -5,22 +5,40 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { play } from "../../../../lib/sound/soundManager.js";
 import { feedbackFlash } from "../../../../lib/fibbage/motion.js";
 
+/** @typedef {'success' | 'vote' | 'fool' | 'truth' | 'win' | 'default'} FibbageCelebrationType */
+
+const SOUND_BY_TYPE = {
+  success: "success",
+  vote: "vote",
+  fool: "fool",
+  truth: "truth",
+  win: "win",
+  default: "success",
+};
+
 /**
- * Flash overlay that fades out.
- * @param {{ message?: string | null, show?: boolean }} props
+ * Contextual celebration overlay with typed styling and sounds.
+ * @param {{ message?: string | null, type?: FibbageCelebrationType, show?: boolean }} props
  */
-export function FibbageFeedbackOverlay({ message = null, show = false }) {
+export function FibbageFeedbackOverlay({
+  message = null,
+  type = "default",
+  show = false,
+}) {
   const reduce = useReducedMotion();
   const visible = show || Boolean(message);
   const lastPlayedRef = useRef(/** @type {string | null} */ (null));
   const motionProps = feedbackFlash(reduce);
+  const celebrationType = type === "default" ? "success" : type;
+  const soundId = SOUND_BY_TYPE[celebrationType] ?? "success";
 
   useEffect(() => {
     if (!visible || !message) return;
-    if (lastPlayedRef.current === message) return;
-    lastPlayedRef.current = message;
-    play("success");
-  }, [visible, message]);
+    const key = `${message}:${celebrationType}`;
+    if (lastPlayedRef.current === key) return;
+    lastPlayedRef.current = key;
+    play(soundId);
+  }, [visible, message, celebrationType, soundId]);
 
   useEffect(() => {
     if (!visible) lastPlayedRef.current = null;
@@ -30,13 +48,12 @@ export function FibbageFeedbackOverlay({ message = null, show = false }) {
     <AnimatePresence>
       {visible && message ? (
         <motion.div
-          key={message}
-          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+          key={`${message}-${celebrationType}`}
+          className={`fibbage-celebration fibbage-celebration--${celebrationType}`}
+          aria-hidden="true"
           {...motionProps}
         >
-          <p className="rounded-2xl border border-[var(--fibbage-gold)]/30 bg-[var(--fibbage-canvas)]/95 px-8 py-4 text-xl font-black uppercase tracking-wider text-[var(--fibbage-gold)] shadow-[var(--fibbage-card-shadow-selected)]">
-            {message}
-          </p>
+          <p className="fibbage-celebration__card">{message}</p>
         </motion.div>
       ) : null}
     </AnimatePresence>

@@ -56,7 +56,7 @@ export const GAMES = [
     title: "Fibbage",
     description: "Write a lie, fool your friends, spot the truth.",
     emoji: "🎭",
-    accent: "sky",
+    accent: "lavender",
   },
 ];
 

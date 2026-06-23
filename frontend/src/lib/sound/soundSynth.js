@@ -59,7 +59,53 @@ export function playSuccessChime() {
   }
 }
 
+/** Lower mischievous tone for fooling someone. */
+export function playFoolSting() {
+  const ctx = getContext();
+  if (!ctx) return;
+  void ctx.resume().catch(() => {});
+  const t0 = ctx.currentTime;
+  playTone(ctx, 311.13, t0, 0.18, 0.1);
+  playTone(ctx, 392.0, t0 + 0.1, 0.2, 0.09);
+}
+
+/** Ascending mint chime for finding the truth. */
+export function playTruthSting() {
+  const ctx = getContext();
+  if (!ctx) return;
+  void ctx.resume().catch(() => {});
+  const t0 = ctx.currentTime;
+  playTone(ctx, 440.0, t0, 0.15, 0.09);
+  playTone(ctx, 554.37, t0 + 0.08, 0.18, 0.1);
+  playTone(ctx, 659.25, t0 + 0.16, 0.22, 0.11);
+}
+
+/** Quick tick for vote cast. */
+export function playVoteTick() {
+  const ctx = getContext();
+  if (!ctx) return;
+  void ctx.resume().catch(() => {});
+  const t0 = ctx.currentTime;
+  playTone(ctx, 698.46, t0, 0.08, 0.07);
+}
+
+/** Fanfare for round win / game over. */
+export function playWinFanfare() {
+  const ctx = getContext();
+  if (!ctx) return;
+  void ctx.resume().catch(() => {});
+  const t0 = ctx.currentTime;
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  for (let i = 0; i < notes.length; i += 1) {
+    playTone(ctx, notes[i], t0 + i * 0.1, 0.28, 0.11);
+  }
+}
+
 /** @type {Record<string, () => void>} */
 export const SYNTH_BY_EVENT = {
   success: playSuccessChime,
+  vote: playVoteTick,
+  fool: playFoolSting,
+  truth: playTruthSting,
+  win: playWinFanfare,
 };
