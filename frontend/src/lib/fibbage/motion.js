@@ -205,6 +205,92 @@ export function truthReveal(reduce = false) {
 }
 
 /**
+ * Smooth enter/exit for reveal sub-sections (author, voters, points).
+ * @param {boolean} reduce
+ */
+export function revealSection(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 10, filter: "blur(4px)" },
+    animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+    exit: { opacity: 0, y: -6, filter: "blur(2px)" },
+    transition: { duration: 0.38, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Card swap between answers during per_answer reveal.
+ * @param {boolean} reduce
+ */
+export function revealCardSwap(reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 20, scale: 0.97 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: -16, scale: 0.98 },
+    transition: { duration: 0.42, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Vote summary bar fill.
+ * @param {number} delay
+ * @param {boolean} reduce
+ */
+export function voteBarFill(delay = 0, reduce = false) {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { scaleX: 1 },
+      transition: { delay },
+    };
+  }
+  return {
+    initial: { scaleX: 0 },
+    animate: { scaleX: 1 },
+    transition: { delay, duration: 0.65, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
+ * Recap carousel slide.
+ * @param {boolean} reduce
+ * @param {'left' | 'right'} direction
+ */
+export function recapSlide(reduce = false, direction = "right") {
+  if (reduce) {
+    return {
+      initial: false,
+      animate: { opacity: 1, x: 0 },
+      exit: { opacity: 0 },
+      transition: { duration: MOTION_FAST_SEC },
+    };
+  }
+  const enterX = direction === "right" ? 24 : -24;
+  const exitX = direction === "right" ? -24 : 24;
+  return {
+    initial: { opacity: 0, x: enterX },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: exitX },
+    transition: { duration: 0.32, ease: FIBBAGE_EASE },
+  };
+}
+
+/**
  * Staggered reveal beat (author, voters, points) — slide up + fade.
  * @param {boolean} reduce
  */
@@ -372,12 +458,16 @@ export const fibbageMotion = {
   hostLabel,
   revealCard,
   truthReveal,
+  revealSection,
+  revealCardSwap,
+  voteBarFill,
   revealBeat,
   voterStagger,
   rankPop,
   podiumEnter,
   contentExpand,
   recapCard,
+  recapSlide,
   crossfade,
   promptBridge,
   feedbackOverlay: feedbackMotion.overlay,

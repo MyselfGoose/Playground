@@ -64,6 +64,9 @@ export const FIBBAGE_REVEAL_VOTERS_MS = 1100;
 export const FIBBAGE_REVEAL_VOTERS_EMPTY_MS = 280;
 export const FIBBAGE_REVEAL_POINTS_MS = 900;
 
+/** Pause after all answers revealed, before scoring */
+export const FIBBAGE_REVEAL_COMPLETE_MS = 5000;
+
 /** Scoring phase — adaptive bounds */
 export const FIBBAGE_SCORING_MS_MIN = 3000;
 export const FIBBAGE_SCORING_MS_DEFAULT = 6000;

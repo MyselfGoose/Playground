@@ -228,7 +228,6 @@ export function FibbageScoreboard() {
               highlights={highlights}
               players={room?.players ?? []}
               onComplete={handleRecapComplete}
-              stacked={highlights.length <= 2}
             />
           ) : null}
 

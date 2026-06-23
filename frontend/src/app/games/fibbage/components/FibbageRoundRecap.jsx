@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { recapCard } from "../../../../lib/fibbage/motion.js";
+import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { recapSlide } from "../../../../lib/fibbage/motion.js";
 import { Avatar } from "../../../../components/Avatar.jsx";
 
 const ACCENT_CLASSES = {
@@ -13,100 +14,117 @@ const ACCENT_CLASSES = {
   muted: "border-[var(--fibbage-text-muted)]/30",
 };
 
-const RECAP_CARD_DWELL_MS = 1200;
-const RECAP_LAST_CARD_PAUSE_MS = 300;
-const RECAP_STACK_DWELL_MS = 2200;
-
 /**
  * @param {{
  *   highlights: Array<{ id: string, title: string, body: string, userIds: string[], accent: string }>,
  *   players: Array<{ userId: string, username: string, avatarUrl?: string | null, avatarEmoji?: string | null }>,
  *   onComplete?: () => void,
- *   stacked?: boolean,
  * }} props
  */
-export function FibbageRoundRecap({ highlights, players, onComplete, stacked = false }) {
+export function FibbageRoundRecap({ highlights, players, onComplete }) {
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
-  const onCompleteRef = useRef(onComplete);
-  const highlightsKeyRef = useRef("");
-
-  onCompleteRef.current = onComplete;
+  const [direction, setDirection] = useState(/** @type {'left' | 'right'} */ ("right"));
 
   const playerMap = new Map(players.map((p) => [p.userId, p]));
-
-  const finish = useCallback(() => {
-    onCompleteRef.current?.();
-  }, []);
-
   const highlightsKey = highlights.map((h) => h.id).join(",");
+  const total = highlights.length;
+  const canGoPrev = index > 0;
+  const canGoNext = index < total - 1;
 
   useEffect(() => {
-    if (highlightsKey !== highlightsKeyRef.current) {
-      highlightsKeyRef.current = highlightsKey;
-      setIndex(0);
-    }
+    setIndex(0);
+    setDirection("right");
   }, [highlightsKey]);
 
   useEffect(() => {
-    if (!highlights.length) return undefined;
+    onComplete?.();
+  }, [onComplete]);
 
-    if (reduce || stacked) {
-      const dwell = stacked ? RECAP_STACK_DWELL_MS : 0;
-      if (dwell === 0) {
-        const frame = requestAnimationFrame(() => finish());
-        return () => cancelAnimationFrame(frame);
-      }
-      const timer = window.setTimeout(() => finish(), dwell);
-      return () => window.clearTimeout(timer);
-    }
+  const goPrev = useCallback(() => {
+    if (!canGoPrev) return;
+    setDirection("left");
+    setIndex((i) => i - 1);
+  }, [canGoPrev]);
 
-    const isLast = index >= highlights.length - 1;
-    const dwell = isLast ? RECAP_CARD_DWELL_MS + RECAP_LAST_CARD_PAUSE_MS : RECAP_CARD_DWELL_MS;
-
-    const timer = window.setTimeout(() => {
-      if (isLast) {
-        finish();
-        return;
-      }
-      setIndex((prev) => prev + 1);
-    }, dwell);
-
-    return () => window.clearTimeout(timer);
-  }, [index, highlights.length, reduce, stacked, finish]);
+  const goNext = useCallback(() => {
+    if (!canGoNext) return;
+    setDirection("right");
+    setIndex((i) => i + 1);
+  }, [canGoNext]);
 
   if (!highlights.length) return null;
 
-  if (reduce || stacked) {
+  const current = highlights[Math.min(index, total - 1)];
+
+  if (total === 1) {
     return (
-      <div
-        className="fibbage-recap-stack space-y-3"
-        aria-live="polite"
-        aria-label="Round highlights"
-      >
-        {highlights.map((h, i) => (
-          <motion.div
-            key={h.id}
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.22 }}
-          >
-            <RecapCard highlight={h} playerMap={playerMap} compact={stacked && highlights.length > 1} />
-          </motion.div>
-        ))}
+      <div className="min-h-[8rem]" aria-live="polite" aria-label="Round highlights">
+        <RecapCard highlight={current} playerMap={playerMap} />
       </div>
     );
   }
 
-  const current = highlights[Math.min(index, highlights.length - 1)];
-
   return (
     <div className="min-h-[8rem]" aria-live="polite" aria-label="Round highlights">
-      <AnimatePresence mode="wait">
-        <motion.div key={`${current.id}-${index}`} {...recapCard(reduce, index === 0)}>
-          <RecapCard highlight={current} playerMap={playerMap} />
-        </motion.div>
-      </AnimatePresence>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={!canGoPrev}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas)] text-[var(--fibbage-text)] transition-colors hover:border-[var(--fibbage-accent)] disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Previous highlight"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={`${current.id}-${index}`}
+              custom={direction}
+              {...recapSlide(reduce, direction)}
+            >
+              <RecapCard highlight={current} playerMap={playerMap} />
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <button
+          type="button"
+          onClick={goNext}
+          disabled={!canGoNext}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--fibbage-card-border)] bg-[var(--fibbage-canvas)] text-[var(--fibbage-text)] transition-colors hover:border-[var(--fibbage-accent)] disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Next highlight"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="mt-4 flex items-center justify-center gap-2" role="tablist" aria-label="Highlight navigation">
+        {highlights.map((h, i) => (
+          <button
+            key={h.id}
+            type="button"
+            role="tab"
+            aria-selected={i === index}
+            aria-label={`Highlight ${i + 1} of ${total}`}
+            onClick={() => {
+              setDirection(i > index ? "right" : "left");
+              setIndex(i);
+            }}
+            className={`h-2 rounded-full transition-all ${
+              i === index
+                ? "w-6 bg-[var(--fibbage-accent)]"
+                : "w-2 bg-[var(--fibbage-text-muted)]/40 hover:bg-[var(--fibbage-text-muted)]/70"
+            }`}
+          />
+        ))}
+      </div>
+
+      <p className="mt-2 text-center fibbage-micro">
+        {index + 1} of {total}
+      </p>
     </div>
   );
 }

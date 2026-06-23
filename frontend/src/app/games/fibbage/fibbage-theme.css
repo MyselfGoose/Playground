@@ -234,11 +234,7 @@
 }
 
 .fibbage-reveal-card {
-  transition:
-    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: none;
 }
 
 .fibbage-reveal-focus-stage {
@@ -309,12 +305,6 @@
   border-radius: 9999px;
   background: linear-gradient(90deg, var(--fibbage-accent), var(--fibbage-gold));
   transform-origin: left;
-  animation: fibbage-bar-grow 0.8s var(--fibbage-ease-out) forwards;
-}
-
-@keyframes fibbage-bar-grow {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
 }
 
 /* Buttons */

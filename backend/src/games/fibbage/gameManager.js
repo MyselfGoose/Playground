@@ -17,6 +17,7 @@ import {
   FIBBAGE_REVEAL_VOTERS_MS,
   FIBBAGE_REVEAL_VOTERS_EMPTY_MS,
   FIBBAGE_REVEAL_POINTS_MS,
+  FIBBAGE_REVEAL_COMPLETE_MS,
   FIBBAGE_SCORING_MS_MIN,
   FIBBAGE_SCORING_MS_DEFAULT,
   FIBBAGE_POINTS_FOOL,
@@ -515,6 +516,12 @@ function advanceRevealStep(room, now) {
         return 'reveal_step';
       }
 
+      reveal.step = 'complete';
+      reveal.subStep = null;
+      return 'reveal_complete';
+    }
+
+    case 'complete': {
       game.status = 'scoring';
       game.phaseEndsAt = now + getScoringPhaseMs(game);
       game.reveal = null;
@@ -609,6 +616,7 @@ function getLieFoolPointsForAuthor(game, authorUserId, answerId) {
  */
 function getRevealSubStepMs(game, reveal) {
   if (reveal.step === 'votes_summary') return FIBBAGE_REVEAL_VOTES_SUMMARY_MS;
+  if (reveal.step === 'complete') return FIBBAGE_REVEAL_COMPLETE_MS;
 
   if (reveal.step === 'per_answer') {
     const answer = game.answers[reveal.answerIndex];
@@ -1216,6 +1224,17 @@ function buildRevealAnswers(game, reveal) {
       isTruth: false,
       voteCount: getVotersForAnswer(game, a.answerId).length,
       voters: [],
+    }));
+  }
+
+  if (reveal.step === 'complete') {
+    return game.answers.map((a) => ({
+      answerId: a.answerId,
+      text: a.text,
+      authorUserId: a.isTruth ? null : a.authorUserId,
+      isTruth: a.isTruth,
+      voteCount: getVotersForAnswer(game, a.answerId).length,
+      voters: getVotersForAnswer(game, a.answerId),
     }));
   }
 
